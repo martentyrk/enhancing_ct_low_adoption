@@ -10,6 +10,7 @@ from dpfn import constants
 from dpfn import LOGGER_FILENAME, logger
 from dpfn import simulator
 from dpfn import util
+from dpfn import util_wandb
 import os
 import random
 from sklearn import metrics
@@ -50,7 +51,6 @@ def make_inference_func(
   h = cfg["model"]["prob_h"]
   alpha = cfg["model"]["alpha"]
   beta = cfg["model"]["beta"]
-  damping = cfg["model"]["damping"]
   quantization = cfg["model"]["quantization"]
 
   # Construct dynamics
@@ -66,7 +66,6 @@ def make_inference_func(
       p1=p1,
       g_param=g,
       h_param=h,
-      damping=damping,
       quantization=quantization,
       trace_dir=trace_dir)
 
@@ -107,7 +106,6 @@ def compare_prequential_quarantine(
   del observations, trace_dir
 
   num_days_window = cfg["model"]["num_days_window"]
-  damping = cfg["model"]["damping"]
   quantization = cfg["model"]["quantization"]
   threshold_quarantine = cfg["model"]["threshold_quarantine"]
 
@@ -130,8 +128,8 @@ def compare_prequential_quarantine(
   }
 
   logger.info((
-    f"Settings at experiment: {damping:.3f} damping,"
-    f" {quantization:.0f} quant, {threshold_quarantine:.3f} threshold, "
+    f"Settings at experiment: {quantization:.0f} quant, "
+    f"{threshold_quarantine:.3f} threshold, "
     f"conditional testing {do_conditional_testing} at {fraction_test}%"))
 
   # Manual parameters for quarantining
@@ -240,10 +238,12 @@ def compare_prequential_quarantine(
 
       # TODO(rob): Make this faster with Numpy arrays
       contacts_now = np.array(sim.get_contacts(), dtype=np.int32)
+      observations_now = np.array(sim.get_observations_all(), dtype=np.int32)
       comm_world.bcast(contacts_now, root=0)
+      comm_world.bcast(observations_now, root=0)
 
       z_states_inferred = inference_func(
-        sim.get_observations_all(),
+        observations_now,
         contacts_now,
         num_rounds,
         num_days,
@@ -327,25 +327,26 @@ def compare_prequential_quarantine(
   time_pir, pir = np.argmax(infection_rates), np.max(infection_rates)
   logger.info(f"At day {time_pir} peak infection rate is {pir}")
 
-  prequential.dump_results_json(
-    datadir=results_dir,
-    cfg=cfg,
-    ave_prob_inf=ave_prob_inf.tolist(),
-    ave_prob_inf_at_inf=ave_prob_inf_at_inf.tolist(),
-    ave_precision=ave_precision.tolist(),
-    exposed_rates=exposed_rates.tolist(),
-    inference_method=inference_method,
-    infection_rates=infection_rates.tolist(),
-    likelihoods_state=likelihoods_state.tolist(),
-    name=runner.name,
-    num_quarantined=num_quarantined.tolist(),
-    num_tested=num_tested.tolist(),
-    pir=float(pir),
-    precisions=precisions.tolist(),
-    quantization=quantization,
-    recalls=recalls.tolist(),
-    seed=cfg.get("seed", -1),
-  )
+  if mpi_rank == 0:
+    prequential.dump_results_json(
+      datadir=results_dir,
+      cfg=cfg,
+      ave_prob_inf=ave_prob_inf.tolist(),
+      ave_prob_inf_at_inf=ave_prob_inf_at_inf.tolist(),
+      ave_precision=ave_precision.tolist(),
+      exposed_rates=exposed_rates.tolist(),
+      inference_method=inference_method,
+      infection_rates=infection_rates.tolist(),
+      likelihoods_state=likelihoods_state.tolist(),
+      name=runner.name,
+      num_quarantined=num_quarantined.tolist(),
+      num_tested=num_tested.tolist(),
+      pir=float(pir),
+      precisions=precisions.tolist(),
+      quantization=quantization,
+      recalls=recalls.tolist(),
+      seed=cfg.get("seed", -1),
+    )
 
   time_spent = time.time() - t0
 
@@ -405,7 +406,8 @@ def compare_inference_algorithms(
 
   diagnostic = runner if do_diagnosis else None
 
-  logger.info(f"Start inference method {inference_method}")
+  if mpi_rank == 0:
+    logger.info(f"Start inference method {inference_method}")
 
   time_start = time.time()
   z_states_inferred = inference_func(
@@ -436,10 +438,11 @@ def compare_inference_algorithms(
   log_like_obs = prequential.get_evidence_obs(
     observations, z_states_inferred, alpha, beta)
 
-  logger.info((
-    f"{num_rounds:5} rounds for {num_users:10} users in {time_spent:10.2f} "
-    f"seconds with log-like {log_like:10.2f}/{log_like_obs:10.2f} nats "
-    f"and AUROC {auroc:5.3f} and AP {av_precision:5.3f}"))
+  if mpi_rank == 0:
+    logger.info((
+      f"{num_rounds:5} rounds for {num_users:10} users in {time_spent:10.2f} "
+      f"seconds with log-like {log_like:10.2f}/{log_like_obs:10.2f} nats "
+      f"and AUROC {auroc:5.3f} and AP {av_precision:5.3f}"))
   sys.stdout.flush()
 
   runner.log({
@@ -521,17 +524,22 @@ if __name__ == "__main__":
   tags.append("quick" if args.quick else "noquick")
   tags.append("local" if (os.getenv('SLURM_JOB_ID') is None) else "slurm")
 
-  runner_global = wandb.init(
-    project="dpfn",
-    notes=" ",
-    name=args.name,
-    tags=tags,
-    config=config_wandb,
-  )
+  if mpi_rank == 0:
+    runner_global = wandb.init(
+      project="dpfn",
+      notes=" ",
+      name=args.name,
+      tags=tags,
+      config=config_wandb,
+    )
 
-  config_wandb = config.clean_hierarchy(dict(runner_global.config))
-  config_wandb = util_experiments.set_noisy_test_params(config_wandb)
-  logger.info(config_wandb)
+    config_wandb = config.clean_hierarchy(dict(runner_global.config))
+    config_wandb = util_experiments.set_noisy_test_params(config_wandb)
+    logger.info(config_wandb)
+  else:
+    runner_global = util_wandb.WandbDummy()
+
+  comm_world.bcast(config_wandb, root=0)
 
   logger.info(f"Logger filename {LOGGER_FILENAME}")
   logger.info(f"Saving to results_dir_global {results_dir_global}")
@@ -540,7 +548,8 @@ if __name__ == "__main__":
   logger.info(f"slurm_name: {os.getenv('SLURM_JOB_NAME')}")
   logger.info(f"slurm_ntasks: {os.getenv('SLURM_NTASKS')}")
 
-  util_experiments.make_git_log()
+  if mpi_rank == 0:
+    util_experiments.make_git_log()
 
   # Set random seed
   # TODO research interaction random seeds and multiprocessing

@@ -87,7 +87,7 @@ class Simulator(ABC):
       users_to_observe: Union[List[int], np.ndarray],
       p_obs_infected: Union[List[float], np.ndarray],
       p_obs_not_infected: Union[List[float], np.ndarray]
-      ) -> List[constants.Observation]:
+      ) -> constants.ObservationList:
     """Returns the observations for current day."""
 
     day_relative = self.get_current_day() - self._day_start_window
@@ -97,7 +97,7 @@ class Simulator(ABC):
     self._observations_all += observations_new
     return observations_new
 
-  def get_observations_all(self) -> List[Dict[str, int]]:
+  def get_observations_all(self) -> constants.ObservationList:
     return self._observations_all
 
   def step(self, num_steps: int = 1):

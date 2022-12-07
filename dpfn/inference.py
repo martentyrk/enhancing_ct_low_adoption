@@ -1,6 +1,4 @@
 """Inference methods for contact-graphs."""
-import datetime
-import joblib
 from dpfn import constants, logger, util
 from mpi4py import MPI
 import numba
@@ -22,7 +20,7 @@ def softmax(x):
 
 @numba.njit
 def fn_step_wrapped(
-    user_slice: np.ndarray,
+    user_interval: Tuple[int, int],
     seq_array_hot: np.ndarray,
     log_c_z_u: np.ndarray,
     log_A_start: np.ndarray,
@@ -31,13 +29,14 @@ def fn_step_wrapped(
     probab0: float,
     probab1: float,
     past_contacts_array: np.ndarray,
-    start_belief: Optional[np.ndarray] = None):
+    start_belief: Optional[np.ndarray] = None,
+    quantization: int = -1,):
   """Wraps one step of Factorised Neighbors over a subset of users.
 
   Args:
     user_slice: list of user id for this step
     seq_array_hot: array in [num_time_steps, 4, num_sequences]
-    log_c_z_u: array in [len(user_slice), num_sequences], C-terms according to
+    log_c_z_u: array in [num_users_int, num_sequences], C-terms according to
       CRISP paper
     log_A_start: array in [num_sequences], A-terms according to CRISP paper
     p_infected_matrix: array in [num_users, num_time_steps]
@@ -45,13 +44,20 @@ def fn_step_wrapped(
     probab0: probability of transitioning S->E
     probab1: probability of transmission given contact
     past_contacts: iterator with elements (timestep, user_u, features)
-    start_belief: matrix in [len(user_slice), 4], i-th row is assumed to be the
+    start_belief: matrix in [num_users_int, 4], i-th row is assumed to be the
       start_belief of user user_slice[i]
   """
   with numba.objmode(t0='f8'):
     t0 = time.time()
 
-  post_exps = np.zeros((len(user_slice), num_time_steps, 4))
+  # Apply quantization
+  if quantization > 0:
+    p_infected_matrix = util.quantize_floor(
+      p_infected_matrix, num_levels=quantization)
+
+  interval_num_users = user_interval[1] - user_interval[0]
+
+  post_exps = np.zeros((interval_num_users, num_time_steps, 4))
   num_days_s = np.sum(seq_array_hot[:, 0], axis=0).astype(np.int64)
 
   assert np.all(np.sum(seq_array_hot, axis=1) == 1), (
@@ -64,7 +70,7 @@ def fn_step_wrapped(
   states = np.arange(4, dtype=np.float64)
   state_start = seq_array_hot[0].T.dot(states).astype(np.int16)
 
-  for i in range(len(user_slice)):
+  for i in range(interval_num_users):
 
     d_term, d_no_term = util.precompute_d_penalty_terms_fn(
       p_infected_matrix,
@@ -94,7 +100,9 @@ def fn_step_wrapped(
 
   with numba.objmode(t1='f8'):
     t1 = time.time()
-  return user_slice, post_exps, t0, t1
+
+  p_infected_matrix[user_interval[0]:user_interval[1]] = post_exps[:, :, 2]
+  return post_exps, t0, t1
 
 
 def fact_neigh(
@@ -109,12 +117,10 @@ def fact_neigh(
     start_belief: Optional[np.ndarray] = None,
     alpha: float = 0.001,
     beta: float = 0.01,
-    damping: float = 0.0,
     quantization: int = -1,
     users_stale: Optional[np.ndarray] = None,
     num_updates: int = 1000,
     verbose: bool = False,
-    num_jobs: int = 8,
     trace_dir: Optional[str] = None,
     diagnostic: Optional[Any] = None) -> Tuple[np.ndarray, np.ndarray]:
   """Inferes latent states using Factorised Neighbor method.
@@ -135,21 +141,21 @@ def fact_neigh(
       state
     alpha: False positive rate of observations, (1 minus specificity)
     beta: False negative rate of observations, (1 minus sensitivity)
-    damping: number between 0 and 1 to damp messages. 0 corresponds to no
-      damping, number close to 1 correspond to high damping.
     quantization: number of levels for quantization. Negative number indicates
       no use of quantization.
     num_updates: Number of rounds to update using Factorised Neighbor algorithm
     verbose: set to true to get more verbose output
-    num_jobs: Number of jobs to use for parallelisation. Recommended to set to
-      number of cores on your machine.
 
   Returns:
     array in [num_users, num_timesteps, 4] being probability of over
     health states {S, E, I, R} for each user at each time step
   """
+  del diagnostic
   t_start_preamble = time.time()
-  assert num_jobs <= num_users, "Cannot run more parallel jobs than users"
+
+  user_ids_bucket = util.spread_buckets_interval(num_users, num_proc)
+  user_interval = (
+    int(user_ids_bucket[mpi_rank]), int(user_ids_bucket[mpi_rank+1]))
 
   seq_array = np.stack(list(
     util.iter_sequences(time_total=num_time_steps, start_se=False)))
@@ -168,14 +174,14 @@ def fact_neigh(
 
   # Precompute log(C) terms, relating to observations
   log_c_z_u = util.calc_c_z_u(
-    seq_array, observations_all, num_users=num_users, alpha=alpha, beta=beta)
+    user_interval,
+    seq_array,
+    observations_all,
+    alpha=alpha,
+    beta=beta)
 
   q_marginal_infected = np.zeros((num_users, num_time_steps)).astype(np.double)
-  q_marginal_acc = np.zeros((num_updates+1, num_users, num_time_steps, 4))
   post_exp = np.zeros((num_users, num_time_steps, 4))
-
-  # Broadcast to all processes
-  comm_world.Bcast((q_marginal_infected, MPI.DOUBLE), root=0)
 
   infect_counter = util.InfectiousContactCount(
     contacts=contacts_all,
@@ -183,84 +189,72 @@ def fact_neigh(
     num_users=num_users,
     num_time_steps=num_time_steps,
   )
+  past_contacts = infect_counter.get_past_contacts_slice(
+    list(range(user_interval[0], user_interval[1])))
 
-  # Parellelise one inference step over users.
-  # Split users among number of jobs
-  num_users_per_job = util.spread_buckets(num_users, num_jobs)
-  slices = np.concatenate(([0], np.cumsum(num_users_per_job))).astype(np.int64)
-  assert slices[-1] == num_users
-  if verbose:
-    print("Slices", slices)
-
-  user_slices = [
-    list(range(slices[n_job], slices[n_job+1])) for n_job in range(num_jobs)]
-  log_c_z_u_s = [
-    np.stack([log_c_z_u[user] for user in user_slice], axis=0)
-    for user_slice in user_slices]
-
-  start_belief_slices = [None for _ in range(num_jobs)]
   if start_belief is not None:
-    start_belief_slices = [
-      start_belief[user_slice] for user_slice in user_slices]
+    assert len(start_belief) == num_users
+    start_belief = start_belief[user_interval[0]:user_interval[1]]
 
-  if len(contacts_all) == 0:
-    return np.zeros((num_users, num_time_steps, 4)), q_marginal_acc
+  logger.info(f"{time.time() - t_start_preamble:.1f} seconds on preamble")
 
-  logger.info(
-    f"Parallelise FN with {num_jobs} jobs "
-    f"after {time.time() - t_start_preamble:.1f} seconds on preamble")
-  backend = util.get_joblib_backend()
-  with joblib.Parallel(n_jobs=num_jobs, backend=backend) as parallel:
-    for num_update in range(num_updates):
-      # logger.info(f"Update {num_update}")
+  for num_update in range(num_updates):
+    if verbose:
+      if mpi_rank == 0:
+        logger.info(f"Num update {num_update}")
+    # Sample stale users
+    # TODO(rob) implement stale users
+    if users_stale is not None:
+      assert False, "Not implemented yet"
+      # users_stale_now = util.sample_stale_users(users_stale)
 
-      # Sample stale users
-      users_stale_now = util.sample_stale_users(users_stale)
+    post_exp, tstart, t_end = fn_step_wrapped(
+      user_interval,
+      seq_array_hot,
+      log_c_z_u,  # already depends in mpi_rank
+      log_A_start,
+      q_marginal_infected,
+      num_time_steps,
+      probab_0,
+      probab_1,
+      past_contacts,
+      start_belief,
+      quantization=quantization)
 
-      results = parallel(joblib.delayed(fn_step_wrapped)(
-        np.array(user_slice),
-        seq_array_hot,
-        log_c_z_u_s[num_slice],
-        log_A_start,
-        q_marginal_infected,
-        num_time_steps,
-        probab_0,
-        probab_1,
-        infect_counter.get_past_contacts_slice(user_slice),
-        start_belief_slices[num_slice],
-      ) for num_slice, user_slice in enumerate(user_slices))
+    if verbose:
+      if mpi_rank == 0:
+        logger.info(f"Time for fn_step: {t_end - tstart:.1f} seconds")
 
-      for (user_slice, post_exp_users, tstart, tend) in results:
-        if verbose:
-          tstart_fmt = datetime.datetime.fromtimestamp(tstart).strftime(
-            "%Y.%m.%d_%H:%M:%S")
-          logger.info(f'Started on {tstart_fmt}, for {tend-tstart:12.1f}')
+    # Prepare buffer for Allgatherv
+    q_collect = np.empty((num_users, num_time_steps), dtype=np.double)
 
-        post_exp = util.update_beliefs(
-          post_exp, post_exp_users, user_slice, users_stale_now)
+    memory_bucket = user_ids_bucket*num_time_steps
+    offsets = memory_bucket[:-1].tolist()
+    sizes_memory = (memory_bucket[1:] - memory_bucket[:-1]).tolist()
 
-      # Collect statistics
-      damping_use = damping if num_update > 0 else 0.0
-      q_marginal_infected = (damping_use * q_marginal_infected
-                             + (1-damping_use) * post_exp[:, :, 2])
-      q_marginal_acc[num_update+1] = post_exp
+    comm_world.Allgatherv(
+      q_marginal_infected[user_interval[0]:user_interval[1]],
+      recvbuf=[q_collect, sizes_memory, offsets, MPI.DOUBLE])
+    q_marginal_infected = q_collect
 
-      # Quantization
-      if quantization > 0:
-        q_marginal_infected = util.quantize_floor(
-          q_marginal_infected, num_levels=quantization)
+    # # TODO(rob) update start belief per process
+    #   post_exp = util.update_beliefs(
+    #     post_exp, post_exp_users, user_slice, users_stale_now)
 
-      if trace_dir:
-        fname = os.path.join(trace_dir, f"trace_{num_update:05d}.npy")
-        with open(fname, 'wb') as fp:
-          np.save(fp, post_exp)
+    if trace_dir:
+      fname = os.path.join(
+        trace_dir, f"trace_{num_update:05d}_rank{mpi_rank}.npy")
+      with open(fname, 'wb') as fp:
+        np.save(fp, post_exp)
 
-      if verbose:
-        with np.printoptions(precision=2, suppress=True):
-          print(q_marginal_infected[0])
-          if num_users > 2:
-            print(q_marginal_infected[2])
-          print()
-      if diagnostic:
-        diagnostic.log({'user0': post_exp[0][:, 2].tolist()}, commit=False)
-  return post_exp, q_marginal_acc
+  # Prepare buffer for Allgatherv
+  post_exp_collect = np.empty((num_users, num_time_steps, 4), dtype=np.double)
+
+  memory_bucket = user_ids_bucket*num_time_steps*4
+  offsets = memory_bucket[:-1].tolist()
+  sizes_memory = (memory_bucket[1:] - memory_bucket[:-1]).tolist()
+
+  comm_world.Gatherv(
+    post_exp,
+    recvbuf=[post_exp_collect, sizes_memory, offsets, MPI.DOUBLE])
+  return post_exp_collect

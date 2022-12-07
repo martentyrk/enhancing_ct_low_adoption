@@ -50,25 +50,23 @@ def test_calculate_log_c_z():
   a, b = .1, .2
 
   result = util.calc_c_z_u(
+    user_interval=(0, 3),
     potential_sequences=np.array(potential_sequences),
     observations=observations_all,
-    num_users=3,
     alpha=a,
     beta=b)
-  expected = {
-    0: [0, 0, 0, 0, 0, 0, 0, 0],
-    1: [np.log(b), np.log(b), np.log(b), np.log(b), np.log(1-a), np.log(1-a),
-        np.log(b), np.log(b)],
-    2: [np.log(1-b), np.log(1-b), np.log(a), np.log(1-b), np.log(1-b),
-        np.log(a), np.log(a), np.log(1-b)]}
+  expected = np.array([
+    [0, 0, 0, 0, 0, 0, 0, 0],
+    [np.log(b), np.log(b), np.log(b), np.log(b), np.log(1-a), np.log(1-a),
+     np.log(b), np.log(b)],
+    [np.log(1-b), np.log(1-b), np.log(a), np.log(1-b), np.log(1-b),
+     np.log(a), np.log(a), np.log(1-b)]])
 
-  assert set(result) == set(expected), (f"Not all expected users found."
-                                        f"found {set(result)}, "
-                                        f"but expected {set(expected)}")
+  assert result.shape == expected.shape, (f"Not all expected users found."
+                                          f"found {set(result)}, "
+                                          f"but expected {set(expected)}")
 
-  for user, expected_c in expected.items():
-    np.testing.assert_array_almost_equal(
-      expected_c, result[user], err_msg=f'Error in {user}')
+  np.testing.assert_array_almost_equal(result, expected)
 
 
 def test_generate_sequences():
@@ -412,3 +410,23 @@ def test_update_beliefs():
     user_slice=np.array([0, 2], dtype=np.int32),
     users_stale=[2])
   expected = np.tile(np.array([0, 1, 1]), [4, 1]).T
+
+
+def test_spread_buckets():
+  num_sample_array = util.spread_buckets(100, 10)
+  expected = 10 * np.ones((10))
+  np.testing.assert_array_almost_equal(num_sample_array, expected)
+
+  num_sample_array = util.spread_buckets(97, 97)
+  np.testing.assert_array_almost_equal(num_sample_array, np.ones((97)))
+
+  num_samples = np.sum(util.spread_buckets(100, 13))
+  np.testing.assert_almost_equal(num_samples, 100)
+
+  with np.testing.assert_raises(AssertionError):
+    util.spread_buckets(13, 17)
+
+
+def test_spread_buckets_interval():
+  user_id = util.spread_buckets_interval(100, 10)
+  np.testing.assert_array_almost_equal(user_id, 10*np.arange(11))

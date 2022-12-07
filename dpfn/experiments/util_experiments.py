@@ -1,6 +1,6 @@
 """Utility functions for running experiments."""
 import numpy as np
-from dpfn import constants, inference, logger, util
+from dpfn import constants, inference, logger
 import subprocess
 from typing import Any, Dict, Optional
 
@@ -13,7 +13,6 @@ def wrap_fact_neigh_inference(
     p1: float,
     g_param: float,
     h_param: float,
-    damping: float,
     quantization: int = -1,
     trace_dir: Optional[str] = None,
     ):
@@ -28,7 +27,7 @@ def wrap_fact_neigh_inference(
       users_stale: Optional[np.ndarray] = None,
       diagnostic: Optional[Any] = None):
 
-    traces_per_user_fn, _ = inference.fact_neigh(
+    traces_per_user_fn = inference.fact_neigh(
       num_users=num_users,
       num_time_steps=num_time_steps,
       observations_all=observations_list,
@@ -40,11 +39,10 @@ def wrap_fact_neigh_inference(
       g_param=g_param,
       h_param=h_param,
       start_belief=start_belief,
-      damping=damping,
       quantization=quantization,
       users_stale=users_stale,
       num_updates=num_updates,
-      num_jobs=min((num_users, util.get_cpu_count())),
+      verbose=True,
       trace_dir=trace_dir,
       diagnostic=diagnostic)
     return traces_per_user_fn

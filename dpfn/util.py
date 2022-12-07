@@ -150,28 +150,30 @@ def gather_infected_precontacts(
 
 
 def calc_c_z_u(
+    user_interval: Tuple[int, int],
     potential_sequences: np.ndarray,
-    observations: List[constants.Observation],
-    num_users: int,
+    observations: constants.ObservationList,
     alpha: float,
-    beta: float):
+    beta: float) -> np.ndarray:
   """Precompute the Cz terms.
 
   Notation follows the original CRISP paper.
   """
+  interval_num_users = user_interval[1] - user_interval[0]
 
   # Map outcome to PMF over health state
   probabs = {0: [alpha, 1-beta],
              1: [1-alpha, beta]}
 
-  log_prob_obs = {user: np.zeros((len(potential_sequences)))
-                  for user in range(num_users)}
+  log_prob_obs = np.zeros((interval_num_users, len(potential_sequences)))
 
   seq_cumsum = np.cumsum(potential_sequences, axis=1)
 
+  def filter_fn(x):
+    return (x[0] >= user_interval[0]) and (x[0] < user_interval[1])
   # This implementation assumes sparse observations. With dense observations,
   # more efficient to calculate seq_binary outside for-loop
-  for obs in observations:
+  for obs in filter(filter_fn, observations):
     probab_tuple = probabs[obs[2]]
     user_u = obs[0]
 
@@ -180,7 +182,7 @@ def calc_c_z_u(
     seq_binary = np.concatenate((seq_binary, np.ones((len(seq_binary), 1))),
                                 axis=1)
     state = np.argmax(seq_binary, axis=1)
-    log_prob_obs[user_u] += np.log(
+    log_prob_obs[user_u - user_interval[0]] += np.log(
       np.where(state == 2, probab_tuple[0], probab_tuple[1]))
 
   return log_prob_obs
@@ -512,6 +514,7 @@ def quantize(message: Union[np.ndarray, float], num_levels: int
   return message_at_floor + (.5 / num_levels)
 
 
+@njit
 def quantize_floor(message: Union[np.ndarray, float], num_levels: int
                    ) -> Union[np.ndarray, float]:
   """Quantizes a message based on rounding.
@@ -522,11 +525,11 @@ def quantize_floor(message: Union[np.ndarray, float], num_levels: int
   if num_levels < 0:
     return message
 
-  if np.any(message > 1. + 1E-5):
-    logger.info(np.min(message))
-    logger.info(np.max(message))
-    logger.info(np.mean(message))
-    raise ValueError(f"Invalid message {message}")
+  # if np.any(message > 1. + 1E-5):
+  #   logger.info(np.min(message))
+  #   logger.info(np.max(message))
+  #   logger.info(np.mean(message))
+  #   raise ValueError(f"Invalid message {message}")
   return np.floor(message * num_levels) / num_levels
 
 
@@ -592,10 +595,16 @@ def make_plain_contacts(contacts) -> List[constants.Contact]:
     (c['u'], c['v'], c['time'], int(c['features'][0])) for c in contacts]
 
 
-def spread_buckets(num_samples, num_buckets):
+def spread_buckets(num_samples: int, num_buckets: int) -> np.ndarray:
   assert num_samples >= num_buckets
   num_samples_per_bucket = (int(np.floor(num_samples / num_buckets))
                             * np.ones((num_buckets)))
   num_remaining = int(num_samples - np.sum(num_samples_per_bucket))
   num_samples_per_bucket[:num_remaining] += 1
   return num_samples_per_bucket
+
+
+@functools.lru_cache(maxsize=1)
+def spread_buckets_interval(num_samples: int, num_buckets: int) -> np.ndarray:
+  num_users_per_bucket = spread_buckets(num_samples, num_buckets)
+  return np.concatenate(([0], np.cumsum(num_users_per_bucket)))

@@ -89,7 +89,7 @@ def test_fact_neigh_with_start_belief():
     [[.1, .4, .5, .0],
      [.9, .1, .0, .0]])
 
-  post_exp, _ = inference.fact_neigh(
+  post_exp = inference.fact_neigh(
     num_users=num_users,
     num_time_steps=num_time_steps,
     observations_all=observations_all,
@@ -101,8 +101,7 @@ def test_fact_neigh_with_start_belief():
     start_belief=start_belief,
     alpha=0.001,
     beta=0.01,
-    num_updates=5,
-    num_jobs=1)
+    num_updates=5)
 
   text = (
     "Note this is a stochastic test. And may fail one in a thousand times"
@@ -110,5 +109,6 @@ def test_fact_neigh_with_start_belief():
   # Start belief for u0 is high in E and I states, so after the contact between
   # u0 and u1 on day 2, then u1 should be in E state and I state after
 
-  assert post_exp[1][3][1] > .2, text
-  assert post_exp[1][4][2] > .1, text
+  with np.printoptions(precision=3, suppress=True):
+    assert post_exp[1][3][1] > .2, text + "\n" + repr(post_exp)
+    assert post_exp[1][4][2] > .1, text + "\n" + repr(post_exp)
