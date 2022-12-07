@@ -7,7 +7,7 @@
 #SBATCH --constraint=cpunode
 #\ #SBATCH --partition=fatq
 
-source "/var/scratch/${USER}/projects/mycrisp/scripts/preamble.sh"
+source "/var/scratch/${USER}/projects/dpfn/scripts/preamble.sh"
 
 echo `pwd`
 echo "PYTHON: `which python`"
