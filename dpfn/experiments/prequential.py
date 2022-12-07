@@ -186,7 +186,7 @@ def get_evidence_obs(
 def decide_tests(
     scores_infect: np.ndarray,
     test_include: np.ndarray,
-    num_tests: int) -> Tuple[np.ndarray, np.ndarray]:
+    num_tests: int) -> np.ndarray:
   assert num_tests < len(scores_infect)
   assert scores_infect.shape == test_include.shape
 

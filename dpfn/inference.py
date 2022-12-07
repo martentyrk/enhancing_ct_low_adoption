@@ -2,11 +2,16 @@
 import datetime
 import joblib
 from dpfn import constants, logger, util
+from mpi4py import MPI
 import numba
 import numpy as np
 import os
 import time
 from typing import Any, List, Optional, Tuple
+
+comm_world = MPI.COMM_WORLD
+mpi_rank = comm_world.Get_rank()
+num_proc = comm_world.Get_size()
 
 
 @numba.njit
@@ -146,7 +151,6 @@ def fact_neigh(
   t_start_preamble = time.time()
   assert num_jobs <= num_users, "Cannot run more parallel jobs than users"
 
-  t_start1 = time.time()
   seq_array = np.stack(list(
     util.iter_sequences(time_total=num_time_steps, start_se=False)))
   seq_array_hot = np.transpose(util.state_seq_to_hot_time_seq(
@@ -166,9 +170,12 @@ def fact_neigh(
   log_c_z_u = util.calc_c_z_u(
     seq_array, observations_all, num_users=num_users, alpha=alpha, beta=beta)
 
-  q_marginal_infected = np.zeros((num_users, num_time_steps))
+  q_marginal_infected = np.zeros((num_users, num_time_steps)).astype(np.double)
   q_marginal_acc = np.zeros((num_updates+1, num_users, num_time_steps, 4))
   post_exp = np.zeros((num_users, num_time_steps, 4))
+
+  # Broadcast to all processes
+  comm_world.Bcast((q_marginal_infected, MPI.DOUBLE), root=0)
 
   infect_counter = util.InfectiousContactCount(
     contacts=contacts_all,
@@ -176,8 +183,6 @@ def fact_neigh(
     num_users=num_users,
     num_time_steps=num_time_steps,
   )
-  print(f"Preamble1: {time.time() - t_start1}")
-  t_start1 = time.time()
 
   # Parellelise one inference step over users.
   # Split users among number of jobs
@@ -198,7 +203,9 @@ def fact_neigh(
     start_belief_slices = [
       start_belief[user_slice] for user_slice in user_slices]
 
-  print(f"Preamble2: {time.time() - t_start1}")
+  if len(contacts_all) == 0:
+    return np.zeros((num_users, num_time_steps, 4)), q_marginal_acc
+
   logger.info(
     f"Parallelise FN with {num_jobs} jobs "
     f"after {time.time() - t_start_preamble:.1f} seconds on preamble")

@@ -72,7 +72,7 @@ class Simulator(ABC):
 
     Each element in [0, 1, 2, 3].
     """
-    return np.zeros((self.num_users))
+    return np.zeros((self.num_users), dtype=np.int32)
 
   def get_contacts(self) -> List[constants.Contact]:
     """Returns contacts.
@@ -84,7 +84,7 @@ class Simulator(ABC):
 
   def get_observations_today(
       self,
-      users_to_observe: List[int],
+      users_to_observe: Union[List[int], np.ndarray],
       p_obs_infected: Union[List[float], np.ndarray],
       p_obs_not_infected: Union[List[float], np.ndarray]
       ) -> List[constants.Observation]:
@@ -112,6 +112,16 @@ class Simulator(ABC):
     This function will remove the contacts that happen TODAY (and which may
     spread the virus and cause people to shift to E-state tomorrow).
     """
+
+
+class DummySimulator(Simulator):
+  """Simulator with dummy functions."""
+
+  def init_day0(self):
+    self._contacts = []
+    self.states = np.zeros(
+      (self.num_users, self.num_time_steps, 4), dtype=np.uint8)
+    self._observations_all = []
 
 
 class CRISPSimulator(Simulator):

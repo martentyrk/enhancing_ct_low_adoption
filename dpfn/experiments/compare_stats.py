@@ -21,9 +21,9 @@ from typing import Any, Dict, List, Optional
 import wandb
 
 comm_world = MPI.COMM_WORLD
-my_rank = comm_world.Get_rank()
+mpi_rank = comm_world.Get_rank()
 num_proc = comm_world.Get_size()
-print(f"num_proc {num_proc} my_rank {my_rank}")
+print(f"num_proc {num_proc} mpi_rank {mpi_rank}")
 
 
 def make_inference_func(
@@ -177,17 +177,20 @@ def compare_prequential_quarantine(
   logger.info(f"Do random quarantine? {do_random_quarantine}")
   t0 = time.time()
 
-  if use_abm_simulator:
-    sim_factory = simulator.ABMSimulator
-    contacts = []
+  if mpi_rank == 0:
+    if use_abm_simulator:
+      sim_factory = simulator.ABMSimulator
+      contacts = []
+    else:
+      sim_factory = simulator.CRISPSimulator
+
+    sim = sim_factory(num_time_steps, num_users, params_dynamics)
+    sim.init_day0(copy.deepcopy(contacts))
+
+    logger.info((
+      f"Start simulation with {num_rounds} updates"))
   else:
-    sim_factory = simulator.CRISPSimulator
-
-  sim = sim_factory(num_time_steps, num_users, params_dynamics)
-  sim.init_day0(copy.deepcopy(contacts))
-
-  logger.info((
-    f"Start simulation with {num_rounds} updates"))
+    sim = simulator.DummySimulator(num_time_steps, num_users, params_dynamics)
 
   for t_now in tqdm.trange(1, num_time_steps):
     t_start_loop = time.time()
@@ -196,25 +199,29 @@ def compare_prequential_quarantine(
     # For each value of t_now, only receive observations up to 't_now-1'
     assert sim.get_current_day() == t_now - 1
 
+    rank_score = np.random.randn(num_users)
     if do_conditional_testing:
       # TODO double check -1 here!
       rank_score = z_states_inferred[:, -1, 2]
+
+    if mpi_rank == 0:
+      # Grab tests on the main process
       users_to_test = prequential.decide_tests(
         scores_infect=rank_score,
         test_include=test_include,
         num_tests=int(fraction_test * num_users))
+
+      obs_today = sim.get_observations_today(
+        users_to_test,
+        p_obs_infected,
+        p_obs_not_infected
+      )
+
+      test_include = prequential.remove_positive_users(
+        obs_today, test_include)
     else:
-      users_to_test = np.random.choice(
-        num_users, replace=False, size=int(fraction_test * num_users))
-
-    obs_today = sim.get_observations_today(
-      users_to_test,
-      p_obs_infected,
-      p_obs_not_infected
-    )
-
-    test_include = prequential.remove_positive_users(
-      obs_today, test_include)
+      users_to_test = []
+      obs_today = []
 
     if not do_random_quarantine:
       t_start = time.time()
@@ -239,6 +246,7 @@ def compare_prequential_quarantine(
         start_belief,
         users_stale=users_stale,
         diagnostic=diagnostic)
+
 
       np.testing.assert_array_almost_equal(
         z_states_inferred.shape, [num_users, num_days, 4])
@@ -558,22 +566,21 @@ if __name__ == "__main__":
        f"['single','prequential']"))
 
   try:
-    if my_rank == 0:
-      experiment_fn(
-        inf_method,
-        num_users=config_wandb["data"]["num_users"],
-        num_time_steps=config_wandb["data"]["num_time_steps"],
-        observations=observations_all,
-        contacts=contacts_all,
-        states=states_all,
-        cfg=config_wandb,
-        runner=runner_global,
-        results_dir=results_dir_global,
-        trace_dir=trace_dir_global,
-        quick=args.quick,
-        do_diagnosis=args.do_diagnosis,
-        use_abm_simulator=do_abm,
-        )
+    experiment_fn(
+      inf_method,
+      num_users=config_wandb["data"]["num_users"],
+      num_time_steps=config_wandb["data"]["num_time_steps"],
+      observations=observations_all,
+      contacts=contacts_all,
+      states=states_all,
+      cfg=config_wandb,
+      runner=runner_global,
+      results_dir=results_dir_global,
+      trace_dir=trace_dir_global,
+      quick=args.quick,
+      do_diagnosis=args.do_diagnosis,
+      use_abm_simulator=do_abm,
+      )
   except Exception as e:
     # This exception sends an WandB alert with the traceback and sweepid
     logger.info(f'Error repr: {repr(e)}')
