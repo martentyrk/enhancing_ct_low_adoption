@@ -1,0 +1,601 @@
+"""Utility functions for inference in CRISP-like models."""
+
+import functools
+import itertools
+from time import time  # pylint: disable=unused-import
+import math
+from dpfn import constants, logger
+from numba import njit
+import numpy as np
+import os
+import socket
+from typing import Any, Iterable, List, Mapping, Optional, Tuple, Union
+
+
+class InfectiousContactCount:
+  """Counter for infectious contacts."""
+
+  def __init__(self,
+               contacts: List[constants.Contact],
+               samples: Optional[Mapping[int, Union[np.ndarray, List[int]]]],
+               num_users: int,
+               num_time_steps: int):
+    self._counts = np.zeros((num_users, num_time_steps + 1), dtype=np.int32)
+    self._num_time_steps = num_time_steps
+
+    # TODO: WARNING: This constructor assumes that the contacts don't change!
+    self.past_contacts = {
+      user: [[] for _ in range(num_time_steps)] for user in range(num_users)}
+    self.future_contacts = {
+      user: [[] for _ in range(num_time_steps)] for user in range(num_users)}
+
+    for contact in contacts:
+      user_u = contact[0]
+      user_v = contact[1]
+      timestep = contact[2]
+      if timestep < num_time_steps:
+        self.past_contacts[user_v][timestep].append(
+          (timestep, user_u, contact[3]))
+        self.future_contacts[user_u][timestep].append(
+          (timestep, user_v, contact[3]))
+
+      if samples:
+        trace_u = samples[user_u]
+        if state_at_time_cache(*trace_u, contact[2]) == 2:
+          self._counts[user_v][contact[2]+1] += 1
+
+  def get_past_contacts_slice(
+      self, user_slice: Union[List[int], np.ndarray]) -> np.ndarray:
+    """Outpets past contacts as a NumPy array, for easy pickling.
+
+    Defaults to -1 when no past contacts exist (and to fill sparse array)
+    """
+    past_contacts = []
+    max_messages = -1  # Output ndarray will be size of longest list
+
+    for user in user_slice:
+      pc_it = itertools.chain.from_iterable(self.past_contacts[user])
+      pc_array = np.array(
+        list(map(lambda x: [x[0], x[1], x[2][0]], pc_it)), dtype=np.int16)
+      past_contacts.append(pc_array)
+
+      # Update longest amount of messages
+      max_messages = max((max_messages, len(pc_array)))
+
+    # Default to -1 for undefined past contacts
+    pc_tensor = -1 * np.ones(
+      (len(user_slice), max_messages+1, 3), dtype=np.int16)
+    for i, user in enumerate(user_slice):
+      num_contacts = len(past_contacts[i])
+      if num_contacts > 0:
+        pc_tensor[i][:num_contacts] = past_contacts[i]
+
+    return pc_tensor
+
+  def num_inf_contacts(self, user: int, time_step: int):
+    return self._counts[user, time_step]
+
+  def update_infect_count(
+      self, user: int, trace: Union[List[int], np.ndarray],
+      remove: bool = False):
+    t0, de, di = trace
+    for timestep in range(t0+de, t0+de+di):
+      for (_, user_v, feature) in self.future_contacts[user][timestep]:
+        assert int(feature[0]) == 1, "Only implemented for feature_val==1"
+        add = -1 if remove else 1
+        self._counts[user_v][timestep+1] += add
+
+  def get_future_contacts(self, user: int):
+    yield from itertools.chain.from_iterable(self.future_contacts[user])
+
+  def get_past_contacts(self, user: int):
+    yield from itertools.chain.from_iterable(self.past_contacts[user])
+
+  def get_past_contacts_at_time(self, user: int, timestep: int):
+    yield from self.past_contacts[user][timestep]
+
+
+def state_at_time(days_array, timestamp):
+  """Calculates the SEIR state at timestamp given the Markov state.
+
+  Note that this function is slower than 'state_at_time_cache' when evaluating
+  only one data point.
+  """
+  if isinstance(days_array, list):
+    days_array = np.array(days_array, ndmin=2)
+  elif len(days_array.shape) == 1:
+    days_array = np.expand_dims(days_array, axis=0)
+
+  days_cumsum = np.cumsum(days_array, axis=1)
+  days_binary = (days_cumsum <= timestamp).astype(np.int)
+
+  # Append vector of 1's such that argmax defaults to 3
+  days_binary = np.concatenate(
+    (days_binary, np.zeros((len(days_binary), 1))), axis=1)
+  state = np.argmin(days_binary, axis=1)
+  return state
+
+
+# @functools.lru_cache()  # Using cache gives no observable speed up for now
+def state_at_time_cache(t0: int, de: int, di: int, t: int) -> int:
+  if t < t0:
+    return 0
+  if t < t0+de:
+    return 1
+  if t < t0+de+di:
+    return 2
+  return 3
+
+
+def gather_infected_precontacts(
+    num_time_steps: int,
+    samples_current: Mapping[int, Union[List[int], np.ndarray]],
+    past_contacts: Iterable[Tuple[int, int, List[int]]]):
+  """Gathers infected precontacts.
+
+  For all past contacts, check if the contact was infected according to samples.
+  """
+
+  num_infected_preparents = np.zeros((num_time_steps))
+
+  for (t_contact, user_u, features) in past_contacts:
+    assert len(features) == int(features[0]) == 1, (
+      "Code only implemented for singleton feature at 1")
+    trace_u = samples_current[user_u]
+    state_u = state_at_time_cache(*trace_u, t_contact)
+    if state_u == 2:
+      num_infected_preparents[t_contact] += features[0]
+
+  return num_infected_preparents
+
+
+def calc_c_z_u(
+    potential_sequences: np.ndarray,
+    observations: List[constants.Observation],
+    num_users: int,
+    alpha: float,
+    beta: float):
+  """Precompute the Cz terms.
+
+  Notation follows the original CRISP paper.
+  """
+
+  # Map outcome to PMF over health state
+  probabs = {0: [alpha, 1-beta],
+             1: [1-alpha, beta]}
+
+  log_prob_obs = {user: np.zeros((len(potential_sequences)))
+                  for user in range(num_users)}
+
+  seq_cumsum = np.cumsum(potential_sequences, axis=1)
+
+  # This implementation assumes sparse observations. With dense observations,
+  # more efficient to calculate seq_binary outside for-loop
+  for obs in observations:
+    probab_tuple = probabs[obs[2]]
+    user_u = obs[0]
+
+    # Append ones to default to state R
+    seq_binary = (seq_cumsum > obs[1]).astype(np.int)
+    seq_binary = np.concatenate((seq_binary, np.ones((len(seq_binary), 1))),
+                                axis=1)
+    state = np.argmax(seq_binary, axis=1)
+    log_prob_obs[user_u] += np.log(
+      np.where(state == 2, probab_tuple[0], probab_tuple[1]))
+
+  return log_prob_obs
+
+
+def calc_log_a_start(
+    seq_array: np.ndarray,
+    probab_0: float,
+    g: float,
+    h: float) -> np.ndarray:
+  """Calculate the basic A terms.
+
+  This assumes no contacts happen. Thus the A terms are simple Geometric
+  distributions. When contacts do occur, subsequent code would additional log
+  terms.
+  """
+  if isinstance(seq_array, list):
+    seq_array = np.stack(seq_array, axis=0)
+
+  num_sequences = seq_array.shape[0]
+  log_A_start = np.zeros((num_sequences))
+
+  time_total = np.max(np.sum(seq_array, axis=1))
+
+  # Due to time in S
+  # Equation 17
+  term_t = (seq_array[:, 0] >= time_total).astype(np.float32)
+  log_A_start += (seq_array[:, 0]-1) * np.log(1-probab_0)
+
+  # Due to time in E
+  term_e = ((seq_array[:, 0] + seq_array[:, 1]) >= time_total).astype(np.int64)
+  log_A_start += (1-term_t) * (
+    (seq_array[:, 1]-1)*np.log(1-g) + (1-term_e)*np.log(g)
+  )
+
+  # Due to time in I
+  term_i = (seq_array[:, 0] + seq_array[:, 1] + seq_array[:, 2]) >= time_total
+  log_A_start += (1-term_e) * (
+    (seq_array[:, 2]-1)*np.log(1-h) + (1-term_i.astype(np.int64))*np.log(h))
+  return log_A_start
+
+
+def iter_state(ts, te, ti, tt):
+  yield from itertools.repeat(0, ts)
+  yield from itertools.repeat(1, te)
+  yield from itertools.repeat(2, ti)
+  yield from itertools.repeat(3, tt-ts-te-ti)
+
+
+def state_seq_to_time_seq(
+    state_seqs: Union[np.ndarray, List[List[int]]],
+    time_total: int) -> np.ndarray:
+  """Unfolds trace tuples to full traces of SEIR.
+
+  Args:
+    state_seqs: np.ndarray in [num_sequences, 3] with columns for t_S, t_E, t_I
+    time_total: total amount of days. In other words, each row sum is
+      expected to be less than time_total, and including t_R should equal
+      time_total.
+
+  Returns:
+    np.ndarray of [num_sequences, time_total], with values in {0,1,2,3}
+  """
+  iter_state_partial = functools.partial(iter_state, tt=time_total)
+  iter_time_seq = map(list, itertools.starmap(iter_state_partial, state_seqs))
+  return np.array(list(iter_time_seq))
+
+
+def state_seq_to_hot_time_seq(
+    state_seqs: Union[np.ndarray, List[List[int]]],
+    time_total: int) -> np.ndarray:
+  """Unfolds trace tuples to one-hot traces of SEIR.
+
+  Args:
+    state_seqs: np.ndarray in [num_sequences, 3] with columns for t_S, t_E, t_I
+    time_total: total amount of days. In other words, each row sum is
+      expected to be less than time_total, and including t_R should equal
+      time_total.
+
+  Returns:
+    np.ndarray of [num_sequences, time_total, 4], with values in {0,1}
+  """
+  iter_state_partial = functools.partial(iter_state, tt=time_total)
+  iter_time_seq = map(list, itertools.starmap(iter_state_partial, state_seqs))
+
+  states = np.zeros((len(state_seqs), time_total, 4))
+  for i, time_seq in enumerate(iter_time_seq):
+    states[i] = np.take(np.eye(4), np.array(time_seq), axis=0)
+  return states
+
+
+def iter_sequences(time_total: int, start_se=True):
+  """Iterate possible sequences.
+
+  Assumes that first time step can be either S or E.
+  """
+  for t0 in range(time_total+1):
+    if t0 == time_total:
+      yield (t0, 0, 0)
+    else:
+      e_start = 1 if (t0 > 0 or start_se) else 0
+      for de in range(e_start, time_total-t0+1):
+        if t0+de == time_total:
+          yield (t0, de, 0)
+        else:
+          i_start = 1 if (t0 > 0 or de > 0 or start_se) else 0
+          for di in range(i_start, time_total-t0-de+1):
+            if t0+de+di == time_total:
+              yield (t0, de, di)
+            else:
+              yield (t0, de, di)
+
+
+def generate_sequence_days(time_total: int):
+  """Iterate possible sequences.
+
+  Assumes that first time step must be S.
+  """
+  # t0 ranges in {T,T-1,...,1}
+  for t0 in range(time_total, 0, -1):
+    # de ranges in {T-t0,T-t0-1,...,1}
+    # de can only be 0 when time_total was already spent
+    de_start = min((time_total-t0, 1))
+    non_t0 = time_total - t0
+    for de in range(de_start, non_t0+1):
+      # di ranges in {T-t0-de,T-t0-de-1,...,1}
+      # di can only be 0 when time_total was already spent
+      di_start = min((time_total-t0-de, 1))
+      non_t0_de = time_total - t0 - de
+      for di in range(di_start, non_t0_de+1):
+        yield (t0, de, di)
+
+
+def enumerate_log_prior_values(
+    params_start: Union[np.ndarray, List[float]],
+    params: Union[np.ndarray, List[float]],
+    sequences: np.ndarray,
+    time_total: int) -> np.ndarray:
+  """Enumerate values of log prior."""
+  np.testing.assert_almost_equal(np.sum(params_start), 1.)
+
+  b0, b1, b2 = params[0], params[1], params[2]
+
+  start_s = reach_s = sequences[:, 0] > 0
+  start_e = (1-start_s) * (sequences[:, 1] > 0)
+  start_i = (1-start_s) * (1-start_e) * (sequences[:, 2] > 0)
+  start_r = (1-start_s) * (1-start_e) * (1-start_i)
+
+  reach_e = (sequences[:, 1] > 0)
+  reach_i = (sequences[:, 2] > 0)
+  reach_r = (sequences[:, 0] + sequences[:, 1] + sequences[:, 2]) < time_total
+
+  log_q_z = np.zeros((len(sequences)))
+
+  # Terms due to start state
+  log_q_z += start_s * np.log(params_start[0] + 1E-12)
+  log_q_z += start_e * np.log(params_start[1] + 1E-12)
+  log_q_z += start_i * np.log(params_start[2] + 1E-12)
+  log_q_z += start_r * np.log(params_start[3] + 1E-12)
+
+  # Terms due to days spent in S
+  log_q_z += np.maximum(sequences[:, 0]-1, 0.) * np.log(b0)
+  log_q_z += reach_s * reach_e * np.log(1-b0)  # Only when transit to E is made
+
+  # Terms due to days spent in E
+  log_q_z += np.maximum(sequences[:, 1] - 1, 0.) * np.log(b1)
+  log_q_z += reach_e * reach_i * np.log(1-b1)  # Only when transit to I is made
+
+  # Terms due to days spent in I
+  log_q_z += np.maximum(sequences[:, 2] - 1, 0.) * np.log(b2)
+  log_q_z += reach_i * reach_r * np.log(1-b2)  # Only when transit to R is made
+
+  return log_q_z
+
+
+def enumerate_start_belief(
+    seq_array: np.ndarray, start_belief: np.ndarray) -> np.ndarray:
+  """Calculates the start_belief for all enumerated sequences."""
+  assert seq_array.shape[1] == 3
+  assert start_belief.shape == (4,)
+
+  start_s = seq_array[:, 0] > 0
+  start_e = (1.-start_s) * (seq_array[:, 1] > 0)
+  start_i = (1.-start_s) * (1.-start_e) * (seq_array[:, 2] > 0)
+  start_r = np.sum(seq_array, axis=1) == 0
+
+  return (
+    start_belief[0] * start_s
+    + start_belief[1] * start_e
+    + start_belief[2] * start_i
+    + start_belief[3] * start_r)
+
+
+def enumerate_log_q_values(
+    params: np.ndarray,
+    sequences: np.ndarray) -> np.ndarray:
+  """Enumerate values of log_q for variational parameters."""
+  a0, b0, b1, b2 = params[0], params[1], params[2], params[3]
+  time_total = np.max(sequences)
+
+  log_q_z = np.zeros((len(sequences)))
+
+  term_s = sequences[:, 0] >= time_total
+  term_i = (sequences[:, 0] + sequences[:, 1] + sequences[:, 2]) >= time_total
+
+  start_s = sequences[:, 0] > 0
+  reach_i = (sequences[:, 2] > 0)
+
+  # Terms due to s
+  log_q_z += start_s * np.log(a0) + (1-start_s) * np.log(1-a0)
+  log_q_z += start_s * (sequences[:, 0]-1)*np.log(b0)
+  log_q_z += start_s * (1-term_s) * np.log(1-b0)
+
+  # Terms due to e
+  log_q_z += (1-term_s) * (sequences[:, 1] - 1) * np.log(b1)
+  log_q_z += reach_i * np.log(1-b1)
+
+  # Terms due to I
+  log_q_z += reach_i * (sequences[:, 2]-1) * np.log(b2)
+  log_q_z += reach_i * (1-term_i) * np.log(1-b2)
+
+  return log_q_z
+
+
+def sigmoid(x):
+  return 1/(1+np.exp(-x))
+
+
+def softmax(x):
+  y = x - np.max(x)
+  return np.exp(y)/np.sum(np.exp(y))
+
+
+@njit
+def precompute_d_penalty_terms_fn(
+    q_marginal_infected: np.ndarray,
+    p0: float,
+    p1: float,
+    past_contacts: np.ndarray,
+    num_time_steps: int) -> Tuple[np.ndarray, np.ndarray]:
+  """Precompute penalty terms for inference with Factorised Neighbors.
+
+  Consider similarity to 'precompute_d_penalty_terms_vi' and how the log-term is
+  applied.
+  """
+  # Make num_time_steps+1 longs, such that penalties are 0 when t0==0
+  d_term = np.zeros((num_time_steps+1))
+  d_no_term = np.zeros((num_time_steps+1))
+
+  if len(past_contacts) == 0:
+    return d_term, d_no_term
+
+  assert past_contacts[-1][0] < 0
+
+  # Scales with O(T)
+  t_contact = past_contacts[0][0]
+  contacts = [np.int32(x) for x in range(0)]
+  for row in past_contacts:
+    if row[0] == t_contact:
+      contacts.append(row[1])
+    else:
+      # Calculate in log domain to prevent underflow
+      log_expectation = 0.
+
+      # Scales with O(num_contacts)
+      for user_contact in contacts:
+        prob_infected = q_marginal_infected[user_contact][t_contact]
+        log_expectation += np.log(prob_infected*(1-p1) + (1-prob_infected))
+
+      d_no_term[t_contact+1] = log_expectation
+      d_term[t_contact+1] = (
+        np.log(1 - (1-p0)*np.exp(log_expectation)) - np.log(p0))
+
+      # Reset loop stuff
+      t_contact = row[0]
+      contacts = [np.int32(x) for x in range(0)]
+
+      if t_contact < 0:
+        break
+
+  # No termination (when t0 == num_time_steps) should not incur penalty
+  # because the prior doesn't contribute the p0 factor either
+  d_term[num_time_steps] = 0.
+  return d_term, d_no_term
+
+
+def it_num_infected_probs(probs: List[float]) -> Iterable[Tuple[int, float]]:
+  """Iterates over the number of infected neighbors and its probabilities.
+
+  NOTE: this function scales exponential in the number of neighbrs,
+  O(2**len(probs))
+
+  Args:
+    probs: List of floats, each being the probability of a neighbor being
+    infected.
+
+  Returns:
+    iterator with tuples of the number of infected neighbors and its probability
+  """
+  for is_infected in itertools.product([0, 1], repeat=len(probs)):
+    yield sum(is_infected), math.prod(
+      abs(is_infected[i] - 1 + probs[i]) for i in range(len(probs)))
+
+
+def maybe_make_dir(dirname: str):
+  if not os.path.exists(dirname):
+    logger.info(os.getcwd())
+    logger.info(f"Making data_dir {dirname}")
+    os.makedirs(dirname)
+
+
+def quantize(message: Union[np.ndarray, float], num_levels: int
+             ) -> Union[np.ndarray, float]:
+  """Quantizes a message based on rounding.
+
+  Numerical will be mid-bucket.
+
+  TODO: implement quantization with coding scheme."""
+  if num_levels < 0:
+    return message
+
+  if np.any(message > 1. + 1E-5):
+    logger.info(np.min(message))
+    logger.info(np.max(message))
+    logger.info(np.mean(message))
+    raise ValueError(f"Invalid message {message}")
+  message = np.clip(message, 0., 1.-1E-9)
+  message_at_floor = np.floor(message * num_levels) / num_levels
+  return message_at_floor + (.5 / num_levels)
+
+
+def quantize_floor(message: Union[np.ndarray, float], num_levels: int
+                   ) -> Union[np.ndarray, float]:
+  """Quantizes a message based on rounding.
+
+  Numerical will be at the floor of the bucket.
+
+  TODO: implement quantization with coding scheme."""
+  if num_levels < 0:
+    return message
+
+  if np.any(message > 1. + 1E-5):
+    logger.info(np.min(message))
+    logger.info(np.max(message))
+    logger.info(np.mean(message))
+    raise ValueError(f"Invalid message {message}")
+  return np.floor(message * num_levels) / num_levels
+
+
+def get_cpu_count() -> int:
+  # Divide cpu_count among tasks when running multiple tasks via SLURM
+  num_tasks = 1
+  if (slurm_ntasks := os.getenv("SLURM_NTASKS")):
+    num_tasks = int(slurm_ntasks)
+  return int(os.cpu_count() // num_tasks)
+
+
+def normalize(x: Union[List[float], np.ndarray]):
+  return x / np.sum(x)
+
+
+def check_exists(filename: str):
+  if not os.path.exists(filename):
+    logger.warning(f"File does not exist {filename}, current wd {os.getcwd()}")
+
+
+def update_beliefs(
+    belief_matrix: np.ndarray,
+    belief_update: np.ndarray,
+    user_slice: Union[List[Any], np.ndarray],
+    users_stale: Optional[Union[np.ndarray, List[int]]] = None):
+  """Updates the matrix of beliefs."""
+  if users_stale is None:
+    belief_matrix[user_slice] = belief_update
+    return belief_matrix
+
+  for user, bp_belief in zip(user_slice, belief_update):
+    if user in users_stale:
+      continue
+    belief_matrix[user] = bp_belief
+  return belief_matrix
+
+
+def sample_stale_users(
+    user_slice: Optional[np.ndarray]) -> Optional[np.ndarray]:
+  if user_slice is None:
+    return None
+  np.random.shuffle(user_slice)
+  return user_slice[:int(len(user_slice) // 2)]
+
+
+def get_joblib_backend():
+  """Determines a backend for joblib.
+
+  When developing on local PC, then use 'threading'.
+  On remote computers, use 'loky'.
+  """
+  if "carbon" in socket.gethostname():
+    return "threading"
+  return "loky"
+
+
+def make_plain_observations(obs):
+  return [(o['u'], o['time'], o['outcome']) for o in obs]
+
+
+def make_plain_contacts(contacts):
+  return [
+    (c['u'], c['v'], c['time'], [int(c['features'][0])]) for c in contacts]
+
+
+def spread_buckets(num_samples, num_buckets):
+  assert num_samples >= num_buckets
+  num_samples_per_bucket = (int(np.floor(num_samples / num_buckets))
+                            * np.ones((num_buckets)))
+  num_remaining = int(num_samples - np.sum(num_samples_per_bucket))
+  num_samples_per_bucket[:num_remaining] += 1
+  return num_samples_per_bucket

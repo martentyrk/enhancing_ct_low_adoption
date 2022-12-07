@@ -1,0 +1,22 @@
+*.egg-info
+
+jobs.txt
+*.png
+*.jpg
+*.log
+
+**/__pycache__
+**/scratch.py
+**/data/*
+log/*
+wandb/
+results/
+sweep/
+
+# Slurm files
+slurm*
+*/slurm*
+
+# Local scripts
+copy_jl.sh
+*license.pdf
