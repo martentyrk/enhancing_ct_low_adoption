@@ -56,7 +56,7 @@ class InfectiousContactCount:
     for user in user_slice:
       pc_it = itertools.chain.from_iterable(self.past_contacts[user])
       pc_array = np.array(
-        list(map(lambda x: [x[0], x[1], x[2][0]], pc_it)), dtype=np.int16)
+        list(map(lambda x: [x[0], x[1], x[2]], pc_it)), dtype=np.int16)
       past_contacts.append(pc_array)
 
       # Update longest amount of messages
@@ -81,7 +81,7 @@ class InfectiousContactCount:
     t0, de, di = trace
     for timestep in range(t0+de, t0+de+di):
       for (_, user_v, feature) in self.future_contacts[user][timestep]:
-        assert int(feature[0]) == 1, "Only implemented for feature_val==1"
+        assert feature == 1, "Only implemented for feature_val==1"
         add = -1 if remove else 1
         self._counts[user_v][timestep+1] += add
 
@@ -138,13 +138,13 @@ def gather_infected_precontacts(
 
   num_infected_preparents = np.zeros((num_time_steps))
 
-  for (t_contact, user_u, features) in past_contacts:
-    assert len(features) == int(features[0]) == 1, (
+  for (t_contact, user_u, feature) in past_contacts:
+    assert feature == 1, (
       "Code only implemented for singleton feature at 1")
     trace_u = samples_current[user_u]
     state_u = state_at_time_cache(*trace_u, t_contact)
     if state_u == 2:
-      num_infected_preparents[t_contact] += features[0]
+      num_infected_preparents[t_contact] += feature
 
   return num_infected_preparents
 
@@ -587,9 +587,9 @@ def make_plain_observations(obs):
   return [(o['u'], o['time'], o['outcome']) for o in obs]
 
 
-def make_plain_contacts(contacts):
+def make_plain_contacts(contacts) -> List[constants.Contact]:
   return [
-    (c['u'], c['v'], c['time'], [int(c['features'][0])]) for c in contacts]
+    (c['u'], c['v'], c['time'], int(c['features'][0])) for c in contacts]
 
 
 def spread_buckets(num_samples, num_buckets):

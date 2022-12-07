@@ -33,7 +33,9 @@ state_to_seir = np.array(
 # Global type definitions
 
 # (user_u, user_v, timestep, [features])
-Contact = Tuple[int, int, int, List[Union[float, int]]]
+Contact = Union[Tuple[int, int, int, int], np.ndarray]
+ContactList = Union[List[Contact], List[np.ndarray], np.ndarray]
 
 # (user_u, timestep, outcome)
-Observation = Tuple[int, int, int]
+Observation = Union[Tuple[int, int, int], np.ndarray]
+ObservationList = Union[List[Observation], List[np.ndarray], np.ndarray]

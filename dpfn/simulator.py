@@ -14,11 +14,11 @@ from typing import Any, Dict, List, Union
 def plain_to_embedded_contacts(contact_list: List[List[int]]):
   """Converts plain contacts to embedded contacts."""
 
-  def _embed(contact_tuple):
+  def _embed(contact_tuple) -> constants.Contact:
     # Tuples from ABM simulator have semantics:
     # (user_from, user_to, timestep, features)
     # TODO replace with 'contact_tuple[3]'
-    return (contact_tuple[0], contact_tuple[1], contact_tuple[2], [1.])
+    return (contact_tuple[0], contact_tuple[1], contact_tuple[2], 1)
   yield from map(_embed, contact_list)
 
 

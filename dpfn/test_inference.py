@@ -75,7 +75,7 @@ import numpy as np
 def test_fact_neigh_with_start_belief():
 
   contacts_all = [
-    (0, 1, 2, [1]),
+    (0, 1, 2, 1),
     ]
   observations_all = [
     (0, 2, 1)

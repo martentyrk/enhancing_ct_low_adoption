@@ -1,8 +1,8 @@
 """Utility functions for running experiments."""
 import numpy as np
-from dpfn import inference, logger, util
+from dpfn import constants, inference, logger, util
 import subprocess
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 
 def wrap_fact_neigh_inference(
@@ -20,8 +20,8 @@ def wrap_fact_neigh_inference(
   """Wraps the inference function that runs Factorised Neighbors"""
 
   def fact_neigh_wrapped(
-      observations_list: List[Any],
-      contacts_list: List[Any],
+      observations_list: constants.ObservationList,
+      contacts_list: constants.ContactList,
       num_updates: int,
       num_time_steps: int,
       start_belief: Optional[np.ndarray] = None,
@@ -56,8 +56,8 @@ def wrap_dummy_inference(
   """Wraps the inference function for dummy inference."""
 
   def dummy_wrapped(
-      observations_list: List[Any],
-      contacts_list: List[Any],
+      observations_list: constants.ObservationList,
+      contacts_list: constants.ContactList,
       num_updates: int,
       num_time_steps: int,
       start_belief: Optional[np.ndarray] = None,

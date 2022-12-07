@@ -7,7 +7,7 @@ import numba
 import numpy as np
 import os
 import time
-from typing import Any, List, Optional, Tuple
+from typing import Any, Optional, Tuple
 
 comm_world = MPI.COMM_WORLD
 mpi_rank = comm_world.Get_rank()
@@ -100,8 +100,8 @@ def fn_step_wrapped(
 def fact_neigh(
     num_users: int,
     num_time_steps: int,
-    observations_all: List[constants.Observation],
-    contacts_all: List[constants.Contact],
+    observations_all: constants.ObservationList,
+    contacts_all: constants.ContactList,
     probab_0: float,
     probab_1: float,
     g_param: float,

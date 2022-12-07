@@ -238,15 +238,18 @@ def compare_prequential_quarantine(
 
       sim.set_window(days_offset)
 
+      # TODO(rob): Make this faster with Numpy arrays
+      contacts_now = np.array(sim.get_contacts(), dtype=np.int32)
+      comm_world.bcast(contacts_now, root=0)
+
       z_states_inferred = inference_func(
         sim.get_observations_all(),
-        sim.get_contacts(),
+        contacts_now,
         num_rounds,
         num_days,
         start_belief,
         users_stale=users_stale,
         diagnostic=diagnostic)
-
 
       np.testing.assert_array_almost_equal(
         z_states_inferred.shape, [num_users, num_days, 4])

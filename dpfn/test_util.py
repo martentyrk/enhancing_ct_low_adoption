@@ -149,15 +149,15 @@ def test_enumerate_log_prior_values_full_sums_1():
 
 def test_infect_contact_count():
   contacts_all = [
-    (0, 1, 6, [1]),
-    (1, 0, 6, [1]),
-    (0, 2, 5, [1]),
-    (2, 0, 5, [1]),
-    (2, 3, 5, [1]),
-    (3, 2, 5, [1]),
-    (2, 4, 6, [1]),
-    (4, 2, 6, [1]),
-    (5, 0, 6, [1]),
+    (0, 1, 6, 1),
+    (1, 0, 6, 1),
+    (0, 2, 5, 1),
+    (2, 0, 5, 1),
+    (2, 3, 5, 1),
+    (3, 2, 5, 1),
+    (2, 4, 6, 1),
+    (4, 2, 6, 1),
+    (5, 0, 6, 1),
     ]
 
   samples_current = {
@@ -186,11 +186,11 @@ def test_infect_contact_count():
   result = [counter.num_inf_contacts(2, t) for t in range(4, 8)]
   np.testing.assert_array_almost_equal(result, [0, 0, 2, 1])
 
-  expected_future_contacts = [(5, 2, [1]), (6, 1, [1])]
+  expected_future_contacts = [(5, 2, 1), (6, 1, 1)]
   result = list(counter.get_future_contacts(0))
   assert expected_future_contacts == result, "Future contacts don't match."
 
-  expected_past_contacts = [(5, 2, [1]), (6, 1, [1]), (6, 5, [1])]
+  expected_past_contacts = [(5, 2, 1), (6, 1, 1), (6, 5, 1)]
   result = list(counter.get_past_contacts(0))
   assert expected_past_contacts == result, "Past contacts don't match."
 
@@ -198,15 +198,15 @@ def test_infect_contact_count():
 def test_gather_infected_precontacts():
   num_time_steps = 8
   contacts_all = [
-    (0, 1, 6, [1]),
-    (1, 0, 6, [1]),
-    (0, 2, 5, [1]),
-    (2, 0, 5, [1]),
-    (2, 3, 5, [1]),
-    (3, 2, 5, [1]),
-    (2, 4, 6, [1]),
-    (4, 2, 6, [1]),
-    (5, 0, 6, [1]),
+    (0, 1, 6, 1),
+    (1, 0, 6, 1),
+    (0, 2, 5, 1),
+    (2, 0, 5, 1),
+    (2, 3, 5, 1),
+    (3, 2, 5, 1),
+    (2, 4, 6, 1),
+    (4, 2, 6, 1),
+    (5, 0, 6, 1),
     ]
 
   samples_current = {
@@ -247,12 +247,12 @@ def test_gather_infected_precontacts():
 
 def test_d_penalty_term():
   contacts_all = [
-    (0, 1, 2, [1]),
-    (1, 0, 2, [1]),
-    (3, 2, 2, [1]),
-    (2, 3, 2, [1]),
-    (4, 5, 2, [1]),
-    (5, 4, 2, [1]),
+    (0, 1, 2, 1),
+    (1, 0, 2, 1),
+    (3, 2, 2, 1),
+    (2, 3, 2, 1),
+    (4, 5, 2, 1),
+    (5, 4, 2, 1),
     ]
   num_users = 6
   num_time_steps = 5
@@ -363,9 +363,9 @@ def test_it_num_infected_probs():
 
 def test_past_contact_array():
   contacts_all = [
-    (1, 2, 4, [1]),
-    (2, 1, 4, [1]),
-    (0, 1, 4, [1])
+    (1, 2, 4, 1),
+    (2, 1, 4, 1),
+    (0, 1, 4, 1)
     ]
 
   counter = util.InfectiousContactCount(

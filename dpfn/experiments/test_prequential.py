@@ -6,7 +6,7 @@ from dpfn.experiments import prequential
 
 def test_simulate_one_day():
   contacts_all = [
-    (0, 1, 2, [1]),
+    (0, 1, 2, 1),
   ]
   states = np.array([
     [2, 2, 2, 2, 2],
