@@ -89,6 +89,18 @@ Insights from debugging:
   * 'gsl/gsl_rng.h: No such file or directory' -> make sure the includes are set correctly. Like -I/var/scratch/rromijnd/projects/gsl/include to the compiler
   * 'cannot find -lgsl' -> Make sure the libraries are set correctly. Like -L/var/scratch/rromijnd/projects/gsl/lib to the linker
 
+## Run a sweep with WandB
+To run a sweep with WandB, run the following command
+
+`$ wandb sweep sweep/stale_abm.yaml`
+
+Copy the sweepid. Then on the cluster, or another computer, start up an agent with
+
+```
+$ export SWEEP=sweepid
+$ wandb agent "$USERNAME/dpfn-dpfn_experiments/$SWEEP"
+```
+
 ## Attribution
 
 This readme is anonymous for conference review. Later, this section will contain contact info, and attribution to collaborators.
