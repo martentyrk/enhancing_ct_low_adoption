@@ -182,6 +182,10 @@ def fact_neigh(
   q_marginal_infected = np.zeros((num_users, num_time_steps)).astype(np.double)
   post_exp = np.zeros((num_users, num_time_steps, 4))
 
+  if mpi_rank == 0:
+    logger.info(f"Time spent on preamble1 {time.time() - t_start_preamble:.1f}")
+    t_start_preamble = time.time()
+
   infect_counter = util.InfectiousContactCount(
     contacts=contacts_all,
     samples=None,
@@ -196,7 +200,7 @@ def fact_neigh(
     start_belief = start_belief[user_interval[0]:user_interval[1]]
 
   if mpi_rank == 0:
-    logger.info(f"Time spent on preamble {time.time() - t_start_preamble:.1f}")
+    logger.info(f"Time spent on preamble2 {time.time() - t_start_preamble:.1f}")
 
   for num_update in range(num_updates):
     if verbose:
