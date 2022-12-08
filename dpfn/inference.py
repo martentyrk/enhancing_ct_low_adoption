@@ -186,14 +186,7 @@ def fact_neigh(
     logger.info(f"Time spent on preamble1 {time.time() - t_start_preamble:.1f}")
     t_start_preamble = time.time()
 
-  infect_counter = util.InfectiousContactCount(
-    contacts=contacts_all,
-    samples=None,
-    num_users=num_users,
-    num_time_steps=num_time_steps,
-  )
-  past_contacts = infect_counter.get_past_contacts_slice(
-    list(range(user_interval[0], user_interval[1])))
+  past_contacts = util.get_past_contacts_fast(user_interval, contacts_all)
 
   if start_belief is not None:
     assert len(start_belief) == num_users
