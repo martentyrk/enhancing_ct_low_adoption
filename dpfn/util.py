@@ -17,7 +17,7 @@ class InfectiousContactCount:
   """Counter for infectious contacts."""
 
   def __init__(self,
-               contacts: List[constants.Contact],
+               contacts: constants.ContactList,
                samples: Optional[Mapping[int, Union[np.ndarray, List[int]]]],
                num_users: int,
                num_time_steps: int):
@@ -166,14 +166,17 @@ def calc_c_z_u(
 
   Notation follows the original CRISP paper.
   """
+  # TODO(rob) use numba.njit to speed up this function
   interval_num_users = user_interval[1] - user_interval[0]
   log_prob_obs = np.zeros((interval_num_users, obs_array.shape[1]))
 
-  for obs in observations:
-    user_u = obs[0]
+  if observations.shape[1] > 1:
+    # Only run if there are observations
+    for obs in observations:
+      user_u = obs[0]
 
-    if user_interval[0] <= user_u < user_interval[1]:
-      log_prob_obs[user_u - user_interval[0]] += obs_array[obs[1], :, obs[2]]
+      if user_interval[0] <= user_u < user_interval[1]:
+        log_prob_obs[user_u - user_interval[0]] += obs_array[obs[1], :, obs[2]]
 
   return log_prob_obs
 

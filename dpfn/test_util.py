@@ -42,10 +42,10 @@ def test_state_time_cache():
 def test_calculate_log_c_z():
   num_time_steps = 4
 
-  observations_all = [
+  observations_all = np.array([
     (1, 2, 1),
     (2, 3, 0),
-    ]
+    ])
 
   a, b = .1, .2
 

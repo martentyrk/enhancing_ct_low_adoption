@@ -15,9 +15,9 @@ def test_factorised_neighbor_step():
     (4, 5, 2, 1),
     (5, 4, 2, 1),
     ]
-  observations_all = [
+  observations_all = np.array([
     (0, 2, 1)
-  ]
+  ])
   num_users = 6
   num_time_steps = 5
 
@@ -87,9 +87,9 @@ def test_fact_neigh_with_start_belief():
   contacts_all = [
     (0, 1, 2, 1),
     ]
-  observations_all = [
+  observations_all = np.array([
     (0, 2, 1)
-  ]
+  ])
   num_users = 2
   num_time_steps = 5
 
