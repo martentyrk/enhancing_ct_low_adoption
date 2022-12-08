@@ -1,8 +1,9 @@
 """Utility functions for inference in CRISP-like models."""
 
+import contextlib
 import functools
 import itertools
-from time import time  # pylint: disable=unused-import
+import time  # pylint: disable=unused-import
 import math
 from dpfn import constants, logger
 from numba import njit
@@ -149,41 +150,30 @@ def gather_infected_precontacts(
   return num_infected_preparents
 
 
+@njit
 def calc_c_z_u(
     user_interval: Tuple[int, int],
-    potential_sequences: np.ndarray,
-    observations: constants.ObservationList,
-    alpha: float,
-    beta: float) -> np.ndarray:
+    obs_array: np.ndarray,
+    observations: np.ndarray) -> np.ndarray:
   """Precompute the Cz terms.
+
+  Args:
+    user_interval: Tuple of (start, end) user indices.
+    potential_sequences: Array in [num_sequences, 3] of potential sequences.
+    observations: Array in [num_observations, 3] of observations.
+    alpha: FNR.
+    beta: FPR.
 
   Notation follows the original CRISP paper.
   """
   interval_num_users = user_interval[1] - user_interval[0]
+  log_prob_obs = np.zeros((interval_num_users, obs_array.shape[1]))
 
-  # Map outcome to PMF over health state
-  probabs = {0: [alpha, 1-beta],
-             1: [1-alpha, beta]}
-
-  log_prob_obs = np.zeros((interval_num_users, len(potential_sequences)))
-
-  seq_cumsum = np.cumsum(potential_sequences, axis=1)
-
-  def filter_fn(x):
-    return (x[0] >= user_interval[0]) and (x[0] < user_interval[1])
-  # This implementation assumes sparse observations. With dense observations,
-  # more efficient to calculate seq_binary outside for-loop
-  for obs in filter(filter_fn, observations):
-    probab_tuple = probabs[obs[2]]
+  for obs in observations:
     user_u = obs[0]
 
-    # Append ones to default to state R
-    seq_binary = (seq_cumsum > obs[1]).astype(np.int)
-    seq_binary = np.concatenate((seq_binary, np.ones((len(seq_binary), 1))),
-                                axis=1)
-    state = np.argmax(seq_binary, axis=1)
-    log_prob_obs[user_u - user_interval[0]] += np.log(
-      np.where(state == 2, probab_tuple[0], probab_tuple[1]))
+    if user_interval[0] <= user_u < user_interval[1]:
+      log_prob_obs[user_u - user_interval[0]] += obs_array[obs[1], :, obs[2]]
 
   return log_prob_obs
 
@@ -314,6 +304,24 @@ def generate_sequence_days(time_total: int):
       non_t0_de = time_total - t0 - de
       for di in range(di_start, non_t0_de+1):
         yield (t0, de, di)
+
+
+@functools.lru_cache(maxsize=1)
+def make_inf_obs_array(
+    num_time_steps: int, alpha: float, beta: float) -> np.ndarray:
+  """Makes an array with observation log-terms per day."""
+
+  pot_seqs = np.stack(list(
+    iter_sequences(time_total=num_time_steps, start_se=False)))
+  time_seqs = state_seq_to_time_seq(pot_seqs, num_time_steps)
+
+  out_array = np.zeros((num_time_steps, len(pot_seqs), 2))
+  for t in range(num_time_steps):
+    out_array[t, :, 0] = np.log(
+      np.where(time_seqs[:, t] == 2, alpha, 1-beta))
+    out_array[t, :, 1] = np.log(
+      np.where(time_seqs[:, t] == 2, 1-alpha, beta))
+  return out_array
 
 
 def enumerate_log_prior_values(
@@ -608,3 +616,10 @@ def spread_buckets(num_samples: int, num_buckets: int) -> np.ndarray:
 def spread_buckets_interval(num_samples: int, num_buckets: int) -> np.ndarray:
   num_users_per_bucket = spread_buckets(num_samples, num_buckets)
   return np.concatenate(([0], np.cumsum(num_users_per_bucket)))
+
+
+@contextlib.contextmanager
+def timeit(message: str):
+  tstart = time.time()
+  yield
+  logger.info(f"{message} took {time.time() - tstart:.3f} seconds")

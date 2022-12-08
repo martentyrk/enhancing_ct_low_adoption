@@ -39,12 +39,11 @@ def test_factorised_neighbor_step():
     seq_array, num_time_steps)
 
   # Precompute log(C) terms, relating to observations
+  obs_array = util.make_inf_obs_array(int(num_time_steps), alpha, beta)
   log_c_z_u = util.calc_c_z_u(
     user_interval,
-    seq_array,
-    observations_all,
-    alpha=alpha,
-    beta=beta)
+    obs_array,
+    observations_all)
 
   q_marginal_infected = np.zeros((num_users, num_time_steps)).astype(np.double)
 

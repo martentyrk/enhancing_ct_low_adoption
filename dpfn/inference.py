@@ -172,13 +172,12 @@ def fact_neigh(
     prior, [1-probab_0, 1-g_param, 1-h_param],
     seq_array, num_time_steps)
 
+  obs_array = util.make_inf_obs_array(int(num_time_steps), alpha, beta)
   # Precompute log(C) terms, relating to observations
   log_c_z_u = util.calc_c_z_u(
     user_interval,
-    seq_array,
-    observations_all,
-    alpha=alpha,
-    beta=beta)
+    obs_array,
+    observations_all)
 
   q_marginal_infected = np.zeros((num_users, num_time_steps)).astype(np.double)
   post_exp = np.zeros((num_users, num_time_steps, 4))
@@ -197,7 +196,7 @@ def fact_neigh(
     start_belief = start_belief[user_interval[0]:user_interval[1]]
 
   if mpi_rank == 0:
-    logger.info(f"{time.time() - t_start_preamble:.1f} seconds on preamble")
+    logger.info(f"Time spent on preamble {time.time() - t_start_preamble:.1f}")
 
   for num_update in range(num_updates):
     if verbose:

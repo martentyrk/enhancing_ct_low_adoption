@@ -40,7 +40,7 @@ def test_state_time_cache():
 
 
 def test_calculate_log_c_z():
-  potential_sequences = list(util.generate_sequence_days(time_total=4))
+  num_time_steps = 4
 
   observations_all = [
     (1, 2, 1),
@@ -49,22 +49,24 @@ def test_calculate_log_c_z():
 
   a, b = .1, .2
 
+  obs_array = util.make_inf_obs_array(int(num_time_steps), a, b)
   result = util.calc_c_z_u(
     user_interval=(0, 3),
-    potential_sequences=np.array(potential_sequences),
-    observations=observations_all,
-    alpha=a,
-    beta=b)
+    obs_array=obs_array,
+    observations=observations_all)
   expected = np.array([
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [np.log(b), np.log(b), np.log(b), np.log(b), np.log(1-a), np.log(1-a),
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [np.log(b), np.log(b), np.log(b), np.log(1-a), np.log(1-a), np.log(b),
+     np.log(1-a), np.log(1-a), np.log(1-a), np.log(1-a), np.log(b), np.log(b),
+     np.log(1-a), np.log(1-a), np.log(b), np.log(b), np.log(b), np.log(b),
      np.log(b), np.log(b)],
-    [np.log(1-b), np.log(1-b), np.log(a), np.log(1-b), np.log(1-b),
-     np.log(a), np.log(a), np.log(1-b)]])
+    [np.log(1-b), np.log(1-b), np.log(1-b), np.log(1-b), np.log(a), np.log(1-b),
+     np.log(1-b), np.log(a), np.log(1-b), np.log(a), np.log(a), np.log(1-b),
+     np.log(1-b), np.log(a), np.log(a), np.log(1-b), np.log(a), np.log(1-b),
+     np.log(1-b), np.log(1-b)]])
 
-  assert result.shape == expected.shape, (f"Not all expected users found."
-                                          f"found {set(result)}, "
-                                          f"but expected {set(expected)}")
+  assert result.shape == expected.shape, (
+    f"Shapes dont match: {result.shape} {expected.shape}")
 
   np.testing.assert_array_almost_equal(result, expected)
 

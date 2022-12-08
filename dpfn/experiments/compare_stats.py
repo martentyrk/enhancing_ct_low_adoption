@@ -254,7 +254,8 @@ def compare_prequential_quarantine(
 
       np.testing.assert_array_almost_equal(
         z_states_inferred.shape, [num_users, num_days, 4])
-      logger.info(f"Time spent on inference_func {time.time() - t_start:.0f}")
+      if mpi_rank == 0:
+        logger.info(f"Time spent on inference_func {time.time() - t_start:.0f}")
 
       # Decide who to quarantine and subtract contacts
       if threshold_quarantine > 0:
@@ -416,7 +417,7 @@ def compare_inference_algorithms(
 
   time_start = time.time()
   z_states_inferred = inference_func(
-    observations,
+    np.array(observations),
     contacts,
     num_rounds,
     num_time_steps,
