@@ -377,7 +377,57 @@ def test_past_contact_array():
   np.testing.assert_array_almost_equal(past_contacts[2][1], -1)
   np.testing.assert_array_almost_equal(past_contacts[2][0], [4, 1, 1])
 
-  np.testing.assert_equal(past_contacts.dtype, np.int16)
+  np.testing.assert_equal(past_contacts.dtype, np.int64)
+
+
+def test_past_contact_array_fast():
+  contacts_all = np.array([
+    (1, 2, 4, 1),
+    (2, 1, 4, 1),
+    (0, 1, 4, 1)
+    ])
+
+  past_contacts = util.get_past_contacts_fast((0, 3), contacts_all)
+
+  np.testing.assert_array_almost_equal(past_contacts.shape, [3, 2+1, 3])
+  np.testing.assert_array_almost_equal(past_contacts[0], -1)
+  np.testing.assert_array_almost_equal(past_contacts[2][1], -1)
+  np.testing.assert_array_almost_equal(past_contacts[2][0], [4, 1, 1])
+
+  np.testing.assert_equal(past_contacts.dtype, np.int64)
+
+
+def test_past_contact_array_fast_copy_paste():
+  contacts_all = np.array([
+    (1, 2, 4, 1),
+    (1, 2, 3, 1),
+    (1, 2, 2, 1),
+    (1, 2, 1, 1),
+    (2, 1, 4, 1),
+    ])
+
+  counter = util.InfectiousContactCount(
+    contacts_all, None, num_users=6, num_time_steps=7)
+  past_contacts_slow = counter.get_past_contacts_slice([0, 1, 2])
+
+  past_contacts_fast = util.get_past_contacts_fast((0, 3), contacts_all)
+
+  # Check that the shapes match
+  np.testing.assert_array_almost_equal(
+    past_contacts_slow.shape, past_contacts_fast.shape
+  )
+
+  # Check that the values match
+  np.testing.assert_array_almost_equal(
+    past_contacts_slow[0], past_contacts_fast[0]
+  )
+  np.testing.assert_array_almost_equal(
+    past_contacts_slow[1], past_contacts_fast[1]
+  )
+  np.testing.assert_array_almost_equal(
+    # Silly to test mean, but contacts could occur in any order ofcourse
+    np.sum(past_contacts_slow[2]), np.sum(past_contacts_fast[2])
+  )
 
 
 def test_enumerate_start_belief():
@@ -402,14 +452,14 @@ def test_update_beliefs():
   result = util.update_beliefs(
     matrix,
     beliefs,
-    user_slice=np.array([0, 2], dtype=np.int32))
+    user_slice=np.array([0, 2], dtype=np.int64))
   expected = np.tile(np.array([0, 1, 0]), [4, 1]).T
   np.testing.assert_array_almost_equal(result, expected)
 
   result = util.update_beliefs(
     matrix,
     beliefs,
-    user_slice=np.array([0, 2], dtype=np.int32),
+    user_slice=np.array([0, 2], dtype=np.int64),
     users_stale=[2])
   expected = np.tile(np.array([0, 1, 1]), [4, 1]).T
 

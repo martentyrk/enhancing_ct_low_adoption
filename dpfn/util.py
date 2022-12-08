@@ -6,7 +6,7 @@ import itertools
 import time  # pylint: disable=unused-import
 import math
 from dpfn import constants, logger
-from numba import njit
+import numba
 import numpy as np
 import os
 import socket
@@ -21,7 +21,7 @@ class InfectiousContactCount:
                samples: Optional[Mapping[int, Union[np.ndarray, List[int]]]],
                num_users: int,
                num_time_steps: int):
-    self._counts = np.zeros((num_users, num_time_steps + 1), dtype=np.int32)
+    self._counts = np.zeros((num_users, num_time_steps + 1), dtype=np.int64)
     self._num_time_steps = num_time_steps
 
     # TODO: WARNING: This constructor assumes that the contacts don't change!
@@ -57,7 +57,7 @@ class InfectiousContactCount:
     for user in user_slice:
       pc_it = itertools.chain.from_iterable(self.past_contacts[user])
       pc_array = np.array(
-        list(map(lambda x: [x[0], x[1], x[2]], pc_it)), dtype=np.int16)
+        list(map(lambda x: [x[0], x[1], x[2]], pc_it)), dtype=np.int64)
       past_contacts.append(pc_array)
 
       # Update longest amount of messages
@@ -65,7 +65,7 @@ class InfectiousContactCount:
 
     # Default to -1 for undefined past contacts
     pc_tensor = -1 * np.ones(
-      (len(user_slice), max_messages+1, 3), dtype=np.int16)
+      (len(user_slice), max_messages+1, 3), dtype=np.int64)
     for i, user in enumerate(user_slice):
       num_contacts = len(past_contacts[i])
       if num_contacts > 0:
@@ -94,6 +94,39 @@ class InfectiousContactCount:
 
   def get_past_contacts_at_time(self, user: int, timestep: int):
     yield from self.past_contacts[user][timestep]
+
+
+@numba.njit
+def get_past_contacts_fast(
+    user_interval: Tuple[int, int],
+    contacts: np.ndarray) -> np.ndarray:
+  """Returns past contacts as a NumPy array, for easy pickling."""
+  num_users_int = user_interval[1] - user_interval[0]
+
+  if len(contacts) == 0:
+    return -1 * np.ones((num_users_int, 1, 3), dtype=np.int64)
+  if contacts.shape[1] == 0:
+    return -1 * np.ones((num_users_int, 1, 3), dtype=np.int64)
+
+  contacts_past = [[(-1, -1, -1)] for _ in range(num_users_int)]
+
+  # First find all contacts that are in the interval
+  for contact in contacts:
+    user_v = contact[1]
+    if user_interval[0] <= user_v < user_interval[1]:
+      datum = (contact[2], contact[0], contact[3])
+      contacts_past[user_v - user_interval[0]].append(datum)
+
+  # Then construct Numpy array
+  max_messages = max(map(len, contacts_past)) - 1  # Subtract 1 to make clear!
+  pc_tensor = -1 * np.ones((num_users_int, max_messages + 1, 3), dtype=np.int64)
+  for i in range(num_users_int):
+    num_contacts = len(contacts_past[i])
+    if num_contacts > 1:
+      pc_array = np.array(contacts_past[i][1:], dtype=np.int64)
+      pc_tensor[i][:num_contacts-1] = pc_array
+
+  return pc_tensor
 
 
 def state_at_time(days_array, timestamp):
@@ -150,7 +183,7 @@ def gather_infected_precontacts(
   return num_infected_preparents
 
 
-@njit
+@numba.njit
 def calc_c_z_u(
     user_interval: Tuple[int, int],
     obs_array: np.ndarray,
@@ -427,7 +460,7 @@ def softmax(x):
   return np.exp(y)/np.sum(np.exp(y))
 
 
-@njit
+@numba.njit
 def precompute_d_penalty_terms_fn(
     q_marginal_infected: np.ndarray,
     p0: float,
@@ -450,7 +483,7 @@ def precompute_d_penalty_terms_fn(
 
   # Scales with O(T)
   t_contact = past_contacts[0][0]
-  contacts = [np.int32(x) for x in range(0)]
+  contacts = [np.int64(x) for x in range(0)]
   for row in past_contacts:
     if row[0] == t_contact:
       contacts.append(row[1])
@@ -469,7 +502,7 @@ def precompute_d_penalty_terms_fn(
 
       # Reset loop stuff
       t_contact = row[0]
-      contacts = [np.int32(x) for x in range(0)]
+      contacts = [np.int64(x) for x in range(0)]
 
       if t_contact < 0:
         break
@@ -525,7 +558,7 @@ def quantize(message: Union[np.ndarray, float], num_levels: int
   return message_at_floor + (.5 / num_levels)
 
 
-@njit
+@numba.njit
 def quantize_floor(message: Union[np.ndarray, float], num_levels: int
                    ) -> Union[np.ndarray, float]:
   """Quantizes a message based on rounding.
