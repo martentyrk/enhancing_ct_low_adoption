@@ -102,7 +102,7 @@ def fn_step_wrapped(
     t1 = time.time()
 
   p_infected_matrix[user_interval[0]:user_interval[1]] = post_exps[:, :, 2]
-  return post_exps, t0, t1
+  return post_exps, t0, t1, p_infected_matrix
 
 
 def fact_neigh(
@@ -208,7 +208,7 @@ def fact_neigh(
       assert False, "Not implemented yet"
       # users_stale_now = util.sample_stale_users(users_stale)
 
-    post_exp, tstart, t_end = fn_step_wrapped(
+    post_exp, tstart, t_end, q_marginal_infected = fn_step_wrapped(
       user_interval,
       seq_array_hot,
       log_c_z_u,  # already depends in mpi_rank
