@@ -238,8 +238,10 @@ def compare_prequential_quarantine(
       sim.set_window(days_offset)
 
       # TODO(rob): Make this faster with Numpy arrays
-      contacts_now = np.array(sim.get_contacts(), dtype=np.int32)
-      observations_now = np.array(sim.get_observations_all(), dtype=np.int32)
+      contacts_now = np.array(
+        sim.get_contacts(), dtype=np.int32, ndmin=2)
+      observations_now = np.array(
+        sim.get_observations_all(), dtype=np.int32, ndmin=2)
       comm_world.bcast(contacts_now, root=0)
       comm_world.bcast(observations_now, root=0)
 
