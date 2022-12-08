@@ -1,6 +1,6 @@
 """Inference methods for contact-graphs."""
 from dpfn import constants, logger, util
-from mpi4py import MPI
+from mpi4py import MPI  # pytype: disable=import-error
 import numba
 import numpy as np
 import os
@@ -196,7 +196,8 @@ def fact_neigh(
     assert len(start_belief) == num_users
     start_belief = start_belief[user_interval[0]:user_interval[1]]
 
-  logger.info(f"{time.time() - t_start_preamble:.1f} seconds on preamble")
+  if mpi_rank == 0:
+    logger.info(f"{time.time() - t_start_preamble:.1f} seconds on preamble")
 
   for num_update in range(num_updates):
     if verbose:

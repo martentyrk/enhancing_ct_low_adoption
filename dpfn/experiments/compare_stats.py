@@ -1,7 +1,7 @@
 """Compare inference methods on likelihood and AUROC"""
 import argparse
 import copy
-from mpi4py import MPI
+from mpi4py import MPI  # pytype: disable=import-error
 import numpy as np
 from dpfn.config import config
 from dpfn.data import data_load
@@ -231,7 +231,8 @@ def compare_prequential_quarantine(
       # Make inference over SEIR states
       start_belief = start_belief_global
       if num_days <= t_now:
-        logger.info("Use window!")
+        if mpi_rank == 0:
+          logger.info("Use window!")
         start_belief = z_states_inferred[:, 1]
 
       sim.set_window(days_offset)
@@ -281,53 +282,57 @@ def compare_prequential_quarantine(
     assert sim.get_current_day() == t_now - 1
     sim.step()
 
-    # NOTE: fpr is only defined as long as num_users_quarantine is fixed.
-    # else switch to precision and recall
-    states_today = sim.get_states_today()
+    if mpi_rank == 0:
+      # NOTE: fpr is only defined as long as num_users_quarantine is fixed.
+      # else switch to precision and recall
+      states_today = sim.get_states_today()
 
-    precision, recall = prequential.calc_prec_recall(
-      states_today, users_to_quarantine)
-    infection_rate = np.mean(states_today == 2)
-    exposed_rate = np.mean(
-      np.logical_or(states_today == 1, states_today == 2))
-    logger.info((f"precision: {precision:5.2f}, recall: {recall: 5.2f}, "
-                 f"infection rate: {infection_rate:5.3f}, "
-                 f"exposed rate: {exposed_rate:5.3f}, "
-                 f"tests: {len(users_to_test):5.0f}"))
+      precision, recall = prequential.calc_prec_recall(
+        states_today, users_to_quarantine)
+      infection_rate = np.mean(states_today == 2)
+      exposed_rate = np.mean(
+        np.logical_or(states_today == 1, states_today == 2))
+      logger.info((f"precision: {precision:5.2f}, recall: {recall: 5.2f}, "
+                   f"infection rate: {infection_rate:5.3f}, "
+                   f"exposed rate: {exposed_rate:5.3f}, "
+                   f"tests: {len(users_to_test):5.0f}"))
 
-    precisions[t_now] = precision
-    recalls[t_now] = recall
-    infection_rates[t_now] = infection_rate
-    exposed_rates[t_now] = np.mean(
-      np.logical_or(states_today == 1, states_today == 2))
-    num_quarantined[t_now] = len(users_to_quarantine)
-    num_tested[t_now] = len(users_to_test)
+      precisions[t_now] = precision
+      recalls[t_now] = recall
+      infection_rates[t_now] = infection_rate
+      exposed_rates[t_now] = np.mean(
+        np.logical_or(states_today == 1, states_today == 2))
+      num_quarantined[t_now] = len(users_to_quarantine)
+      num_tested[t_now] = len(users_to_test)
 
-    # Inspect using sampled states
-    p_at_state = z_states_inferred[range(num_users), num_days-1, states_today]
-    likelihoods_state[t_now] = np.mean(np.log(p_at_state + 1E-9))
-    ave_prob_inf_at_inf[t_now] = np.mean(
-      p_at_state[states_today == 2])
-    ave_prob_inf[t_now] = np.mean(z_states_inferred[:, num_days-1, 2])
+      # Inspect using sampled states
+      p_at_state = z_states_inferred[range(num_users), num_days-1, states_today]
+      likelihoods_state[t_now] = np.mean(np.log(p_at_state + 1E-9))
+      ave_prob_inf_at_inf[t_now] = np.mean(
+        p_at_state[states_today == 2])
+      ave_prob_inf[t_now] = np.mean(z_states_inferred[:, num_days-1, 2])
 
-    ave_precision[t_now] = metrics.average_precision_score(
-      y_true=(states_today == 2),
-      y_score=z_states_inferred[:, num_days-1, 2])
+      if infection_rate > 0:
+        ave_precision[t_now] = metrics.average_precision_score(
+          y_true=(states_today == 2),
+          y_score=z_states_inferred[:, num_days-1, 2])
+      else:
+        ave_precision[t_now] = 0.
 
-    logger.info(f"Time spent on full_loop {time.time() - t_start_loop:.0f}")
+      logger.info(f"Time spent on full_loop {time.time() - t_start_loop:.0f}")
 
-    loadavg1, loadavg5, loadavg15 = os.getloadavg()
-    runner.log({
-      "timestep": t_now,
-      "load1": loadavg1,
-      "load5": loadavg5,
-      "load15": loadavg15,
-      })
-
-  time_pir, pir = np.argmax(infection_rates), np.max(infection_rates)
-  logger.info(f"At day {time_pir} peak infection rate is {pir}")
+      loadavg1, loadavg5, loadavg15 = os.getloadavg()
+      runner.log({
+        "timestep": t_now,
+        "load1": loadavg1,
+        "load5": loadavg5,
+        "load15": loadavg15,
+        })
 
   if mpi_rank == 0:
+    time_pir, pir = np.argmax(infection_rates), np.max(infection_rates)
+    logger.info(f"At day {time_pir} peak infection rate is {pir}")
+
     prequential.dump_results_json(
       datadir=results_dir,
       cfg=cfg,
@@ -348,18 +353,18 @@ def compare_prequential_quarantine(
       seed=cfg.get("seed", -1),
     )
 
-  time_spent = time.time() - t0
+    time_spent = time.time() - t0
 
-  logger.info(f"With {num_rounds} rounds, PIR {pir:5.2f}")
-  runner.log({
-    "num_rounds": num_rounds,
-    "time_spent": time_spent,
-    "pir_mean": pir})
+    logger.info(f"With {num_rounds} rounds, PIR {pir:5.2f}")
+    runner.log({
+      "num_rounds": num_rounds,
+      "time_spent": time_spent,
+      "pir_mean": pir})
 
-  # Overwrite every experiment, such that code could be pre-empted
-  prequential.dump_results(
-    results_dir, precisions=precisions, recalls=recalls,
-    infection_rates=infection_rates)
+    # Overwrite every experiment, such that code could be pre-empted
+    prequential.dump_results(
+      results_dir, precisions=precisions, recalls=recalls,
+      infection_rates=infection_rates)
 
 
 def compare_inference_algorithms(
