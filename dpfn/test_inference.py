@@ -1,75 +1,81 @@
 """Test functions for inference.py."""
 
-from dpfn import inference
+from dpfn import inference, util
 import numpy as np
 
 
-# def test_factorised_neighbor_step():
+def test_factorised_neighbor_step():
+  """Tests Factorised Neighbors step."""
 
-#   contacts_all = [
-#     (0, 1, 2, [1]),
-#     (1, 0, 2, [1]),
-#     (3, 2, 2, [1]),
-#     (2, 3, 2, [1]),
-#     (4, 5, 2, [1]),
-#     (5, 4, 2, [1]),
-#     ]
-#   observations_all = [
-#     (0, 2, 1)
-#   ]
-#   num_users = 6
-#   num_time_steps = 5
+  contacts_all = [
+    (0, 1, 2, 1),
+    (1, 0, 2, 1),
+    (3, 2, 2, 1),
+    (2, 3, 2, 1),
+    (4, 5, 2, 1),
+    (5, 4, 2, 1),
+    ]
+  observations_all = [
+    (0, 2, 1)
+  ]
+  num_users = 6
+  num_time_steps = 5
 
-#   p0, p1 = 0.01, 0.3
+  user_interval = (0, num_users)
 
-#   it_prior = util.iter_prior(
-#     *test_util.gen_dummy_dynamics(p0, 1/3, 1/3, num_time_steps),
-#     time_total=num_time_steps)
+  p0, p1 = 0.01, 0.3
+  g_param, h_param = 0.2, 0.2
+  alpha, beta = 0.0001, 0.001
 
-#   potential_sequences, log_A_start_list = zip(*it_prior)
-#   seq_array = np.stack(potential_sequences, axis=0)
-#   seq_array_hot = np.transpose(util.state_seq_to_hot_time_seq(
-#     seq_array, time_total=num_time_steps), [1, 2, 0])
+  seq_array = np.stack(list(
+    util.iter_sequences(time_total=num_time_steps, start_se=False)))
+  seq_array_hot = np.transpose(util.state_seq_to_hot_time_seq(
+    seq_array, time_total=num_time_steps), [1, 2, 0]).astype(np.int8)
 
-#   infect_counter = util.InfectiousContactCount(
-#     contacts=contacts_all,
-#     samples=None,
-#     num_users=num_users,
-#     num_time_steps=num_time_steps,
-#   )
+  prior = [1-p0, p0, 0., 0.]
 
-#   log_c_z_u = util.calc_c_z_u(
-#     seq_array, observations_all, num_users=num_users, alpha=0.001, beta=0.01)
+  log_A_start = util.enumerate_log_prior_values(
+    prior, [1-p0, 1-g_param, 1-h_param],
+    seq_array, num_time_steps)
 
-#   q_marginal_infected = np.array([
-#     [.8, .8, .8, .8, .8],
-#     [.1, .1, .8, .8, .8],
-#     [.1, .1, .1, .1, .1],
-#     [.1, .1, .1, .1, .1],
-#     [.1, .1, .1, .1, .1],
-#     [.1, .1, .1, .1, .1],
-#   ])
+  # Precompute log(C) terms, relating to observations
+  log_c_z_u = util.calc_c_z_u(
+    user_interval,
+    seq_array,
+    observations_all,
+    alpha=alpha,
+    beta=beta)
 
-#   user_slice_input = np.array([0, 1, 2])
-#   past_contacts = infect_counter.get_past_contacts_slice(user_slice_input)
+  q_marginal_infected = np.zeros((num_users, num_time_steps)).astype(np.double)
 
-#   log_c_z_u_s = np.stack(
-#     [log_c_z_u[user] for user in user_slice_input], axis=0)
+  infect_counter = util.InfectiousContactCount(
+    contacts=contacts_all,
+    samples=None,
+    num_users=num_users,
+    num_time_steps=num_time_steps,
+  )
+  past_contacts = infect_counter.get_past_contacts_slice(
+    list(range(user_interval[0], user_interval[1])))
 
-#   user_slice, post_exps, _, _ = inference.fn_step_wrapped(
-#     user_slice=user_slice_input,
-#     seq_array_hot=seq_array_hot,
-#     log_c_z_u=log_c_z_u_s,
-#     log_A_start=np.array(log_A_start_list),
-#     p_infected_matrix=q_marginal_infected,
-#     num_time_steps=num_time_steps,
-#     probab0=p0,
-#     probab1=p1,
-#     past_contacts_array=past_contacts)
+  # 1 update
+  post_exp, tstart, tend = inference.fn_step_wrapped(
+    user_interval,
+    seq_array_hot,
+    log_c_z_u,
+    log_A_start,
+    q_marginal_infected,
+    num_time_steps,
+    p0,
+    p1,
+    past_contacts,
+    start_belief=None,
+    quantization=-1)
 
-#   np.testing.assert_array_almost_equal(user_slice, user_slice_input)
-#   np.testing.assert_array_almost_equal(
-#     post_exps.shape, [len(user_slice_input), num_time_steps, 4])
+  time_spent = tend - tstart
+
+  assert time_spent < 1.0, f"FN takes way too long: {time_spent}"
+  np.testing.assert_array_almost_equal(
+    post_exp.shape, [num_users, num_time_steps, 4])
 
 
 def test_fact_neigh_with_start_belief():
