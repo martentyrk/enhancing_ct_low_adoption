@@ -101,8 +101,7 @@ def fn_step_wrapped(
   with numba.objmode(t1='f8'):
     t1 = time.time()
 
-  p_infected_matrix[user_interval[0]:user_interval[1]] = post_exps[:, :, 2]
-  return post_exps, t0, t1, p_infected_matrix
+  return post_exps, t0, t1
 
 
 def fact_neigh(
@@ -205,7 +204,7 @@ def fact_neigh(
       assert False, "Not implemented yet"
       # users_stale_now = util.sample_stale_users(users_stale)
 
-    post_exp, tstart, t_end, q_marginal_infected = fn_step_wrapped(
+    post_exp, tstart, t_end = fn_step_wrapped(
       user_interval,
       seq_array_hot,
       log_c_z_u,  # already depends in mpi_rank
@@ -218,6 +217,9 @@ def fact_neigh(
       start_belief,
       quantization=quantization)
 
+    if np.any(np.isnan(post_exp)) or np.any(np.isinf(post_exp)):
+      logger.info(f"post_exp has nan or inf {post_exp}")
+
     if verbose:
       if mpi_rank == 0:
         logger.info(f"Time for fn_step: {t_end - tstart:.1f} seconds")
@@ -229,8 +231,9 @@ def fact_neigh(
     offsets = memory_bucket[:-1].tolist()
     sizes_memory = (memory_bucket[1:] - memory_bucket[:-1]).tolist()
 
+    q_send = np.ascontiguousarray(post_exp[:, :, 2]).astype(np.double)
     comm_world.Allgatherv(
-      q_marginal_infected[user_interval[0]:user_interval[1]],
+      q_send,
       recvbuf=[q_collect, sizes_memory, offsets, MPI.DOUBLE])
     q_marginal_infected = q_collect
 
@@ -251,7 +254,8 @@ def fact_neigh(
   offsets = memory_bucket[:-1].tolist()
   sizes_memory = (memory_bucket[1:] - memory_bucket[:-1]).tolist()
 
+  p_send = np.ascontiguousarray(post_exp).astype(np.double)
   comm_world.Gatherv(
-    post_exp,
+    p_send,
     recvbuf=[post_exp_collect, sizes_memory, offsets, MPI.DOUBLE])
   return post_exp_collect
