@@ -234,6 +234,7 @@ def compare_prequential_quarantine(
         if mpi_rank == 0:
           logger.info("Use window!")
         start_belief = z_states_inferred[:, 1]
+      comm_world.bcast(start_belief, root=0)
 
       sim.set_window(days_offset)
 
@@ -419,7 +420,7 @@ def compare_inference_algorithms(
   time_start = time.time()
   z_states_inferred = inference_func(
     np.array(observations),
-    contacts,
+    np.array(contacts),
     num_rounds,
     num_time_steps,
     users_stale=users_stale,
