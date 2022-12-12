@@ -648,7 +648,7 @@ def spread_buckets(num_samples: int, num_buckets: int) -> np.ndarray:
   return num_samples_per_bucket
 
 
-@functools.lru_cache(maxsize=1)
+# @functools.lru_cache(maxsize=1)
 def spread_buckets_interval(num_samples: int, num_buckets: int) -> np.ndarray:
   num_users_per_bucket = spread_buckets(num_samples, num_buckets)
   return np.concatenate(([0], np.cumsum(num_users_per_bucket)))

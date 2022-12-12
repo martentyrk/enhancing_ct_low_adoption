@@ -60,7 +60,7 @@ def test_factorised_neighbor_step():
   assert obs_diff > 1.0, f"Observation difference is too small {obs_diff}"
 
   # 1 update
-  post_exp, tstart, tend, q_inf = inference.fn_step_wrapped(
+  post_exp, tstart, tend = inference.fn_step_wrapped(
     user_interval,
     seq_array_hot,
     log_c_z_u,
@@ -78,8 +78,6 @@ def test_factorised_neighbor_step():
   assert time_spent < 1.0, f"FN takes way too long: {time_spent}"
   np.testing.assert_array_almost_equal(
     post_exp.shape, [num_users, num_time_steps, 4])
-  np.testing.assert_array_almost_equal(
-    q_inf.shape, [num_users, num_time_steps])
 
 
 def test_fact_neigh_with_start_belief():
