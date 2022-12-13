@@ -190,6 +190,7 @@ class ABMSimulator(Simulator):
 
     util.check_exists(input_param_file)
     util.check_exists(input_households)
+    util.maybe_make_dir("results/tmp/")
 
     logger.info("Construct ABM simulator")
     params = abm_model.Parameters(  # TODO, import full module!
@@ -204,7 +205,7 @@ class ABMSimulator(Simulator):
       logger.debug('ABM simulator might fail with <10k users')
 
     # Start with sufficient amount of initial infections. Start in E-state
-    n_seed = 50 if num_users > 250000 else 5
+    n_seed = 1 + int(num_users // 2500)
     params.set_param("n_total", num_users)
     params.set_param("n_seed_infection", n_seed)
 
