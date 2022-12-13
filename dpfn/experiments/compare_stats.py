@@ -250,6 +250,9 @@ def compare_prequential_quarantine(
       comm_world.Bcast([num_contacts, MPI.INT], root=0)
       comm_world.Bcast([num_obs, MPI.INT], root=0)
 
+      if mpi_rank == 0:
+        logger.info(f"Day {t_now}: {num_contacts} contacts, {num_obs} obs")
+
       if mpi_rank > 0:
         # Make receiving buffers on all but head process
         contacts_now = np.zeros((num_contacts, 4), dtype=np.int32)
