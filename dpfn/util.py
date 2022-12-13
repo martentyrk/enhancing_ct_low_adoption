@@ -199,7 +199,6 @@ def calc_c_z_u(
 
   Notation follows the original CRISP paper.
   """
-  # TODO(rob) use numba.njit to speed up this function
   interval_num_users = user_interval[1] - user_interval[0]
   log_prob_obs = np.zeros((interval_num_users, obs_array.shape[1]))
 

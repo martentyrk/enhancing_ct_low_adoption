@@ -195,7 +195,7 @@ class ABMSimulator(Simulator):
     params = abm_model.Parameters(  # TODO, import full module!
       input_param_file=input_param_file,
       param_line_number=1,
-      output_file_dir="/tmp/",
+      output_file_dir="results/tmp/",
       input_households=input_households
     )
 
@@ -207,7 +207,6 @@ class ABMSimulator(Simulator):
     n_seed = 50 if num_users > 250000 else 5
     params.set_param("n_total", num_users)
     params.set_param("n_seed_infection", n_seed)
-    params.set_param("rng_seed", 12345)
 
     model_init = abm_model.Model(params)
     self.model = simulation.COVID19IBM(model=model_init)

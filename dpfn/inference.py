@@ -214,14 +214,13 @@ def fact_neigh(
       start_belief,
       quantization=quantization)
 
-    if verbose:
-      if np.any(np.isinf(post_exp)):
-        logger.info(f"post_exp has inf {post_exp}")
-      if np.any(np.isnan(post_exp)):
-        logger.info(f"post_exp has nan {post_exp}")
-        users_nan = np.where(
-          np.sum(np.sum(np.isnan(post_exp), axis=-1), axis=-1))[0]
-        logger.info(f"At users {repr(users_nan)}")
+    if np.any(np.isinf(post_exp)):
+      logger.info(f"post_exp has inf {post_exp}")
+    if np.any(np.isnan(post_exp)):
+      logger.info(f"post_exp has nan {post_exp}")
+      users_nan = np.where(
+        np.sum(np.sum(np.isnan(post_exp), axis=-1), axis=-1))[0]
+      logger.info(f"At users {repr(users_nan)}")
 
     if verbose:
       if mpi_rank == 0:
