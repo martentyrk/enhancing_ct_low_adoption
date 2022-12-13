@@ -42,7 +42,7 @@ def wrap_fact_neigh_inference(
       quantization=quantization,
       users_stale=users_stale,
       num_updates=num_updates,
-      verbose=True,
+      verbose=False,
       trace_dir=trace_dir,
       diagnostic=diagnostic)
     return traces_per_user_fn

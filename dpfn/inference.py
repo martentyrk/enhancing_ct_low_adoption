@@ -3,7 +3,6 @@ from dpfn import constants, logger, util
 from mpi4py import MPI  # pytype: disable=import-error
 import numba
 import numpy as np
-import os
 import time
 from typing import Any, Optional, Tuple
 
@@ -149,7 +148,9 @@ def fact_neigh(
     array in [num_users, num_timesteps, 4] being probability of over
     health states {S, E, I, R} for each user at each time step
   """
-  del diagnostic
+  del diagnostic, trace_dir
+  if users_stale is not None:
+    assert False, "users_stale is not implemented yet"
   t_start_preamble = time.time()
 
   user_ids_bucket = util.spread_buckets_interval(num_users, num_proc)
@@ -181,9 +182,8 @@ def fact_neigh(
   q_marginal_infected = np.zeros((num_users, num_time_steps)).astype(np.double)
   post_exp = np.zeros((num_users, num_time_steps, 4))
 
-  if mpi_rank == 0:
-    logger.info(f"Time spent on preamble1 {time.time() - t_start_preamble:.1f}")
-    t_start_preamble = time.time()
+  t_preamble1 = time.time() - t_start_preamble
+  t_start_preamble = time.time()
 
   past_contacts = util.get_past_contacts_fast(user_interval, contacts_all)
 
@@ -192,17 +192,14 @@ def fact_neigh(
     start_belief = start_belief[user_interval[0]:user_interval[1]]
 
   if mpi_rank == 0:
-    logger.info(f"Time spent on preamble2 {time.time() - t_start_preamble:.1f}")
+    t_preamble2 = time.time() - t_start_preamble
+    logger.info(
+      f"Time spent on preamble1/preamble2 {t_preamble1:.1f}/{t_preamble2:.1f}")
 
   for num_update in range(num_updates):
     if verbose:
       if mpi_rank == 0:
         logger.info(f"Num update {num_update}")
-    # Sample stale users
-    # TODO(rob) implement stale users
-    if users_stale is not None:
-      assert False, "Not implemented yet"
-      # users_stale_now = util.sample_stale_users(users_stale)
 
     post_exp, tstart, t_end = fn_step_wrapped(
       user_interval,
@@ -217,8 +214,14 @@ def fact_neigh(
       start_belief,
       quantization=quantization)
 
-    if np.any(np.isnan(post_exp)) or np.any(np.isinf(post_exp)):
-      logger.info(f"post_exp has nan or inf {post_exp}")
+    if verbose:
+      if np.any(np.isinf(post_exp)):
+        logger.info(f"post_exp has inf {post_exp}")
+      if np.any(np.isnan(post_exp)):
+        logger.info(f"post_exp has nan {post_exp}")
+        users_nan = np.where(
+          np.sum(np.sum(np.isnan(post_exp), axis=-1), axis=-1))[0]
+        logger.info(f"At users {repr(users_nan)}")
 
     if verbose:
       if mpi_rank == 0:
@@ -231,21 +234,11 @@ def fact_neigh(
     offsets = memory_bucket[:-1].tolist()
     sizes_memory = (memory_bucket[1:] - memory_bucket[:-1]).tolist()
 
-    q_send = np.ascontiguousarray(post_exp[:, :, 2]).astype(np.double)
+    q_send = np.ascontiguousarray(post_exp[:, :, 2], dtype=np.double)
     comm_world.Allgatherv(
       q_send,
       recvbuf=[q_collect, sizes_memory, offsets, MPI.DOUBLE])
     q_marginal_infected = q_collect
-
-    # # TODO(rob) update start belief per process
-    #   post_exp = util.update_beliefs(
-    #     post_exp, post_exp_users, user_slice, users_stale_now)
-
-    if trace_dir:
-      fname = os.path.join(
-        trace_dir, f"trace_{num_update:05d}_rank{mpi_rank}.npy")
-      with open(fname, 'wb') as fp:
-        np.save(fp, post_exp)
 
   # Prepare buffer for Allgatherv
   post_exp_collect = np.empty((num_users, num_time_steps, 4), dtype=np.double)
@@ -254,7 +247,7 @@ def fact_neigh(
   offsets = memory_bucket[:-1].tolist()
   sizes_memory = (memory_bucket[1:] - memory_bucket[:-1]).tolist()
 
-  p_send = np.ascontiguousarray(post_exp).astype(np.double)
+  p_send = np.ascontiguousarray(post_exp, dtype=np.double)
   comm_world.Gatherv(
     p_send,
     recvbuf=[post_exp_collect, sizes_memory, offsets, MPI.DOUBLE])

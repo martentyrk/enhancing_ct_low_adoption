@@ -234,16 +234,40 @@ def compare_prequential_quarantine(
         if mpi_rank == 0:
           logger.info("Use window!")
         start_belief = z_states_inferred[:, 1]
-      comm_world.bcast(start_belief, root=0)
+      start_belief = np.ascontiguousarray(start_belief, dtype=np.double)
+      comm_world.Bcast([start_belief, MPI.DOUBLE], root=0)
 
       sim.set_window(days_offset)
 
-      # TODO(rob): Make this faster with Numpy arrays
-      contacts_now = np.array(sim.get_contacts(), dtype=np.int32, ndmin=2)
-      observations_now = np.array(
-        sim.get_observations_all(), dtype=np.int32, ndmin=2)
-      comm_world.bcast(contacts_now, root=0)
-      comm_world.bcast(observations_now, root=0)
+      contacts_now = util.make_default_array(
+        sim.get_contacts(), dtype=np.int32, rowlength=4)
+      observations_now = util.make_default_array(
+        sim.get_observations_all(), dtype=np.int32, rowlength=3)
+
+      num_contacts = np.array(contacts_now.shape[0], dtype=np.int64)
+      num_obs = np.array(observations_now.shape[0], dtype=np.int64)
+
+      comm_world.Bcast([num_contacts, MPI.INT], root=0)
+      comm_world.Bcast([num_obs, MPI.INT], root=0)
+
+      if mpi_rank > 0:
+        # Make receiving buffers on all but head process
+        contacts_now = np.zeros((num_contacts, 4), dtype=np.int32)
+        observations_now = np.zeros((num_obs, 3), dtype=np.int32)
+
+      contacts_now = np.ascontiguousarray(contacts_now, dtype=np.int64)
+      observations_now = np.ascontiguousarray(observations_now, dtype=np.int64)
+
+      comm_world.Bcast([contacts_now, MPI.INT], root=0)
+      comm_world.Bcast([observations_now, MPI.INT], root=0)
+
+      # if t_now == 7:
+      #   fname = f"results/tmp/state_{mpi_rank}_{t_now}.npy"
+      #   with open(fname, 'wb') as f:
+      #     np.savez(
+      #       f, contacts_now=contacts_now, observations_now=observations_now,
+      #       num_rounds=num_rounds, num_days=num_days,
+      #       start_belief=start_belief)
 
       z_states_inferred = inference_func(
         observations_now,

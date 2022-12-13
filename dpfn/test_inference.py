@@ -82,9 +82,9 @@ def test_factorised_neighbor_step():
 
 def test_fact_neigh_with_start_belief():
 
-  contacts_all = [
+  contacts_all = np.array([
     (0, 1, 2, 1),
-    ]
+    ])
   observations_all = np.array([
     (0, 2, 1)
   ])
