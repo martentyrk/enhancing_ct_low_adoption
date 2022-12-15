@@ -494,8 +494,7 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser(
     description='Compare statistics acrosss inference methods')
   parser.add_argument('--inference_method', type=str, default='fn',
-                      choices=[
-                        'fn', 'dummy'],
+                      choices=['fn', 'dummy', 'random'],
                       help='Name of the inference method')
   parser.add_argument('--experiment_setup', type=str, default='single',
                       choices=['single', 'prequential'],
