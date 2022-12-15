@@ -221,12 +221,14 @@ def compare_prequential_quarantine(
       users_to_test = []
       obs_today = []
 
+    # When num_days exceeds t_now, then offset should start counting at 0
+    days_offset = t_now + 1 - num_days
+    assert 0 <= days_offset <= num_time_steps
+
+    sim.set_window(days_offset)
+
     if not do_random_quarantine:
       t_start = time.time()
-
-      # When num_days exceeds t_now, then offset should start counting at 0
-      days_offset = t_now + 1 - num_days
-      assert 0 <= days_offset <= num_time_steps
 
       # Make inference over SEIR states
       start_belief = start_belief_global
@@ -236,8 +238,6 @@ def compare_prequential_quarantine(
         start_belief = z_states_inferred[:, 1]
       start_belief = np.ascontiguousarray(start_belief, dtype=np.double)
       comm_world.Bcast([start_belief, MPI.DOUBLE], root=0)
-
-      sim.set_window(days_offset)
 
       contacts_now = util.make_default_array(
         sim.get_contacts(), dtype=np.int32, rowlength=4)
