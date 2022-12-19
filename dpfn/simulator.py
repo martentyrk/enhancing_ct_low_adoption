@@ -53,10 +53,10 @@ class Simulator(ABC):
     counting for day0.
     """
     to_cut_off = max((0, days_offset - self._day_start_window))
-    self._observations_all = list(prequential.offset_edges(
+    self._observations_all = list(prequential.offset_observations(
       self._observations_all, to_cut_off))
-    self._contacts = list(prequential.offset_edges(
-      self._contacts, to_cut_off))
+    self._contacts = prequential.offset_contacts(
+      self._contacts, to_cut_off)
     self._day_start_window = days_offset
 
   def get_current_day(self) -> int:
@@ -80,6 +80,7 @@ class Simulator(ABC):
     Note that contacts are offset with self._day_start_window and contacts prior
     to self._day_start_window have been discarded.
     """
+    self._contacts = list(self._contacts)
     return self._contacts
 
   def get_observations_today(
@@ -208,6 +209,7 @@ class ABMSimulator(Simulator):
     n_seed = 1 + int(num_users // 2500)
     params.set_param("n_total", num_users)
     params.set_param("n_seed_infection", n_seed)
+    params.set_param("days_of_interactions", 7)
 
     model_init = abm_model.Model(params)
     self.model = simulation.COVID19IBM(model=model_init)
@@ -232,11 +234,11 @@ class ABMSimulator(Simulator):
     self.sim.steps(num_steps)
     self._day_current += 1
 
-    contacts_incoming = list(plain_to_embedded_contacts(
+    contacts_incoming = plain_to_embedded_contacts(
       covid19.get_contacts_daily(
-        self.model.model.c_model, self._day_current)))
+        self.model.model.c_model, self._day_current))
 
-    self._contacts += prequential.offset_edges(
+    self._contacts += prequential.offset_contacts(
       contacts_incoming, self._day_start_window)
 
   def quarantine_users(

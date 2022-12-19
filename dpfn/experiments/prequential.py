@@ -210,22 +210,29 @@ def delay_contacts(
     yield (contact[0], contact[1], contact[2] + delay, contact[3])
 
 
-def offset_edges(edges: List[Any], offset: int) -> Iterable[Any]:
-  """Offsets the contacts or observations by a number of days."""
+def offset_observations(
+    observations: List[constants.Observation], offset: int
+    ) -> Iterable[constants.Observation]:
+  """Offsets the cobservations by a number of days."""
 
-  if (offset == 0) or (len(edges) == 0):
-    yield from edges
+  if offset == 0:
+    yield from observations
     return
 
-  if len(edges[0]) == 3:  # Observation
-    for edge in edges:
-      if edge[1] >= offset:
-        yield (edge[0], edge[1] - offset, edge[2])
+  for obs in observations:
+    if obs[1] >= offset:
+      yield (obs[0], obs[1] - offset, obs[2])
 
-  elif len(edges[0]) == 4:  # Contact
-    for edge in edges:
-      if edge[2] >= offset:
-        yield (edge[0], edge[1], edge[2] - offset, edge[3])
 
-  else:
-    raise ValueError("Edges must be tuples of 3 or 4")
+def offset_contacts(
+    contacts: Iterable[constants.Contact], offset: int
+    ) -> Iterable[constants.Contact]:
+  """Offsets the cobservations by a number of days."""
+
+  if offset == 0:
+    yield from contacts
+    return
+
+  for contact in contacts:
+    if contact[2] >= offset:
+      yield (contact[0], contact[1], contact[2] - offset, contact[3])

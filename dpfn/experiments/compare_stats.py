@@ -18,8 +18,11 @@ import sys
 import time
 import tqdm
 import traceback
+import tracemalloc
 from typing import Any, Dict, List, Optional
 import wandb
+
+TRACEMALLOC = False
 
 comm_world = MPI.COMM_WORLD
 mpi_rank = comm_world.Get_rank()
@@ -98,6 +101,9 @@ def compare_prequential_quarantine(
     use_abm_simulator: bool = False):
   """Compares different inference algorithms on the supplied contact graph."""
   del states
+
+  if TRACEMALLOC:
+    tracemalloc.start()
 
   num_users = int(num_users)
   if trace_dir:
@@ -226,6 +232,10 @@ def compare_prequential_quarantine(
     assert 0 <= days_offset <= num_time_steps
 
     sim.set_window(days_offset)
+
+    if TRACEMALLOC and (t_now > 7):
+      snapshot = tracemalloc.take_snapshot()
+      util.display_top(snapshot)
 
     if not do_random_quarantine:
       t_start = time.time()

@@ -137,14 +137,14 @@ def test_remove_positive_users():
   np.testing.assert_array_almost_equal(test_include, expected)
 
 
-def test_offset_edges():
+def test_offset_observations():
   observations = [
     (0, 11, 1),
     (1, 11, 1),
     (2, 1, 1),
     ]
   observations_new = list(
-    prequential.offset_edges(observations, offset=2))
+    prequential.offset_observations(observations, offset=2))
 
   observations_expected = [
     (0, 9, 1),
@@ -161,10 +161,10 @@ def test_offset_edges():
     + f"{observations[0][1]} does not match 11")
 
 
-def test_offset_edges_empty():
+def test_offset_observations_empty():
   observations = []
   observations_new = list(
-    prequential.offset_edges(observations, offset=2))
+    prequential.offset_observations(observations, offset=2))
 
   observations_expected = []
 
