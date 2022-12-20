@@ -6,6 +6,7 @@ import covid19
 
 from dpfn import constants, logger, util
 from dpfn.experiments import prequential
+import itertools
 import numpy as np
 import os
 from typing import Any, Dict, List, Union
@@ -238,8 +239,9 @@ class ABMSimulator(Simulator):
       covid19.get_contacts_daily(
         self.model.model.c_model, self._day_current))
 
-    self._contacts += prequential.offset_contacts(
-      contacts_incoming, self._day_start_window)
+    self._contacts = itertools.chain(
+      self._contacts, prequential.offset_contacts(
+        contacts_incoming, self._day_start_window))
 
   def quarantine_users(
       self,
