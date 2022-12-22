@@ -11,7 +11,7 @@ def clean_hierarchy(config_dict: Dict[str, Any]) -> Dict[str, Any]:
   For example, WandB sweep might set the value 'model.a' in the top level.
   This function will move property 'a' to the 'model' dict in the hierarchy."""
 
-  for prefix in ["model", "data"]:
+  for prefix in ["model", "data", "settings"]:
     # Wrap with list() otherwise dict changes during iteration
     prefix_ = f"{prefix}."
     keys_move = list(

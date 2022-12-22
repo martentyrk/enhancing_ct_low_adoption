@@ -6,21 +6,16 @@ import covid19
 
 from dpfn import constants, logger, util
 from dpfn.experiments import prequential
-import itertools
 import numpy as np
 import os
 from typing import Any, Dict, List, Union
 
 
-def plain_to_embedded_contacts(contact_list: List[List[int]]):
-  """Converts plain contacts to embedded contacts."""
-
-  def _embed(contact_tuple) -> constants.Contact:
-    # Tuples from ABM simulator have semantics:
-    # (user_from, user_to, timestep, features)
-    # TODO replace with 'contact_tuple[3]'
-    return (contact_tuple[0], contact_tuple[1], contact_tuple[2], 1)
-  yield from map(_embed, contact_list)
+def _embed_contact(contact_tuple) -> constants.Contact:
+  # Tuples from ABM simulator have semantics:
+  # (user_from, user_to, timestep, features)
+  # TODO replace with 'contact_tuple[3]'
+  return (contact_tuple[0], contact_tuple[1], contact_tuple[2], 1)
 
 
 class Simulator(ABC):
@@ -56,8 +51,8 @@ class Simulator(ABC):
     to_cut_off = max((0, days_offset - self._day_start_window))
     self._observations_all = list(prequential.offset_observations(
       self._observations_all, to_cut_off))
-    self._contacts = prequential.offset_contacts(
-      self._contacts, to_cut_off)
+    self._contacts = list(prequential.offset_contacts(
+      self._contacts, to_cut_off))
     self._day_start_window = days_offset
 
   def get_current_day(self) -> int:
@@ -81,7 +76,6 @@ class Simulator(ABC):
     Note that contacts are offset with self._day_start_window and contacts prior
     to self._day_start_window have been discarded.
     """
-    self._contacts = list(self._contacts)
     return self._contacts
 
   def get_observations_today(
@@ -235,13 +229,12 @@ class ABMSimulator(Simulator):
     self.sim.steps(num_steps)
     self._day_current += 1
 
-    contacts_incoming = plain_to_embedded_contacts(
-      covid19.get_contacts_daily(
-        self.model.model.c_model, self._day_current))
+    contacts_incoming = list(map(
+      _embed_contact, covid19.get_contacts_daily(
+        self.model.model.c_model, self._day_current)))
 
-    self._contacts = itertools.chain(
-      self._contacts, prequential.offset_contacts(
-        contacts_incoming, self._day_start_window))
+    self._contacts += prequential.offset_contacts(
+      contacts_incoming, self._day_start_window)
 
   def quarantine_users(
       self,
@@ -254,7 +247,8 @@ class ABMSimulator(Simulator):
     """
     # Timestep of the actual ABM simulator could be found at
     #   * self.model.model.c_model.time
-    covid19.intervention_quarantine_list(
+    status = covid19.intervention_quarantine_list(
       self.model.model.c_model,
       list(users_to_quarantine),
       self.get_current_day()+1 + num_days)
+    assert int(status) == 0
