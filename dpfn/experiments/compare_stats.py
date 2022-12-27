@@ -584,6 +584,10 @@ if __name__ == "__main__":
     runner_global = util_wandb.WandbDummy()
 
   comm_world.bcast(config_wandb, root=0)
+  logger.info(f"Process {mpi_rank} has config_wandb {config_wandb}")
+  logger.info((
+    f"Process {mpi_rank} has data_fraction_test "
+    f"{config_wandb['data']['fraction_test']}"))
 
   logger.info(f"Logger filename {LOGGER_FILENAME}")
   logger.info(f"Saving to results_dir_global {results_dir_global}")
