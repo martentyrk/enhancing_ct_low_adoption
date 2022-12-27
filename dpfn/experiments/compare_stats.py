@@ -582,9 +582,9 @@ if __name__ == "__main__":
     logger.info(config_wandb)
   else:
     runner_global = util_wandb.WandbDummy()
+    config_wandb = None
 
-  comm_world.bcast(config_wandb, root=0)
-  logger.info(f"Process {mpi_rank} has config_wandb {config_wandb}")
+  config_wandb = comm_world.bcast(config_wandb, root=0)
   logger.info((
     f"Process {mpi_rank} has data_fraction_test "
     f"{config_wandb['data']['fraction_test']}"))

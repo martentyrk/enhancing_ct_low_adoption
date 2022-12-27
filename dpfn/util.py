@@ -98,7 +98,7 @@ class InfectiousContactCount:
     yield from self.past_contacts[user][timestep]
 
 
-@numba.njit
+# @numba.njit
 def get_past_contacts_fast(
     user_interval: Tuple[int, int],
     contacts: np.ndarray) -> np.ndarray:
