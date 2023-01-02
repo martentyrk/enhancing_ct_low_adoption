@@ -101,14 +101,14 @@ class InfectiousContactCount:
 # @numba.njit
 def get_past_contacts_fast(
     user_interval: Tuple[int, int],
-    contacts: np.ndarray) -> np.ndarray:
+    contacts: np.ndarray) -> Tuple[np.ndarray, int]:
   """Returns past contacts as a NumPy array, for easy pickling."""
   num_users_int = user_interval[1] - user_interval[0]
 
   if len(contacts) == 0:
-    return -1 * np.ones((num_users_int, 1, 3), dtype=np.int64)
+    return -1 * np.ones((num_users_int, 1, 3), dtype=np.int64), 0
   if contacts.shape[1] == 0:
-    return -1 * np.ones((num_users_int, 1, 3), dtype=np.int64)
+    return -1 * np.ones((num_users_int, 1, 3), dtype=np.int64), 0
 
   contacts_past = [[(-1, -1, -1)] for _ in range(num_users_int)]
 
@@ -128,7 +128,7 @@ def get_past_contacts_fast(
       pc_array = np.array(contacts_past[i][1:], dtype=np.int64)
       pc_tensor[i][:num_contacts-1] = pc_array
 
-  return pc_tensor
+  return pc_tensor, max_messages
 
 
 def state_at_time(days_array, timestamp):

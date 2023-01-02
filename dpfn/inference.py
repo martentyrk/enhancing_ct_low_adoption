@@ -3,6 +3,7 @@ from dpfn import constants, logger, util
 from mpi4py import MPI  # pytype: disable=import-error
 import numba
 import numpy as np
+import os
 import time
 from typing import Any, Optional, Tuple
 
@@ -148,7 +149,7 @@ def fact_neigh(
     array in [num_users, num_timesteps, 4] being probability of over
     health states {S, E, I, R} for each user at each time step
   """
-  del diagnostic, trace_dir
+  del diagnostic
   if users_stale is not None:
     assert False, "users_stale is not implemented yet"
   t_start_preamble = time.time()
@@ -185,7 +186,13 @@ def fact_neigh(
   t_preamble1 = time.time() - t_start_preamble
   t_start_preamble = time.time()
 
-  past_contacts = util.get_past_contacts_fast(user_interval, contacts_all)
+  past_contacts, max_num_contacts = util.get_past_contacts_fast(
+    user_interval, contacts_all)
+
+  if trace_dir:
+    fname = os.path.join(trace_dir, f"fact_neigh_{mpi_rank}.txt")
+    with open(fname, 'a') as fp:
+      fp.write(f"{max_num_contacts:.0f}\n")
 
   if start_belief is not None:
     assert len(start_belief) == num_users

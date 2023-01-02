@@ -106,10 +106,7 @@ def compare_prequential_quarantine(
     tracemalloc.start()
 
   num_users = int(num_users)
-  if trace_dir:
-    raise ValueError(
-      f"trace_dir {trace_dir} not implemented yet for prequential experiments")
-  del observations, trace_dir
+  del observations
 
   num_days_window = cfg["model"]["num_days_window"]
   quantization = cfg["model"]["quantization"]
@@ -150,7 +147,7 @@ def compare_prequential_quarantine(
   diagnostic = runner if do_diagnosis else None
 
   inference_func, do_random_quarantine = make_inference_func(
-    inference_method, num_users, cfg)
+    inference_method, num_users, cfg, trace_dir=trace_dir)
 
   # Set conditional distributions for observations
   p_obs_infected = [cfg["model"]["alpha"], 1-cfg["model"]["alpha"]]

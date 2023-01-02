@@ -387,7 +387,7 @@ def test_past_contact_array_fast():
     (0, 1, 4, 1)
     ])
 
-  past_contacts = util.get_past_contacts_fast((0, 3), contacts_all)
+  past_contacts, max_num_c = util.get_past_contacts_fast((0, 3), contacts_all)
 
   np.testing.assert_array_almost_equal(past_contacts.shape, [3, 2+1, 3])
   np.testing.assert_array_almost_equal(past_contacts[0], -1)
@@ -395,6 +395,7 @@ def test_past_contact_array_fast():
   np.testing.assert_array_almost_equal(past_contacts[2][0], [4, 1, 1])
 
   np.testing.assert_equal(past_contacts.dtype, np.int64)
+  np.testing.assert_almost_equal(max_num_c, 2)
 
 
 def test_past_contact_array_fast_copy_paste():
@@ -410,7 +411,9 @@ def test_past_contact_array_fast_copy_paste():
     contacts_all, None, num_users=6, num_time_steps=7)
   past_contacts_slow = counter.get_past_contacts_slice([0, 1, 2])
 
-  past_contacts_fast = util.get_past_contacts_fast((0, 3), contacts_all)
+  past_contacts_fast, max_num_c = util.get_past_contacts_fast(
+    (0, 3), contacts_all)
+  np.testing.assert_almost_equal(max_num_c, 4)
 
   # Check that the shapes match
   np.testing.assert_array_almost_equal(
