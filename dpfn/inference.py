@@ -186,8 +186,13 @@ def fact_neigh(
   t_preamble1 = time.time() - t_start_preamble
   t_start_preamble = time.time()
 
-  past_contacts, max_num_contacts = util.get_past_contacts_fast(
-    user_interval, contacts_all)
+  num_max_msg = int(100*num_time_steps)
+  past_contacts, max_num_contacts = util.get_past_contacts_static(
+    user_interval, contacts_all, num_msg=num_max_msg)
+
+  if max_num_contacts >= num_max_msg:
+    logger.warning(
+      f"Max number of contacts {max_num_contacts} >= {num_max_msg}")
 
   if trace_dir:
     fname = os.path.join(trace_dir, f"fact_neigh_{mpi_rank}.txt")

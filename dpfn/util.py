@@ -131,6 +131,37 @@ def get_past_contacts_fast(
   return pc_tensor, max_messages
 
 
+@numba.njit
+def get_past_contacts_static(
+    user_interval: Tuple[int, int],
+    contacts: np.ndarray,
+    num_msg: int) -> Tuple[np.ndarray, int]:
+  """Returns past contacts as a NumPy array, for easy pickling."""
+  num_users_int = user_interval[1] - user_interval[0]
+
+  if len(contacts) == 0:
+    return -1 * np.ones((num_users_int, 1, 3), dtype=np.int64), 0
+  if contacts.shape[1] == 0:
+    return -1 * np.ones((num_users_int, 1, 3), dtype=np.int64), 0
+
+  contacts_past = -1 * np.ones((num_users_int, num_msg, 3), dtype=np.int64)
+
+  contacts_counts = np.zeros(num_users_int, dtype=np.int64)
+
+  # First find all contacts that are in the interval
+  for contact in contacts:
+    user_v = contact[1]
+    if user_interval[0] <= user_v < user_interval[1]:
+      contact_rel = user_v - user_interval[0]
+      contact_count = contacts_counts[contact_rel] % (num_msg - 1)
+      contacts_past[contact_rel, contact_count] = np.array(
+        (contact[2], contact[0], contact[3]), dtype=np.int64)
+
+      contacts_counts[contact_rel] += 1
+
+  return contacts_past, np.max(contacts_counts)
+
+
 def state_at_time(days_array, timestamp):
   """Calculates the SEIR state at timestamp given the Markov state.
 

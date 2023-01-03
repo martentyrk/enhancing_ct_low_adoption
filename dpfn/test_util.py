@@ -398,6 +398,26 @@ def test_past_contact_array_fast():
   np.testing.assert_almost_equal(max_num_c, 2)
 
 
+def test_past_contact_array_static():
+  num_msg = 13
+  contacts_all = np.array([
+    (1, 2, 4, 1),
+    (2, 1, 4, 1),
+    (0, 1, 4, 1)
+    ])
+
+  past_contacts, max_num_c = util.get_past_contacts_static(
+    (0, 3), contacts_all, num_msg=num_msg)
+
+  np.testing.assert_array_almost_equal(past_contacts.shape, [3, num_msg, 3])
+  np.testing.assert_array_almost_equal(past_contacts[0], -1)
+  np.testing.assert_array_almost_equal(past_contacts[2][1], -1)
+  np.testing.assert_array_almost_equal(past_contacts[2][0], [4, 1, 1])
+
+  np.testing.assert_equal(past_contacts.dtype, np.int64)
+  np.testing.assert_almost_equal(max_num_c, 2)
+
+
 def test_past_contact_array_fast_copy_paste():
   contacts_all = np.array([
     (1, 2, 4, 1),
@@ -430,6 +450,43 @@ def test_past_contact_array_fast_copy_paste():
   np.testing.assert_array_almost_equal(
     # Silly to test mean, but contacts could occur in any order ofcourse
     np.sum(past_contacts_slow[2]), np.sum(past_contacts_fast[2])
+  )
+
+
+def test_past_contact_array_fast_copy_paste_static():
+  num_msg = 13
+  contacts_all = np.array([
+    (1, 2, 4, 1),
+    (1, 2, 3, 1),
+    (1, 2, 2, 1),
+    (1, 2, 1, 1),
+    (2, 1, 4, 1),
+    ])
+
+  past_contacts_static, max_num_static = util.get_past_contacts_static(
+    (0, 3), contacts_all, num_msg=num_msg)
+
+  past_contacts_fast, max_num_c = util.get_past_contacts_fast(
+    (0, 3), contacts_all)
+  np.testing.assert_almost_equal(max_num_c, 4)
+
+  # Check that the max_contacts match
+  np.testing.assert_almost_equal(
+    max_num_static, max_num_c)
+
+  # Silly to test set, but contacts could occur in any order ofcourse
+  # Check that the values match
+  np.testing.assert_equal(
+    set(past_contacts_static[0].flatten().tolist()),
+    set(past_contacts_fast[0].flatten().tolist())
+  )
+  np.testing.assert_equal(
+    set(past_contacts_static[1].flatten().tolist()),
+    set(past_contacts_fast[1].flatten().tolist())
+  )
+  np.testing.assert_equal(
+    set(past_contacts_static[2].flatten().tolist()),
+    set(past_contacts_fast[2].flatten().tolist())
   )
 
 
