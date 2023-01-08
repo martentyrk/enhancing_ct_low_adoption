@@ -105,6 +105,7 @@ def wrap_dct_inference(
       user_v = int(row[1])
       if positive_tests[user_u] > 0:
         score[user_v, :, 2] = 5.0  # 20x bigger than noise floor
+        score[user_u, :, 2] = 10.0  # 40x bigger than noise floor
 
     score /= np.sum(score, axis=-1, keepdims=True)
     return score

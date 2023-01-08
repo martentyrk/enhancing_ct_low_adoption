@@ -33,6 +33,14 @@ def test_dct_inference():
   scores = dct_func(
     observations_all, contacts_all, None, num_time_steps, None, None, None)
 
-  np.testing.assert_(scores[1, -1, 2] > 0.5)
-  np.testing.assert_(scores[2, -1, 2] > 0.5)
-  np.testing.assert_(np.all(scores[3:, :, 2] < 0.5))
+  # User 1 had an infected contact (user0)
+  assert np.all(scores[1, :, :2] < 0.5)
+  assert np.all(scores[1, :, 2] > 0.5)
+
+  # User 2 had an infected contact (user0)
+  assert np.all(scores[2, :, :2] < 0.5)
+  assert np.all(scores[2, :, 2] > 0.5)
+
+  # User
+  assert np.all(scores[0, :, 2] < 0.5)
+  assert np.all(scores[3:, :, 2] < 0.5)
