@@ -91,7 +91,8 @@ def wrap_dct_inference(
       diagnostic: Optional[Any] = None) -> np.ndarray:
     del num_updates, start_belief, users_stale, diagnostic
 
-    score = np.random.randn(num_users, num_time_steps, 4) * 1E-3
+    score = 0.25 * np.ones((num_users, num_time_steps, 4))
+    score += 0.001 * np.random.rand(num_users, num_time_steps, 4)
     positive_tests = np.zeros((num_users))
 
     for row in observations_list:
@@ -103,7 +104,7 @@ def wrap_dct_inference(
       user_u = int(row[0])
       user_v = int(row[1])
       if positive_tests[user_u] > 0:
-        score[user_v, :, 2] = 1.0
+        score[user_v, :, 2] = 5.0  # 20x bigger than noise floor
 
     score /= np.sum(score, axis=-1, keepdims=True)
     return score
