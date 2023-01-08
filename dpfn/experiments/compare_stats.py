@@ -83,7 +83,7 @@ def make_inference_func(
   else:
     raise ValueError((
       f"Not recognised inference method {inference_method}. Should be one of"
-      f"['random', 'fn', 'dummy']"
+      f"['random', 'fn', 'dummy', 'dct', 'bp']"
     ))
   return inference_func, do_random_quarantine
 
@@ -503,7 +503,7 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser(
     description='Compare statistics acrosss inference methods')
   parser.add_argument('--inference_method', type=str, default='fn',
-                      choices=['fn', 'dummy', 'random', 'fn', 'dct'],
+                      choices=['fn', 'dummy', 'random', 'bp', 'dct'],
                       help='Name of the inference method')
   parser.add_argument('--experiment_setup', type=str, default='single',
                       choices=['single', 'prequential'],
