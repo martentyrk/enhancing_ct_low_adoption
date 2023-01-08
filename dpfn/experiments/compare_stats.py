@@ -308,9 +308,9 @@ def compare_prequential_quarantine(
       users_to_quarantine = np.random.choice(
         num_users, size=(num_quarantine)).tolist()
 
-    if inference_method == 'dct':
-      users_to_quarantine = [
-        obs[1] for obs in obs_today if obs[2] > 0]
+    # if inference_method == 'dct':
+    #   users_to_quarantine = [
+    #     obs[1] for obs in obs_today if obs[2] > 0]
 
     if t_now < t_start_quarantine:
       users_to_quarantine = np.array([], dtype=np.int32)
