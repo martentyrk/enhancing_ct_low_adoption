@@ -77,6 +77,9 @@ def make_inference_func(
     do_random_quarantine = True
   elif inference_method == "dummy":
     inference_func = util_experiments.wrap_dummy_inference(num_users=num_users)
+  elif inference_method == "dct":
+    inference_func = util_experiments.wrap_dct_inference(
+      num_users=num_users)
   else:
     raise ValueError((
       f"Not recognised inference method {inference_method}. Should be one of"
@@ -305,10 +308,9 @@ def compare_prequential_quarantine(
       users_to_quarantine = np.random.choice(
         num_users, size=(num_quarantine)).tolist()
 
-    del obs_today
-    # if use_abm_simulator:
-    #   users_to_quarantine = [
-    #     obs["u"] for obs in obs_today if obs["outcome"] > 0]
+    if inference_method == 'dct':
+      users_to_quarantine = [
+        obs[1] for obs in obs_today if obs[2] > 0]
 
     if t_now < t_start_quarantine:
       users_to_quarantine = np.array([], dtype=np.int32)
@@ -501,7 +503,7 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser(
     description='Compare statistics acrosss inference methods')
   parser.add_argument('--inference_method', type=str, default='fn',
-                      choices=['fn', 'dummy', 'random'],
+                      choices=['fn', 'dummy', 'random', 'fn', 'dct'],
                       help='Name of the inference method')
   parser.add_argument('--experiment_setup', type=str, default='single',
                       choices=['single', 'prequential'],

@@ -72,6 +72,45 @@ def wrap_dummy_inference(
   return dummy_wrapped
 
 
+def wrap_dct_inference(
+    num_users: int,):
+  """Wraps the DCT function for dummy inference.
+
+  Mimicked after
+  https://github.com/...
+    sibyl-team/epidemic_mitigation/blob/master/src/rankers/dct_rank.py#L24
+  """
+
+  def dct_wrapped(
+      observations_list: constants.ObservationList,
+      contacts_list: constants.ContactList,
+      num_updates: int,
+      num_time_steps: int,
+      start_belief: Optional[np.ndarray] = None,
+      users_stale: Optional[np.ndarray] = None,
+      diagnostic: Optional[Any] = None) -> np.ndarray:
+    del num_updates, start_belief, users_stale, diagnostic
+
+    score = np.random.randn(num_users, num_time_steps, 4) * 1E-3
+    positive_tests = np.zeros((num_users))
+
+    for row in observations_list:
+      if row[2] > 0:
+        user_u = int(row[0])
+        positive_tests[user_u] += 1
+
+    for row in contacts_list:
+      user_u = int(row[0])
+      user_v = int(row[1])
+      if positive_tests[user_u] > 0:
+        score[user_v, :, 2] = 1.0
+
+    score /= np.sum(score, axis=-1, keepdims=True)
+    return score
+
+  return dct_wrapped
+
+
 def set_noisy_test_params(cfg: Dict[str, Any]) -> Dict[str, Any]:
   """Sets the noise parameters of the observational model."""
   noise_level = cfg["model"]["noisy_test"]
