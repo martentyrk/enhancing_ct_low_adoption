@@ -204,7 +204,7 @@ class ABMSimulator(Simulator):
     n_seed = 5
     if 20000 < num_users < 200000:
       n_seed = 25
-    if num_users > 200000:
+    if num_users >= 200000:
       n_seed = 50
 
     params.set_param("n_total", num_users)

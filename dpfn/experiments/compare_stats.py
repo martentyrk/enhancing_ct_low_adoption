@@ -373,6 +373,7 @@ def compare_prequential_quarantine(
       loadavg1, loadavg5, loadavg15 = os.getloadavg()
       runner.log({
         "timestep": t_now,
+        "infection_rate": infection_rate,
         "load1": loadavg1,
         "load5": loadavg5,
         "load15": loadavg15,
