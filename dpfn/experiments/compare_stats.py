@@ -60,7 +60,18 @@ def make_inference_func(
   # Construct Geometric distro's for E and I states
 
   do_random_quarantine = False
-  if inference_method == "fn":
+  if inference_method == "bp":
+    inference_func = util_experiments.wrap_belief_propagation(
+      num_users=num_users,
+      alpha=alpha,
+      beta=beta,
+      p0=p0,
+      p1=p1,
+      param_g=g,
+      param_h=h,
+      quantization=quantization,
+      trace_dir=trace_dir)
+  elif inference_method == "fn":
     inference_func = util_experiments.wrap_fact_neigh_inference(
       num_users=num_users,
       alpha=alpha,
@@ -71,7 +82,6 @@ def make_inference_func(
       h_param=h,
       quantization=quantization,
       trace_dir=trace_dir)
-
   elif inference_method == "random":
     inference_func = None
     do_random_quarantine = True

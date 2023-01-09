@@ -570,6 +570,7 @@ def maybe_make_dir(dirname: str):
     os.makedirs(dirname)
 
 
+@numba.njit
 def quantize(message: Union[np.ndarray, float], num_levels: int
              ) -> Union[np.ndarray, float]:
   """Quantizes a message based on rounding.
@@ -580,11 +581,11 @@ def quantize(message: Union[np.ndarray, float], num_levels: int
   if num_levels < 0:
     return message
 
-  if np.any(message > 1. + 1E-5):
-    logger.info(np.min(message))
-    logger.info(np.max(message))
-    logger.info(np.mean(message))
-    raise ValueError(f"Invalid message {message}")
+  # if np.any(message > 1. + 1E-5):
+  #   logger.info(np.min(message))
+  #   logger.info(np.max(message))
+  #   logger.info(np.mean(message))
+  #   raise ValueError(f"Invalid message {message}")
   message = np.clip(message, 0., 1.-1E-9)
   message_at_floor = np.floor(message * num_levels) / num_levels
   return message_at_floor + (.5 / num_levels)
@@ -617,7 +618,8 @@ def get_cpu_count() -> int:
   return int(os.cpu_count() // num_tasks)
 
 
-def normalize(x: Union[List[float], np.ndarray]):
+@numba.njit
+def normalize(x: np.ndarray) -> np.ndarray:
   return x / np.sum(x)
 
 

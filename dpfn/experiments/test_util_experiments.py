@@ -41,6 +41,8 @@ def test_dct_inference():
   assert np.all(scores[2, :, :2] < 0.5)
   assert np.all(scores[2, :, 2] > 0.5)
 
-  # User
-  assert np.all(scores[0, :, 2] < 0.5)
+  # User 0 had a positive test
+  assert np.all(scores[0, :, 2] > 0.5)
+
+  # Users 3, 4, 5 had no infected contacts
   assert np.all(scores[3:, :, 2] < 0.5)

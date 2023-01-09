@@ -1,6 +1,6 @@
 """Utility functions for running experiments."""
 import numpy as np
-from dpfn import constants, inference, logger
+from dpfn import constants, inference, logger, belief_propagation
 import subprocess
 from typing import Any, Dict, Optional
 
@@ -111,6 +111,76 @@ def wrap_dct_inference(
     return score
 
   return dct_wrapped
+
+
+def wrap_belief_propagation(
+    num_users: int,
+    param_g: float,
+    param_h: float,
+    alpha: float,
+    beta: float,
+    p0: float,
+    p1: float,
+    quantization: int = -1,
+    freeze_backwards: bool = False,
+    trace_dir: Optional[str] = None,
+    ):
+  """Wraps the inference function runs Belief Propagation."""
+  del freeze_backwards, trace_dir
+
+  A_matrix = np.array([
+    [1-p0, p0, 0, 0],
+    [0, 1-param_g, param_g, 0],
+    [0, 0, 1-param_h, param_h],
+    [0, 0, 0, 1]
+  ])
+
+  obs_distro = {
+    0: np.array([1-beta, 1-beta, alpha, 1-beta]),
+    1: np.array([beta, beta, 1-alpha, beta]),
+  }
+
+  def bp_wrapped(
+      observations_list: np.ndarray,
+      contacts_list: np.ndarray,
+      num_updates: int,
+      num_time_steps: int,
+      start_belief: Optional[np.ndarray] = None,
+      users_stale: Optional[np.ndarray] = None,
+      diagnostic: Optional[Any] = None):
+    del users_stale, diagnostic
+
+    # Contacts on last day are not of influence
+    def filter_fn(contact):
+      return (contact[2] + 1) < num_time_steps
+    contacts_list = list(filter(filter_fn, contacts_list))
+
+    obs_messages = np.ones((num_users, num_time_steps, 4))
+    for obs in observations_list:
+      if obs[1] < num_time_steps:
+        obs_messages[obs[0]][obs[1]] *= obs_distro[obs[2]]
+
+    map_forward_message, map_backward_message = (
+      belief_propagation.init_message_maps(
+        contacts_list, num_users, num_time_steps))
+
+    t_inference = 0.
+    for _ in range(num_updates):
+
+      (bp_beliefs, map_backward_message, map_forward_message, t0, t1) = (
+        belief_propagation.do_backward_forward_and_message(
+          A_matrix, p0, p1, num_time_steps, obs_messages, num_users,
+          map_backward_message, map_forward_message,
+          start_belief=start_belief,
+          quantization=quantization))
+
+      t_inference += t1 - t0
+    logger.info(
+      f"Time for {num_updates} bp passes: {t_inference:.2f} seconds")
+
+    bp_beliefs /= np.sum(bp_beliefs, axis=-1, keepdims=True)
+    return bp_beliefs
+  return bp_wrapped
 
 
 def set_noisy_test_params(cfg: Dict[str, Any]) -> Dict[str, Any]:

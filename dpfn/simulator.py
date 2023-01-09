@@ -201,7 +201,12 @@ class ABMSimulator(Simulator):
       logger.debug('ABM simulator might fail with <10k users')
 
     # Start with sufficient amount of initial infections. Start in E-state
-    n_seed = 1 + int(num_users // 2500)
+    n_seed = 5
+    if 20000 < num_users < 200000:
+      n_seed = 25
+    if num_users > 200000:
+      n_seed = 50
+
     params.set_param("n_total", num_users)
     params.set_param("n_seed_infection", n_seed)
     params.set_param("days_of_interactions", 7)

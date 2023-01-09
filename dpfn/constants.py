@@ -3,6 +3,8 @@
 import numpy as np
 from typing import List, Tuple, Union
 
+CTC = 100  # Contact tracing capacity per day
+
 colors = ['b', 'm', 'r', 'k']
 state_names = ['S', 'E', 'I', 'R']
 
