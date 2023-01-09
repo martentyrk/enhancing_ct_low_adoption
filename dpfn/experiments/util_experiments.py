@@ -1,4 +1,5 @@
 """Utility functions for running experiments."""
+import numba
 import numpy as np
 from dpfn import constants, inference, logger, belief_propagation
 import subprocess
@@ -81,15 +82,16 @@ def wrap_dct_inference(
     sibyl-team/epidemic_mitigation/blob/master/src/rankers/dct_rank.py#L24
   """
 
+  @numba.njit
   def dct_wrapped(
       observations_list: constants.ObservationList,
       contacts_list: constants.ContactList,
-      num_updates: int,
+      num_updates: int,  # pylint: disable=unused-argument
       num_time_steps: int,
-      start_belief: Optional[np.ndarray] = None,
-      users_stale: Optional[np.ndarray] = None,
-      diagnostic: Optional[Any] = None) -> np.ndarray:
-    del num_updates, start_belief, users_stale, diagnostic
+      start_belief: Optional[np.ndarray] = None,    # pylint: disable=unused-argument
+      users_stale: Optional[np.ndarray] = None,    # pylint: disable=unused-argument
+      diagnostic: Optional[Any] = None) -> np.ndarray:    # pylint: disable=unused-argument
+    # del num_updates, start_belief, users_stale, diagnostic
 
     score = 0.25 * np.ones((num_users, num_time_steps, 4))
     score += 0.001 * np.random.rand(num_users, num_time_steps, 4)
@@ -107,7 +109,7 @@ def wrap_dct_inference(
         score[user_v, :, 2] = 5.0  # 20x bigger than noise floor
         score[user_u, :, 2] = 10.0  # 40x bigger than noise floor
 
-    score /= np.sum(score, axis=-1, keepdims=True)
+    score /= np.expand_dims(np.sum(score, axis=-1), axis=-1)
     return score
 
   return dct_wrapped

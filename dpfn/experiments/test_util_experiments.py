@@ -19,14 +19,14 @@ def test_dct_inference():
   num_users = 6
   num_time_steps = 5
 
-  contacts_all = [
+  contacts_all = np.array([
     [0, 1, 3, 1],
     [0, 2, 3, 1],
-  ]
+  ], dtype=np.int32)
 
-  observations_all = [
+  observations_all = np.array([
     [0, 3, 1],
-  ]
+  ], dtype=np.int32)
 
   dct_func = util_experiments.wrap_dct_inference(num_users)
 
