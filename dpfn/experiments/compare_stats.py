@@ -407,7 +407,6 @@ def compare_prequential_quarantine(
 
     logger.info(f"With {num_rounds} rounds, PIR {pir:5.2f}")
     runner.log({
-      "num_rounds": num_rounds,
       "time_spent": time_spent,
       "pir_mean": pir})
 
