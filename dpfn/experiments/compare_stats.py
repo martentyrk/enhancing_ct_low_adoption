@@ -126,6 +126,7 @@ def compare_prequential_quarantine(
   threshold_quarantine = cfg["model"]["threshold_quarantine"]
 
   num_rounds = cfg["model"]["num_rounds"]
+  rng_seed = cfg.get("seed", 123)
 
   fraction_test = cfg["data"]["fraction_test"]
   do_conditional_testing = bool(cfg["data"]["do_conditional_testing"])
@@ -198,7 +199,7 @@ def compare_prequential_quarantine(
     else:
       sim_factory = simulator.CRISPSimulator
 
-    sim = sim_factory(num_time_steps, num_users, params_dynamics)
+    sim = sim_factory(num_time_steps, num_users, params_dynamics, rng_seed)
     sim.init_day0(copy.deepcopy(contacts))
 
     logger.info((

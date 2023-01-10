@@ -25,10 +25,12 @@ class Simulator(ABC):
       self,
       num_time_steps: int,
       num_users: int,
-      params: Dict[str, Any]) -> None:
+      params: Dict[str, Any],
+      rng_seed: int = 123) -> None:
     self.num_time_steps = num_time_steps
     self.num_users = num_users
     self.params = params
+    self.rng_seed = rng_seed
 
     self._day_current = 0
     self.states = None  # Type will depend on implementation
@@ -174,7 +176,8 @@ class ABMSimulator(Simulator):
       self,
       num_time_steps: int,
       num_users: int,
-      params: Dict[str, Any]
+      params: Dict[str, Any],
+      rng_seed: int = 123,
       ) -> None:
     super().__init__(num_time_steps, num_users, params)
 
@@ -210,6 +213,7 @@ class ABMSimulator(Simulator):
     params.set_param("n_total", num_users)
     params.set_param("n_seed_infection", n_seed)
     params.set_param("days_of_interactions", 7)
+    params.set_param("rng_seed", rng_seed)
 
     model_init = abm_model.Model(params)
     self.model = simulation.COVID19IBM(model=model_init)
