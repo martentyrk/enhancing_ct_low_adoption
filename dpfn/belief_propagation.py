@@ -1,9 +1,14 @@
 """Belief propagation for CRISP-like models."""
 import numpy as np
-from dpfn import constants, util
+from mpi4py import MPI  # pytype: disable=import-error
+from dpfn import constants, util, util_bp
 import numba
 import time
 from typing import Any, List, Optional, Tuple
+
+comm_world = MPI.COMM_WORLD
+mpi_rank = comm_world.Get_rank()
+num_proc = comm_world.Get_size()
 
 
 @numba.njit
@@ -14,7 +19,7 @@ def adjust_matrices_map(
     num_time_steps: int) -> np.ndarray:
   """Adjusts dynamics matrices based in messages from incoming contacts."""
   A_adjusted = np.copy(A_matrix)
-  A_adjusted = np.ones((num_time_steps, 4, 4), dtype=np.double) * A_adjusted
+  A_adjusted = np.ones((num_time_steps, 4, 4), dtype=np.single) * A_adjusted
 
   # First collate all incoming forward messages according to timestep
   log_probs = np.ones((num_time_steps)) * np.log(A_matrix[0][0])
@@ -166,7 +171,7 @@ def forward_backward_user(
     array_back = np.array(
       [user, user_backward, timestep_back,
        message_back[0], message_back[1], message_back[2], message_back[3]],
-      dtype=np.double)
+      dtype=np.single)
     messages_send_back[num_bw] = array_back
     num_bw += 1
 
@@ -205,34 +210,45 @@ def forward_backward_user(
 
 
 def init_message_maps(
-    contacts_all: List[constants.Contact],
-    num_users: int,
+    contacts_all: constants.ContactList,
+    user_interval: Tuple[int, int],
     num_time_steps: int) -> Tuple[np.ndarray, np.ndarray]:
   """Initialises the message maps."""
   # Put backward messages in hashmap, such that they can be overwritten when
   #   doing multiple iterations in loopy belief propagation
+  num_users_interval = user_interval[1] - user_interval[0]
   max_num_contacts = num_time_steps * constants.CTC
-  map_backward_message = -1 * np.ones((num_users, max_num_contacts, 7))
-  map_forward_message = -1 * np.ones((num_users, max_num_contacts, 4))
+  map_backward_message = -1 * np.ones((num_users_interval, max_num_contacts, 7))
+  map_forward_message = -1 * np.ones((num_users_interval, max_num_contacts, 4))
 
-  num_bw_message = np.zeros((num_users), dtype=np.int32)
-  num_fw_message = np.zeros((num_users), dtype=np.int32)
+  num_bw_message = np.zeros((num_users_interval), dtype=np.int32)
+  num_fw_message = np.zeros((num_users_interval), dtype=np.int32)
 
   for contact in contacts_all:
     user_u = int(contact[0])
     user_v = int(contact[1])
 
     # Backward message:
-    msg_bw = np.array(
-      [user_v, user_u, contact[2], .25, .25, .25, .25], dtype=np.float32)
-    map_backward_message[user_u][num_bw_message[user_u]] = msg_bw
-    num_bw_message[user_u] += 1
+    if user_interval[0] <= user_u < user_interval[1]:
+      # Messages go by convention of
+      # [user_send, user_receive, timestep, *msg]
+      msg_bw = np.array(
+        [user_v, user_u, contact[2], .25, .25, .25, .25], dtype=np.float32)
+      user_rel = user_u - user_interval[0]
+      map_backward_message[user_rel][num_bw_message[user_rel]] = msg_bw
+      num_bw_message[user_rel] += 1
 
     # Forward message:
-    msg_fw = np.array([user_u, user_v, contact[2], 0.], dtype=np.float32)
-    map_forward_message[user_v][num_fw_message[user_v]] = msg_fw
-    num_fw_message[user_v] += 1
-  return map_forward_message, map_backward_message
+    if user_interval[0] <= user_v < user_interval[1]:
+      # Messages go by convention of
+      # [user_send, user_receive, timestep, *msg]
+      msg_fw = np.array([user_u, user_v, contact[2], 0.], dtype=np.float32)
+      user_rel = user_v - user_interval[0]
+      map_forward_message[user_rel][num_fw_message[user_rel]] = msg_fw
+      num_fw_message[user_rel] += 1
+  return (
+    map_forward_message.astype(np.single),
+    map_backward_message.astype(np.single))
 
 
 @numba.njit
@@ -255,6 +271,7 @@ def do_backward_forward_subset(
 
   bp_beliefs_subset = np.zeros((num_users_interval, num_time_steps, 4))
 
+  # Init ndarrays for all messages being sent by users in this subset
   messages_backward_subset = np.zeros(
     (num_users_interval, num_time_steps*constants.CTC, 7))
   messages_forward_subset = np.zeros(
@@ -282,15 +299,17 @@ def do_backward_forward_and_message(
     num_users: int,
     map_backward_message: np.ndarray,
     map_forward_message: np.ndarray,
+    user_interval: Tuple[int, int],
     start_belief: Optional[np.ndarray] = None,
     quantization: Optional[int] = -1,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, float, float]:
   """Runs forward and backward messages for one user and collates messages."""
+
   with numba.objmode(t0='f8'):
     t0 = time.time()
 
   bp_beliefs, msg_list_fwd, msg_list_bwd = do_backward_forward_subset(
-    (0, num_users),
+    user_interval=user_interval,
     A_matrix=A_matrix,
     p0=p0,
     p1=p1,
@@ -303,51 +322,19 @@ def do_backward_forward_and_message(
   with numba.objmode(t1='f8'):
     t1 = time.time()
 
-  # TMP code
-  max_num_contacts = num_time_steps * constants.CTC
-  map_backward_message = -1 * np.ones((num_users, max_num_contacts, 7))
-  map_forward_message = -1 * np.ones((num_users, max_num_contacts, 4))
+  # Sort by receiving user
+  map_backward_message = util_bp.flip_message_send(
+    msg_list_bwd, num_users, num_time_steps=num_time_steps, do_bwd=True)
+  map_forward_message = util_bp.flip_message_send(
+    msg_list_fwd, num_users, num_time_steps=num_time_steps)
 
-  num_bw_message = np.zeros((num_users), dtype=np.int32)
-  num_fw_message = np.zeros((num_users), dtype=np.int32)
-
-  # Put backward messages generated by user_run in ndarray
-  for i in range(num_users):
-    # TODO: delete redundant for-loop
-    for row in msg_list_bwd[i]:
-      user_send, user_bwd, tstep = int(row[0]), int(row[1]), int(row[2])
-      message = row[3:]
-
-      if user_send < 0:
-        break
-
-      # Backward message:
-      msg_bw = np.array(
-        [user_send, user_bwd, tstep,
-         message[0], message[1], message[2], message[3]], dtype=np.float32)
-      map_backward_message[user_bwd][num_bw_message[user_bwd]] = msg_bw
-      num_bw_message[user_bwd] += 1
-
-  for i in range(num_users):
-    # TODO: delete redundant for-loop
-    for row in msg_list_fwd[i]:
-      user_send, user_forward, tstep = int(row[0]), int(row[1]), int(row[2])
-      message = float(row[3])
-
-      if user_send < 0:
-        break
-
-      # Forward message:
-      msg_fw = np.array(
-        [user_send, user_forward, tstep, message], dtype=np.float32)
-      map_forward_message[user_forward][num_fw_message[user_forward]] = msg_fw
-      num_fw_message[user_forward] += 1
-
+  # Do quantization
   map_backward_message[:, :, 3:] = util.quantize(
-    map_backward_message[:, :, 3:], quantization)
+    map_backward_message[:, :, 3:], quantization).astype(np.single)
   map_forward_message[:, :, 3] = util.quantize(
-    map_forward_message[:, :, 3], quantization)
+    map_forward_message[:, :, 3], quantization).astype(np.single)
 
+  # Assert that beliefs sum to 1
   # np.testing.assert_array_almost_equal(
   #   np.sum(bp_beliefs, axis=-1), 1., decimal=3)
 

@@ -1,9 +1,14 @@
 """Utility functions for running experiments."""
 import numba
 import numpy as np
-from dpfn import constants, inference, logger, belief_propagation
+from mpi4py import MPI  # pytype: disable=import-error
+from dpfn import constants, inference, logger, belief_propagation, util, util_bp
 import subprocess
 from typing import Any, Dict, Optional
+
+comm_world = MPI.COMM_WORLD
+mpi_rank = comm_world.Get_rank()
+num_proc = comm_world.Get_size()
 
 
 def wrap_fact_neigh_inference(
@@ -152,19 +157,33 @@ def wrap_belief_propagation(
       diagnostic: Optional[Any] = None):
     del users_stale, diagnostic
 
+    # Set up MPI constants
+    user_ids_bucket = util.spread_buckets_interval(num_users, num_proc)
+    user_interval = (
+      int(user_ids_bucket[mpi_rank]), int(user_ids_bucket[mpi_rank+1]))
+    num_users_interval = user_interval[1] - user_interval[0]
+    max_num_contacts = num_time_steps * constants.CTC
+
     # Contacts on last day are not of influence
     def filter_fn(contact):
       return (contact[2] + 1) < num_time_steps
     contacts_list = list(filter(filter_fn, contacts_list))
 
+    # TODO make this for-loop in numba
     obs_messages = np.ones((num_users, num_time_steps, 4))
     for obs in observations_list:
       if obs[1] < num_time_steps:
         obs_messages[obs[0]][obs[1]] *= obs_distro[obs[2]]
 
+    # Slice up obs_messages and start_belief
+    # TODO make this slice within a function for obs_messages
+    obs_messages = obs_messages[user_interval[0]:user_interval[1]]
+    if start_belief is not None:
+      start_belief = start_belief[user_interval[0]:user_interval[1]]
+
     map_forward_message, map_backward_message = (
       belief_propagation.init_message_maps(
-        contacts_list, num_users, num_time_steps))
+        contacts_list, user_interval, num_time_steps))
 
     t_inference = 0.
     for _ in range(num_updates):
@@ -172,16 +191,72 @@ def wrap_belief_propagation(
       (bp_beliefs, map_backward_message, map_forward_message, t0, t1) = (
         belief_propagation.do_backward_forward_and_message(
           A_matrix, p0, p1, num_time_steps, obs_messages, num_users,
-          map_backward_message, map_forward_message,
+          map_backward_message, map_forward_message, user_interval,
           start_belief=start_belief,
           quantization=quantization))
+      if num_time_steps > 5:
+        # Only check after a few burnin days
+        assert np.max(map_forward_message[:, -1, :]) < 0
+        assert np.max(map_backward_message[:, -1, :]) < 0
 
       t_inference += t1 - t0
+
+      if num_proc > 1:
+        messages_fwd_received = -10 * np.ones(
+          (num_proc, num_users_interval, max_num_contacts, 4), dtype=np.single)
+        messages_bwd_received = -10 * np.ones(
+          (num_proc, num_users_interval, max_num_contacts, 7), dtype=np.single)
+        for i in range(num_proc):
+          # Forward messages
+          memory = user_ids_bucket*max_num_contacts*4
+          offsets = memory[:-1].astype(np.int32).tolist()
+          sizes_memory = (memory[1:] - memory[:-1]).astype(np.int32).tolist()
+          comm_world.Scatterv(
+            [map_forward_message.astype(np.single), sizes_memory, offsets,
+             MPI.FLOAT],
+            [messages_fwd_received[i], MPI.FLOAT], root=i)
+
+          # Backward messages
+          memory = user_ids_bucket*max_num_contacts*7
+          offsets = memory[:-1].astype(np.int32).tolist()
+          sizes_memory = (memory[1:] - memory[:-1]).astype(np.int32).tolist()
+          comm_world.Scatterv(
+            [map_backward_message.astype(np.single), sizes_memory, offsets,
+             MPI.FLOAT],
+            [messages_bwd_received[i], MPI.FLOAT], root=i)
+
+        # Some assertions:
+        assert np.all(messages_fwd_received > -2)
+        assert np.all(messages_bwd_received > -2)
+        if num_time_steps > 5:
+          # Only check after a few burnin days
+          assert np.max(messages_fwd_received[:, :, -1, :]) < 0
+          assert np.max(messages_bwd_received[:, :, -1, :]) < 0
+
+        map_forward_message = util_bp.collapse_null_messages(
+          messages_fwd_received, num_proc, num_users_interval,
+          max_num_contacts, 4)
+
+        map_backward_message = util_bp.collapse_null_messages(
+          messages_bwd_received, num_proc, num_users_interval,
+          max_num_contacts, 7)
+
     logger.info(
       f"Time for {num_updates} bp passes: {t_inference:.2f} seconds")
 
-    bp_beliefs /= np.sum(bp_beliefs, axis=-1, keepdims=True)
-    return bp_beliefs
+    # Collect beliefs
+    bp_collect = np.empty((num_users, num_time_steps, 4), dtype=np.single)
+
+    memory_bucket = user_ids_bucket*num_time_steps*4
+    offsets = memory_bucket[:-1].tolist()
+    sizes_memory = (memory_bucket[1:] - memory_bucket[:-1]).tolist()
+
+    comm_world.Gatherv(
+      bp_beliefs.astype(np.single),
+      recvbuf=[bp_collect, sizes_memory, offsets, MPI.FLOAT])
+
+    bp_collect /= np.sum(bp_collect, axis=-1, keepdims=True)
+    return bp_collect
   return bp_wrapped
 
 

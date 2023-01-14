@@ -174,6 +174,7 @@ def compare_prequential_quarantine(
     num_rounds = 2
 
   # Arrays to accumulate statistics
+  pir_running = 0.
   precisions = np.zeros((num_time_steps))
   recalls = np.zeros((num_time_steps))
   infection_rates = np.zeros((num_time_steps))
@@ -342,10 +343,10 @@ def compare_prequential_quarantine(
       infection_rate = np.mean(states_today == 2)
       exposed_rate = np.mean(
         np.logical_or(states_today == 1, states_today == 2))
+      pir_running = max((pir_running, infection_rate))
       logger.info((f"precision: {precision:5.2f}, recall: {recall: 5.2f}, "
-                   f"infection rate: {infection_rate:5.3f}, "
-                   f"exposed rate: {exposed_rate:5.3f}, "
-                   f"tests: {len(users_to_test):5.0f}"))
+                   f"infection rate: {infection_rate:5.3f}({pir_running:5.3f}),"
+                   f"{exposed_rate:5.3f}, tests: {len(users_to_test):5.0f}"))
 
       precisions[t_now] = precision
       recalls[t_now] = recall
@@ -550,7 +551,8 @@ if __name__ == "__main__":
     f'results/{experiment_name}/{configname_data}__{configname_model}__'
     f'{inf_method}/')
 
-  util.maybe_make_dir(results_dir_global)
+  if mpi_rank == 0:
+    util.maybe_make_dir(results_dir_global)
   if args.dump_traces:
     trace_dir_global = (
       f'results/trace_{experiment_name}/{configname_data}__{configname_model}__'

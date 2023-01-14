@@ -586,7 +586,7 @@ def quantize(message: Union[np.ndarray, float], num_levels: int
   #   logger.info(np.max(message))
   #   logger.info(np.mean(message))
   #   raise ValueError(f"Invalid message {message}")
-  message = np.clip(message, 0., 1.-1E-9)
+  message = np.minimum(message, 1.-1E-9)
   message_at_floor = np.floor(message * num_levels) / num_levels
   return message_at_floor + (.5 / num_levels)
 

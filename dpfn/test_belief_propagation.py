@@ -81,7 +81,7 @@ def test_fward_bward_user():
 
   map_forward_message, map_backward_message = (
     belief_propagation.init_message_maps(
-      contacts_all, num_users, num_time_steps))
+      contacts_all, (0, num_users), num_time_steps))
 
   user_test = 0
   bp_beliefs_user, _, _ = (
@@ -115,7 +115,7 @@ def test_consistent_fward():
 
   map_forward_message, map_backward_message = (
     belief_propagation.init_message_maps(
-      contacts_all, num_users, num_time_steps))
+      contacts_all, (0, num_users), num_time_steps))
 
   user_test = 0
   _, list_bw, list_fw = (
@@ -142,7 +142,7 @@ def test_consistent_fward2():
 
   map_forward_message, map_backward_message = (
     belief_propagation.init_message_maps(
-      contacts_all, num_users, num_time_steps))
+      contacts_all, (0, num_users), num_time_steps))
 
   user_test = 0
   _, list_bw, list_fw = (
@@ -169,7 +169,7 @@ def test_consistent_bward():
 
   map_forward_message, map_backward_message = (
     belief_propagation.init_message_maps(
-      contacts_all, num_users, num_time_steps))
+      contacts_all, (0, num_users), num_time_steps))
   np.testing.assert_almost_equal(map_forward_message[2][0][0], 0)
   np.testing.assert_almost_equal(map_forward_message[2][1][0], 1)
   map_forward_message[2][0][-1] = .6
@@ -209,7 +209,7 @@ def test_consistent_bward2():
 
   map_forward_message, map_backward_message = (
     belief_propagation.init_message_maps(
-      contacts_all, num_users, num_time_steps))
+      contacts_all, (0, num_users), num_time_steps))
   np.testing.assert_almost_equal(map_forward_message[2][0][0], 0)
   np.testing.assert_almost_equal(map_forward_message[2][1][0], 1)
   map_forward_message[2][0][-1] = .6
@@ -249,13 +249,13 @@ def test_fward_bward_messages_simul_receive2():
 
   map_forward_message, map_backward_message = (
     belief_propagation.init_message_maps(
-      contacts_all, num_users, num_time_steps))
+      contacts_all, (0, num_users), num_time_steps))
 
   for _ in range(5):
     (bp_beliefs, map_backward_message, map_forward_message, _, _) = (
       belief_propagation.do_backward_forward_and_message(
         A_matrix, p0, p1, num_time_steps, obs_messages,
-        num_users, map_backward_message, map_forward_message))
+        num_users, map_backward_message, map_forward_message, (0, num_users)))
 
   bp_beliefs /= np.sum(bp_beliefs, axis=-1, keepdims=True)
 
@@ -302,13 +302,13 @@ def test_fward_bward_messages_simul_send2():
 
   map_forward_message, map_backward_message = (
     belief_propagation.init_message_maps(
-      contacts_all, num_users, num_time_steps))
+      contacts_all, (0, num_users), num_time_steps))
 
   for _ in range(3):
     (bp_beliefs, map_backward_message, map_forward_message, _, _) = (
       belief_propagation.do_backward_forward_and_message(
         A_matrix, p0, p1, num_time_steps, obs_messages,
-        num_users, map_backward_message, map_forward_message))
+        num_users, map_backward_message, map_forward_message, (0, num_users)))
   bp_beliefs /= np.sum(bp_beliefs, axis=-1, keepdims=True)
 
   # Results obtained from exact inference
@@ -356,14 +356,14 @@ def test_fward_bward_messages_simul_send3():
 
   map_forward_message, map_backward_message = (
     belief_propagation.init_message_maps(
-      contacts_all, num_users, num_time_steps))
+      contacts_all, (0, num_users), num_time_steps))
 
   # Note: will not work in two rounds due to concurrency among slice
   for _ in range(3):
     (bp_beliefs, map_backward_message, map_forward_message, _, _) = (
       belief_propagation.do_backward_forward_and_message(
         A_matrix, p0, p1, num_time_steps, obs_messages,
-        num_users, map_backward_message, map_forward_message))
+        num_users, map_backward_message, map_forward_message, (0, num_users)))
 
   bp_beliefs /= np.sum(bp_beliefs, axis=-1, keepdims=True)
 
@@ -424,14 +424,14 @@ def test_fward_bward_messages_simul_receive3():
 
   map_forward_message, map_backward_message = (
     belief_propagation.init_message_maps(
-      contacts_all, num_users, num_time_steps))
+      contacts_all, (0, num_users), num_time_steps))
 
   bp_beliefs = np.zeros((num_users, num_time_steps, 4))
   for _ in range(2):
     (bp_beliefs, map_backward_message, map_forward_message, _, _) = (
       belief_propagation.do_backward_forward_and_message(
         A_matrix, p0, p1, num_time_steps, obs_messages,
-        num_users, map_backward_message, map_forward_message))
+        num_users, map_backward_message, map_forward_message, (0, num_users)))
 
   bp_beliefs /= np.sum(bp_beliefs, axis=-1, keepdims=True)
 
@@ -486,14 +486,15 @@ def test_fward_bward_messages_simul_send3_quantized():
 
   map_forward_message, map_backward_message = (
     belief_propagation.init_message_maps(
-      contacts_all, num_users, num_time_steps))
+      contacts_all, (0, num_users), num_time_steps))
 
   # Note: will not work in two rounds due to concurrency among slice
   for _ in range(3):
     (bp_beliefs, map_backward_message, map_forward_message, _, _) = (
       belief_propagation.do_backward_forward_and_message(
         A_matrix, p0, p1, num_time_steps, obs_messages,
-        num_users, map_backward_message, map_forward_message, quantization=256))
+        num_users, map_backward_message, map_forward_message,
+        user_interval=(0, num_users), quantization=256))
 
   bp_beliefs /= np.sum(bp_beliefs, axis=-1, keepdims=True)
 

@@ -24,7 +24,7 @@ def pareto_experiment_to_color(name: str) -> str:
   return "k"
 
 
-def save_figure(dirname: str, name: str, extension: str):
+def save_figure(dirname: str, name: str, extension: str, dpi: int = 500):
   """Saves a pyplot figure to disk."""
   fname = os.path.join(dirname, f"{name}.{extension}")
-  plt.savefig(fname, dpi=500, bbox_inches='tight')
+  plt.savefig(fname, dpi=dpi, bbox_inches='tight')
