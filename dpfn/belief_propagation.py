@@ -302,7 +302,7 @@ def do_backward_forward_and_message(
     user_interval: Tuple[int, int],
     start_belief: Optional[np.ndarray] = None,
     quantization: Optional[int] = -1,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, float, float]:
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Tuple[float, float, float]]:
   """Runs forward and backward messages for one user and collates messages."""
 
   with numba.objmode(t0='f8'):
@@ -338,4 +338,7 @@ def do_backward_forward_and_message(
   # np.testing.assert_array_almost_equal(
   #   np.sum(bp_beliefs, axis=-1), 1., decimal=3)
 
-  return bp_beliefs, map_backward_message, map_forward_message, t0, t1
+  with numba.objmode(t2='f8'):
+    t2 = time.time()
+
+  return bp_beliefs, map_backward_message, map_forward_message, (t0, t1, t2)

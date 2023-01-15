@@ -4,6 +4,7 @@ import numpy as np
 from mpi4py import MPI  # pytype: disable=import-error
 from dpfn import constants, inference, logger, belief_propagation, util, util_bp
 import subprocess
+import time
 from typing import Any, Dict, Optional
 
 comm_world = MPI.COMM_WORLD
@@ -185,10 +186,10 @@ def wrap_belief_propagation(
       belief_propagation.init_message_maps(
         contacts_list, user_interval, num_time_steps))
 
-    t_inference = 0.
+    t_inference, t_quant, t_comm = 0., 0., 0.
     for _ in range(num_updates):
 
-      (bp_beliefs, map_backward_message, map_forward_message, t0, t1) = (
+      (bp_beliefs, map_backward_message, map_forward_message, timing) = (
         belief_propagation.do_backward_forward_and_message(
           A_matrix, p0, p1, num_time_steps, obs_messages, num_users,
           map_backward_message, map_forward_message, user_interval,
@@ -199,8 +200,10 @@ def wrap_belief_propagation(
         assert np.max(map_forward_message[:, -1, :]) < 0
         assert np.max(map_backward_message[:, -1, :]) < 0
 
-      t_inference += t1 - t0
+      t_inference += timing[1] - timing[0]
+      t_quant += timing[2] - timing[1]
 
+      t_start = time.time()
       if num_proc > 1:
         messages_fwd_received = -10 * np.ones(
           (num_proc, num_users_interval, max_num_contacts, 4), dtype=np.single)
@@ -240,9 +243,11 @@ def wrap_belief_propagation(
         map_backward_message = util_bp.collapse_null_messages(
           messages_bwd_received, num_proc, num_users_interval,
           max_num_contacts, 7)
+      t_comm += time.time() - t_start
 
-    logger.info(
-      f"Time for {num_updates} bp passes: {t_inference:.2f} seconds")
+    logger.info((
+      f"Time for {num_updates} bp passes: {t_inference:.2f}s, "
+      f"{t_quant:.2f}s, {t_comm:.2f}s"))
 
     # Collect beliefs
     bp_collect = np.empty((num_users, num_time_steps, 4), dtype=np.single)

@@ -57,7 +57,7 @@ def flip_message_send(
   return map_messages
 
 
-@numba.njit
+@numba.njit(parallel=True)
 def collapse_null_messages(
     messages: np.ndarray, num_proc: int, num_users_int: int, num_contacts: int,
     num_elements: int) -> np.ndarray:
@@ -70,7 +70,7 @@ def collapse_null_messages(
     (num_users_int, num_contacts, num_elements), dtype=np.single)
   num_put = np.zeros((num_users_int), dtype=np.int32)
 
-  for user in range(num_users_int):
+  for user in numba.prange(num_users_int):  # pylint: disable=not-an-iterable
     for i in range(num_proc):
       for j in range(num_contacts):
         if messages[i][user][j][0] >= 0:

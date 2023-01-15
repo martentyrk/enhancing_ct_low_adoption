@@ -252,7 +252,7 @@ def test_fward_bward_messages_simul_receive2():
       contacts_all, (0, num_users), num_time_steps))
 
   for _ in range(5):
-    (bp_beliefs, map_backward_message, map_forward_message, _, _) = (
+    (bp_beliefs, map_backward_message, map_forward_message, _) = (
       belief_propagation.do_backward_forward_and_message(
         A_matrix, p0, p1, num_time_steps, obs_messages,
         num_users, map_backward_message, map_forward_message, (0, num_users)))
@@ -305,7 +305,7 @@ def test_fward_bward_messages_simul_send2():
       contacts_all, (0, num_users), num_time_steps))
 
   for _ in range(3):
-    (bp_beliefs, map_backward_message, map_forward_message, _, _) = (
+    (bp_beliefs, map_backward_message, map_forward_message, _) = (
       belief_propagation.do_backward_forward_and_message(
         A_matrix, p0, p1, num_time_steps, obs_messages,
         num_users, map_backward_message, map_forward_message, (0, num_users)))
@@ -360,7 +360,7 @@ def test_fward_bward_messages_simul_send3():
 
   # Note: will not work in two rounds due to concurrency among slice
   for _ in range(3):
-    (bp_beliefs, map_backward_message, map_forward_message, _, _) = (
+    (bp_beliefs, map_backward_message, map_forward_message, _) = (
       belief_propagation.do_backward_forward_and_message(
         A_matrix, p0, p1, num_time_steps, obs_messages,
         num_users, map_backward_message, map_forward_message, (0, num_users)))
@@ -428,7 +428,7 @@ def test_fward_bward_messages_simul_receive3():
 
   bp_beliefs = np.zeros((num_users, num_time_steps, 4))
   for _ in range(2):
-    (bp_beliefs, map_backward_message, map_forward_message, _, _) = (
+    (bp_beliefs, map_backward_message, map_forward_message, _) = (
       belief_propagation.do_backward_forward_and_message(
         A_matrix, p0, p1, num_time_steps, obs_messages,
         num_users, map_backward_message, map_forward_message, (0, num_users)))
@@ -490,7 +490,7 @@ def test_fward_bward_messages_simul_send3_quantized():
 
   # Note: will not work in two rounds due to concurrency among slice
   for _ in range(3):
-    (bp_beliefs, map_backward_message, map_forward_message, _, _) = (
+    (bp_beliefs, map_backward_message, map_forward_message, _) = (
       belief_propagation.do_backward_forward_and_message(
         A_matrix, p0, p1, num_time_steps, obs_messages,
         num_users, map_backward_message, map_forward_message,
