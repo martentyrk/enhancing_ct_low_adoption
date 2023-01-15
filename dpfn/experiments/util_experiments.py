@@ -225,13 +225,13 @@ def wrap_belief_propagation(
              MPI.FLOAT],
             [messages_bwd_received[i], MPI.FLOAT], root=i)
 
-        # Some assertions:
-        assert np.all(messages_fwd_received > -2)
-        assert np.all(messages_bwd_received > -2)
-        if num_time_steps > 5:
-          # Only check after a few burnin days
-          assert np.max(messages_fwd_received[:, :, -1, :]) < 0
-          assert np.max(messages_bwd_received[:, :, -1, :]) < 0
+        # Some assertions, uncomment for debugging
+        # assert np.all(messages_fwd_received > -2)
+        # assert np.all(messages_bwd_received > -2)
+        # if num_time_steps > 5:
+        #   # Only check after a few burnin days
+        #   assert np.max(messages_fwd_received[:, :, -1, :]) < 0
+        #   assert np.max(messages_bwd_received[:, :, -1, :]) < 0
 
         map_forward_message = util_bp.collapse_null_messages(
           messages_fwd_received, num_proc, num_users_interval,
