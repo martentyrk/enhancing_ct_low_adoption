@@ -251,7 +251,7 @@ def init_message_maps(
     map_backward_message.astype(np.single))
 
 
-@numba.njit
+@numba.njit(parallel=True)
 def do_backward_forward_subset(
     user_interval: Tuple[int, int],
     A_matrix: np.ndarray,
@@ -268,7 +268,6 @@ def do_backward_forward_subset(
   Note, the messages are appended, and thus not updated between users!
   """
   num_users_interval = user_interval[1] - user_interval[0]
-
   bp_beliefs_subset = np.zeros((num_users_interval, num_time_steps, 4))
 
   # Init ndarrays for all messages being sent by users in this subset
@@ -276,15 +275,20 @@ def do_backward_forward_subset(
     (num_users_interval, num_time_steps*constants.CTC, 7))
   messages_forward_subset = np.zeros(
     (num_users_interval, num_time_steps*constants.CTC, 4))
-  for user_id, user_run in enumerate(range(user_interval[0], user_interval[1])):
-    start_belief = start_beliefs[user_id] if start_beliefs is not None else None
-    bp_beliefs_subset[user_id], messages_back_user, messages_forward_user = (
-      forward_backward_user(
-        A_matrix, p0, p1, user_run,
-        map_backward_message[user_id], map_forward_message[user_id],
-        num_time_steps, obs_messages[user_id], start_belief))
-    messages_backward_subset[user_id] = messages_back_user
-    messages_forward_subset[user_id] = messages_forward_user
+
+  for user_id in numba.prange(num_users_interval):  # pylint: disable=not-an-iterable
+    (
+      bp_beliefs_subset[user_id],
+      messages_backward_subset[user_id],
+      messages_forward_subset[user_id]) = (
+        forward_backward_user(
+          A_matrix, p0, p1,
+          user_id+user_interval[0],
+          map_backward_message[user_id],
+          map_forward_message[user_id],
+          num_time_steps,
+          obs_messages[user_id],
+          start_beliefs[user_id] if start_beliefs is not None else None))
 
   return bp_beliefs_subset, messages_forward_subset, messages_backward_subset
 
