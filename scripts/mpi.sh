@@ -16,7 +16,7 @@ echo "PYTHON: `which python`"
 echo "WANDB: `which wandb`"
 echo "SWEEP: $SWEEP, $SLURM_JOB_ID"
 
-MESSAGE="`date "+%Y-%m-%d__%H-%M-%S"` \t $SLURM_JOB_ID \t $SLURM_JOB_NAME \t "
+MESSAGE="`date "+%Y-%m-%d__%H-%M-%S"` \t $SLURM_JOB_ID \t $SLURM_JOB_NAME \t ${SWEEP}  \t "
 sed -i "1i$MESSAGE" "/var/scratch/${USER}/projects/dpfn/jobs.txt"
 
 echo 'Starting'
