@@ -3,6 +3,8 @@ import numba
 import numpy as np
 from mpi4py import MPI  # pytype: disable=import-error
 from dpfn import constants, inference, logger, belief_propagation, util, util_bp
+from dpfn.experiments import util_sib
+import sib
 import subprocess
 import time
 from typing import Any, Dict, Optional
@@ -263,6 +265,92 @@ def wrap_belief_propagation(
     bp_collect /= np.sum(bp_collect, axis=-1, keepdims=True)
     return bp_collect
   return bp_wrapped
+
+
+def wrap_sib(
+    num_users: int,
+    recovery_days: float,
+    p0: float,
+    p1: float,
+    damping: float):
+  """Wraps the inference function for the SIB library.
+
+  https://github.com/sibyl-team/sib"""
+
+  sib.set_num_threads(util.get_cpu_count())
+
+  def sib_wrapped(
+      observations_list: constants.ObservationList,
+      contacts_list: constants.ContactList,
+      num_updates: int,
+      num_time_steps: int,
+      start_belief: Optional[np.ndarray] = None,
+      users_stale: Optional[np.ndarray] = None,
+      diagnostic: Optional[Any] = None):
+    del start_belief
+
+    if users_stale is not None:
+      raise ValueError('Not implemented stale users for Gibbs')
+
+    # Prepare contacts
+    contacts_sib = []
+    for contact in contacts_list:
+      if contact[0] < 0:
+        break
+
+      ctc = (int(contact[0]), int(contact[1]), int(contact[2]), p1)
+      contacts_sib.append(ctc)
+
+    # Prepare observations
+    obs_sib = []
+    for obs in observations_list:
+      if obs[0] < 0:
+        break
+
+      if obs[2] == 1:
+        test = sib.Test(0, 1, 0)
+      else:
+        test = sib.Test(.5, 0, .5)
+      obs_sib.append((obs[0], test, obs[1]))
+    # Add dummy observations to query marginals later
+    obs_sib += [(i, sib.Test(1, 1, 1), timestep)
+                for i in range(num_users) for timestep in range(num_time_steps)]
+
+    # Sort observations and contacts (required for SIB library)
+    obs_sib = list(sorted(obs_sib, key=lambda x: x[2]))
+    contacts_sib = list(sorted(contacts_sib, key=lambda x: x[2]))
+
+    sib_params = util_sib.make_sib_params(num_time_steps, p0, recovery_days)
+
+    # Run inference
+    f = sib.FactorGraph(
+      params=sib_params,
+      contacts=contacts_sib,
+      tests=obs_sib)
+
+    if diagnostic:
+      diagnostic.log({"damping": damping}, commit=False)
+    sib.iterate(f, maxit=num_updates, damping=damping)
+
+    nodes_all = {node.index: node for node in f.nodes}
+
+    # Collect marginals
+    marginals_sib = np.zeros((num_users, num_time_steps, 3))
+    for user in range(num_users):
+      for timestep in range(num_time_steps):
+        message = sib.marginal_t(nodes_all[user], timestep)
+        marginals_sib[user, timestep] = np.array(list(message))
+
+    logger.info(f"Marginals SIB contain NaN {np.any(np.isnan(marginals_sib))}")
+
+    # Insert a slice with all zeros for E state (SIB does only SIR)
+    marginals_sib = np.concatenate(
+      (marginals_sib[:, :, :1],
+       np.zeros((num_users, num_time_steps, 1)),
+       marginals_sib[:, :, 1:]),
+      axis=-1)
+    return marginals_sib
+  return sib_wrapped
 
 
 def set_noisy_test_params(cfg: Dict[str, Any]) -> Dict[str, Any]:

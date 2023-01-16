@@ -82,6 +82,17 @@ def make_inference_func(
       h_param=h,
       quantization=quantization,
       trace_dir=trace_dir)
+  elif inference_method == "sib":
+    # Belief Propagation
+    sib_mult = cfg["model"]["sib_mult"]
+    recovery_days = 1/h + sib_mult*1/g
+
+    inference_func = util_experiments.wrap_sib(
+      num_users=num_users,
+      recovery_days=recovery_days,
+      p0=p0,
+      p1=p1,
+      damping=0.0)
   elif inference_method == "random":
     inference_func = None
     do_random_quarantine = True
@@ -93,7 +104,7 @@ def make_inference_func(
   else:
     raise ValueError((
       f"Not recognised inference method {inference_method}. Should be one of"
-      f"['random', 'fn', 'dummy', 'dct', 'bp']"
+      f"['random', 'fn', 'dummy', 'dct', 'bp', 'sib']"
     ))
   return inference_func, do_random_quarantine
 
@@ -515,7 +526,7 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser(
     description='Compare statistics acrosss inference methods')
   parser.add_argument('--inference_method', type=str, default='fn',
-                      choices=['fn', 'dummy', 'random', 'bp', 'dct'],
+                      choices=['fn', 'dummy', 'random', 'bp', 'dct', 'sib'],
                       help='Name of the inference method')
   parser.add_argument('--experiment_setup', type=str, default='single',
                       choices=['single', 'prequential'],
