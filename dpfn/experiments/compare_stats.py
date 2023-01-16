@@ -11,6 +11,7 @@ from dpfn import LOGGER_FILENAME, logger
 from dpfn import simulator
 from dpfn import util
 from dpfn import util_wandb
+import numba
 import os
 import random
 from sklearn import metrics
@@ -543,6 +544,9 @@ if __name__ == "__main__":
   parser.add_argument('--quick', action='store_true',
                       help=('include flag --quick to run a minimal version of'
                             'the code quickly, usually for debugging purpose'))
+
+  # TODO make a better heuristic for this:
+  numba.set_num_threads(8)
 
   args = parser.parse_args()
 

@@ -97,7 +97,7 @@ def forward_backward_user(
   mu_back_contact /= np.expand_dims(np.sum(mu_back_contact, axis=1), axis=1)
 
   # Clip messages in case of quantization
-  mu_back_contact = np.clip(mu_back_contact, 0.0001, 0.9999)
+  mu_back_contact = np.minimum(0.9999, np.maximum(mu_back_contact, 0.0001))
 
   mu_f2v_forward = np.zeros((num_time_steps, 4))
   mu_f2v_backward = np.zeros((num_time_steps, 4))
