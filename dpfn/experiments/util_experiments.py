@@ -290,7 +290,7 @@ def wrap_sib(
     del start_belief
 
     if users_stale is not None:
-      raise ValueError('Not implemented stale users for Gibbs')
+      raise ValueError('Not implemented stale users for SIB')
 
     # Prepare contacts
     contacts_sib = []

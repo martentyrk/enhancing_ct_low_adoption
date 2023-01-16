@@ -645,12 +645,55 @@ def update_beliefs(
   return belief_matrix
 
 
+def get_stale_users_slice(
+    users_stale: np.ndarray,
+    user_interval: Tuple[int, int],
+    num_users: int) -> Optional[np.ndarray]:
+  """Returns a slice of users that are stale.
+
+  Userids in return are relative to the user_interval.
+
+  Args:
+    users_stale: np.ndarray of userids that are stale, in absolute userid space.
+    user_interval: Tuple of (start, end) of the user interval.
+    num_users: Number of users in the entire graph.
+  """
+  # If None, return None
+  if users_stale is None:
+    return None
+
+  # If no slicing is happening, return users_stale
+  num_users_interval = user_interval[1] - user_interval[0]
+  if num_users_interval == num_users:
+    return users_stale
+
+  select = np.logical_and(
+    users_stale >= user_interval[0],
+    users_stale < user_interval[1])
+  users_stale = users_stale[select]
+  return users_stale - user_interval[0]
+
+
 def sample_stale_users(
-    user_slice: Optional[np.ndarray]) -> Optional[np.ndarray]:
+    user_slice: Optional[np.ndarray], num_users: int) -> Optional[np.ndarray]:
+  """Samples half of the users in the slice to be stale.
+
+  Args:
+    user_slice: Slice of users to sample from, with userid relative to
+      user_interval.
+    num_users: Number of users in the entire graph.
+
+  Returns:
+    Binary vector of length num_users, with 1s indicating users that are stale.
+  """
   if user_slice is None:
     return None
   np.random.shuffle(user_slice)
-  return user_slice[:int(len(user_slice) // 2)]
+  users_stale_now = user_slice[:int(len(user_slice) // 2)]
+
+  users_stale_binary = np.zeros((num_users,), dtype=np.bool)
+  users_stale_binary[users_stale_now] = True
+  return users_stale_binary
 
 
 def get_joblib_backend():

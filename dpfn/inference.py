@@ -30,6 +30,7 @@ def fn_step_wrapped(
     probab1: float,
     past_contacts_array: np.ndarray,
     start_belief: Optional[np.ndarray] = None,
+    users_stale: Optional[np.ndarray] = None,
     quantization: int = -1,):
   """Wraps one step of Factorised Neighbors over a subset of users.
 
@@ -71,6 +72,9 @@ def fn_step_wrapped(
   state_start = seq_array_hot[0].T.dot(states).astype(np.int16)
 
   for i in range(interval_num_users):
+    if users_stale is not None:
+      if users_stale[i]:
+        continue
 
     d_term, d_no_term = util.precompute_d_penalty_terms_fn(
       p_infected_matrix,
@@ -150,13 +154,16 @@ def fact_neigh(
     health states {S, E, I, R} for each user at each time step
   """
   del diagnostic
-  if users_stale is not None:
-    assert False, "users_stale is not implemented yet"
   t_start_preamble = time.time()
 
   user_ids_bucket = util.spread_buckets_interval(num_users, num_proc)
   user_interval = (
     int(user_ids_bucket[mpi_rank]), int(user_ids_bucket[mpi_rank+1]))
+  num_users_interval = user_interval[1] - user_interval[0]
+
+  # Slice out stale_users
+  users_stale_slice = util.get_stale_users_slice(
+    users_stale, user_interval, num_users)
 
   seq_array = np.stack(list(
     util.iter_sequences(time_total=num_time_steps, start_se=False)))
@@ -213,6 +220,10 @@ def fact_neigh(
       if mpi_rank == 0:
         logger.info(f"Num update {num_update}")
 
+    # Sample stale users
+    users_stale_now = util.sample_stale_users(
+      users_stale_slice, num_users_interval)
+
     post_exp, tstart, t_end = fn_step_wrapped(
       user_interval,
       seq_array_hot,
@@ -224,6 +235,7 @@ def fact_neigh(
       probab_1,
       past_contacts,
       start_belief,
+      users_stale=users_stale_now,
       quantization=quantization)
 
     if np.any(np.isinf(post_exp)):
