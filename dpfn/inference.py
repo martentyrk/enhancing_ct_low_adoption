@@ -18,7 +18,7 @@ def softmax(x):
   return np.exp(y)/np.sum(np.exp(y))
 
 
-@numba.njit
+@numba.njit(parallel=True)
 def fn_step_wrapped(
     user_interval: Tuple[int, int],
     seq_array_hot: np.ndarray,
@@ -29,7 +29,7 @@ def fn_step_wrapped(
     probab0: float,
     probab1: float,
     past_contacts_array: np.ndarray,
-    start_belief: Optional[np.ndarray] = None,
+    start_belief: np.ndarray,
     users_stale: Optional[np.ndarray] = None,
     quantization: int = -1,):
   """Wraps one step of Factorised Neighbors over a subset of users.
@@ -67,11 +67,12 @@ def fn_step_wrapped(
   seq_array_hot = seq_array_hot.astype(np.float64)
   num_sequences = seq_array_hot.shape[2]
 
-  # Numba dot only works on float arrays
-  states = np.arange(4, dtype=np.float64)
-  state_start = seq_array_hot[0].T.dot(states).astype(np.int16)
+  # Array in [4, num_sequences]
+  state_start_hot = seq_array_hot[0]
+  # Array in [num_users, num_sequences]
+  start_belief_all = np.log(start_belief.dot(state_start_hot) + 1E-12)
 
-  for i in range(interval_num_users):
+  for i in numba.prange(interval_num_users):  # pylint: disable=not-an-iterable
     if users_stale is not None:
       if users_stale[i]:
         continue
@@ -88,18 +89,11 @@ def fn_step_wrapped(
       np.take(d_noterm_cumsum, np.maximum(num_days_s-1, 0))
       + np.take(d_term, num_days_s))
 
-    # Apply local start_belief
-    start_belief_enum = np.zeros((num_sequences))
-    if start_belief is not None:
-      start_belief_enum = np.take(start_belief[i], state_start)
-      start_belief_enum = np.log(start_belief_enum + 1E-12)
-      assert start_belief_enum.shape == log_A_start.shape
-
     # Numba only does matmul with 2D-arrays, so do reshaping below
-    log_joint = softmax(
-      log_c_z_u[i] + log_A_start + d_penalties + start_belief_enum)
+    log_joint = log_c_z_u[i] + log_A_start + d_penalties + start_belief_all[i]
+    joint_distr = softmax(log_joint)
     post_exps[i] = np.reshape(np.dot(
-      seq_array_hot.reshape(num_time_steps*4, num_sequences), log_joint),
+      seq_array_hot.reshape(num_time_steps*4, num_sequences), joint_distr),
       (num_time_steps, 4))
 
   with numba.objmode(t1='f8'):
@@ -206,9 +200,10 @@ def fact_neigh(
     with open(fname, 'a') as fp:
       fp.write(f"{max_num_contacts:.0f}\n")
 
+  start_belief_matrix = np.ones((num_users_interval, 4))
   if start_belief is not None:
     assert len(start_belief) == num_users
-    start_belief = start_belief[user_interval[0]:user_interval[1]]
+    start_belief_matrix = start_belief[user_interval[0]:user_interval[1]]
 
   if mpi_rank == 0:
     t_preamble2 = time.time() - t_start_preamble
@@ -234,7 +229,7 @@ def fact_neigh(
       probab_0,
       probab_1,
       past_contacts,
-      start_belief,
+      start_belief_matrix,
       users_stale=users_stale_now,
       quantization=quantization)
 

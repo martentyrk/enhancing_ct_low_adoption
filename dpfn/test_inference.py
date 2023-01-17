@@ -70,7 +70,7 @@ def test_factorised_neighbor_step():
     p0,
     p1,
     past_contacts,
-    start_belief=None,
+    start_belief=np.ones((num_users, 4)),
     quantization=-1)
 
   time_spent = tend - tstart
