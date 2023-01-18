@@ -5,8 +5,11 @@ import os
 
 COLOR_MAP_PARETO = {
   "Random": "c",
-  "FN": 'b',
-  'no_quarant': 'm',
+  "FN": 'm',
+  "BP": 'b',
+  'no_quarant': 'g',
+  "dct": "k",
+  "sib": "y",
 }
 
 

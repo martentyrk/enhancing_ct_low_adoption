@@ -293,11 +293,11 @@ def compare_prequential_quarantine(
         observations_now = np.zeros((num_obs, 3), dtype=np.int32)
 
       # TODO: send np.int32
-      contacts_now = np.ascontiguousarray(contacts_now, dtype=np.int64)
-      observations_now = np.ascontiguousarray(observations_now, dtype=np.int64)
+      contacts_now = np.ascontiguousarray(contacts_now, dtype=np.int32)
+      observations_now = np.ascontiguousarray(observations_now, dtype=np.int32)
 
-      comm_world.Bcast([contacts_now, MPI.INT], root=0)
-      comm_world.Bcast([observations_now, MPI.INT], root=0)
+      comm_world.Bcast([contacts_now, MPI.INT32_T], root=0)
+      comm_world.Bcast([observations_now, MPI.INT32_T], root=0)
 
       # if t_now == 7:
       #   fname = f"results/tmp/state_{mpi_rank}_{t_now}.npy"
