@@ -22,6 +22,7 @@ def dump_results_json(
   """Dumps the results of an experiment to JSONlines."""
 
   kwargs["time"] = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+  kwargs["time_day"] = datetime.datetime.now().strftime("%Y%m%d")
   kwargs["slurm_id"] = str(os.getenv('SLURM_JOB_ID'))  # Defaults to 'none'
   kwargs["slurm_name"] = str(os.getenv('SLURM_JOB_NAME'))  # Defaults to 'none'
   kwargs["sweep_id"] = str(os.getenv('SWEEPID'))  # Defaults to 'none'
@@ -29,7 +30,7 @@ def dump_results_json(
   model_keys = [
     "p0", "p1", "alpha", "beta", "prob_g", "prob_h",
     "noisy_test", "num_days_window", "quantization",
-    "threshold_quarantine", "num_rounds"]
+    "threshold_quarantine", "num_rounds", "sib_mult"]
   data_keys = [
     "num_users", "num_time_steps", "fraction_quarantine", "num_days_quarantine",
     "fraction_test", "do_conditional_testing", "fraction_stale"]

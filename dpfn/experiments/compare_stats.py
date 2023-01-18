@@ -564,15 +564,13 @@ if __name__ == "__main__":
   if args.quick:
     experiment_name += "_quick"
   results_dir_global = (
-    f'results/{experiment_name}/{configname_data}__{configname_model}__'
-    f'{inf_method}/')
+    f'results/{experiment_name}/{configname_data}__{configname_model}/')
 
   if mpi_rank == 0:
     util.maybe_make_dir(results_dir_global)
   if args.dump_traces:
     trace_dir_global = (
-      f'results/trace_{experiment_name}/{configname_data}__{configname_model}__'
-      f'{inf_method}/')
+      f'results/trace_{experiment_name}/{configname_data}__{configname_model}/')
     util.maybe_make_dir(trace_dir_global)
     logger.info(f"Dump traces to results_dir_global {trace_dir_global}")
   else:
