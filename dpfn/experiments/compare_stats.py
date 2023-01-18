@@ -270,8 +270,8 @@ def compare_prequential_quarantine(
         if mpi_rank == 0:
           logger.info("Use window!")
         start_belief = z_states_inferred[:, 1]
-      start_belief = np.ascontiguousarray(start_belief, dtype=np.double)
-      comm_world.Bcast([start_belief, MPI.DOUBLE], root=0)
+      start_belief = np.ascontiguousarray(start_belief, dtype=np.single)
+      comm_world.Bcast([start_belief, MPI.FLOAT], root=0)
 
       contacts_now = util.make_default_array(
         sim.get_contacts(), dtype=np.int32, rowlength=4)
@@ -292,6 +292,7 @@ def compare_prequential_quarantine(
         contacts_now = np.zeros((num_contacts, 4), dtype=np.int32)
         observations_now = np.zeros((num_obs, 3), dtype=np.int32)
 
+      # TODO: send np.int32
       contacts_now = np.ascontiguousarray(contacts_now, dtype=np.int64)
       observations_now = np.ascontiguousarray(observations_now, dtype=np.int64)
 
@@ -546,7 +547,7 @@ if __name__ == "__main__":
                             'the code quickly, usually for debugging purpose'))
 
   # TODO make a better heuristic for this:
-  numba.set_num_threads(8)
+  numba.set_num_threads(2)
 
   args = parser.parse_args()
 

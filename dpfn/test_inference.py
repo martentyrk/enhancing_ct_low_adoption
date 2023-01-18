@@ -45,7 +45,7 @@ def test_factorised_neighbor_step():
     obs_array,
     observations_all)
 
-  q_marginal_infected = np.zeros((num_users, num_time_steps)).astype(np.double)
+  q_marginal_infected = np.zeros((num_users, num_time_steps), dtype=np.float32)
 
   infect_counter = util.InfectiousContactCount(
     contacts=contacts_all,
@@ -70,7 +70,7 @@ def test_factorised_neighbor_step():
     p0,
     p1,
     past_contacts,
-    start_belief=np.ones((num_users, 4)),
+    start_belief=np.ones((num_users, 4), dtype=np.single),
     quantization=-1)
 
   time_spent = tend - tstart
@@ -95,7 +95,7 @@ def test_fact_neigh_with_start_belief():
 
   start_belief = np.array(
     [[.1, .4, .5, .0],
-     [.9, .1, .0, .0]])
+     [.9, .1, .0, .0]], dtype=np.single)
 
   post_exp = inference.fact_neigh(
     num_users=num_users,

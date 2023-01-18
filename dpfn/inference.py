@@ -64,7 +64,7 @@ def fn_step_wrapped(
   assert np.all(np.sum(seq_array_hot, axis=1) == 1), (
     "seq_array_hot is expected as one-hot array")
 
-  seq_array_hot = seq_array_hot.astype(np.float64)
+  seq_array_hot = seq_array_hot.astype(np.single)
   num_sequences = seq_array_hot.shape[2]
 
   # Array in [4, num_sequences]
@@ -91,7 +91,7 @@ def fn_step_wrapped(
 
     # Numba only does matmul with 2D-arrays, so do reshaping below
     log_joint = log_c_z_u[i] + log_A_start + d_penalties + start_belief_all[i]
-    joint_distr = softmax(log_joint)
+    joint_distr = softmax(log_joint).astype(np.single)
     post_exps[i] = np.reshape(np.dot(
       seq_array_hot.reshape(num_time_steps*4, num_sequences), joint_distr),
       (num_time_steps, 4))
@@ -181,8 +181,8 @@ def fact_neigh(
     obs_array,
     observations_all)
 
-  q_marginal_infected = np.zeros((num_users, num_time_steps)).astype(np.double)
-  post_exp = np.zeros((num_users, num_time_steps, 4))
+  q_marginal_infected = np.zeros((num_users, num_time_steps), dtype=np.single)
+  post_exp = np.zeros((num_users, num_time_steps, 4), dtype=np.single)
 
   t_preamble1 = time.time() - t_start_preamble
   t_start_preamble = time.time()
@@ -200,7 +200,7 @@ def fact_neigh(
     with open(fname, 'a') as fp:
       fp.write(f"{max_num_contacts:.0f}\n")
 
-  start_belief_matrix = np.ones((num_users_interval, 4))
+  start_belief_matrix = np.ones((num_users_interval, 4), dtype=np.single)
   if start_belief is not None:
     assert len(start_belief) == num_users
     start_belief_matrix = start_belief[user_interval[0]:user_interval[1]]
@@ -246,27 +246,26 @@ def fact_neigh(
         logger.info(f"Time for fn_step: {t_end - tstart:.1f} seconds")
 
     # Prepare buffer for Allgatherv
-    q_collect = np.empty((num_users, num_time_steps), dtype=np.double)
+    q_collect = np.empty((num_users, num_time_steps), dtype=np.single)
 
     memory_bucket = user_ids_bucket*num_time_steps
     offsets = memory_bucket[:-1].tolist()
     sizes_memory = (memory_bucket[1:] - memory_bucket[:-1]).tolist()
 
-    q_send = np.ascontiguousarray(post_exp[:, :, 2], dtype=np.double)
+    q_send = np.ascontiguousarray(post_exp[:, :, 2], dtype=np.single)
     comm_world.Allgatherv(
       q_send,
-      recvbuf=[q_collect, sizes_memory, offsets, MPI.DOUBLE])
+      recvbuf=[q_collect, sizes_memory, offsets, MPI.FLOAT])
     q_marginal_infected = q_collect
 
   # Prepare buffer for Allgatherv
-  post_exp_collect = np.empty((num_users, num_time_steps, 4), dtype=np.double)
+  post_exp_collect = np.empty((num_users, num_time_steps, 4), dtype=np.single)
 
   memory_bucket = user_ids_bucket*num_time_steps*4
   offsets = memory_bucket[:-1].tolist()
   sizes_memory = (memory_bucket[1:] - memory_bucket[:-1]).tolist()
 
-  p_send = np.ascontiguousarray(post_exp, dtype=np.double)
   comm_world.Gatherv(
-    p_send,
-    recvbuf=[post_exp_collect, sizes_memory, offsets, MPI.DOUBLE])
+    post_exp.astype(np.single),
+    recvbuf=[post_exp_collect, sizes_memory, offsets, MPI.FLOAT])
   return post_exp_collect
