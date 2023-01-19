@@ -70,12 +70,13 @@ def test_fward_bward_user():
   (p0, p1, alpha, beta, A_matrix, observations_all, contacts_all, num_users,
    num_time_steps) = construct_test_problem()
 
+  start_belief_def = np.array([1.-p0, p0, 0., 0.], dtype=np.float32)
   obs_distro = {
     0: np.array([1-beta, 1-beta, alpha, 1-beta]),
     1: np.array([beta, beta, 1-alpha, beta]),
   }
 
-  obs_messages = np.ones((num_users, num_time_steps, 4))
+  obs_messages = np.ones((num_users, num_time_steps, 4), dtype=np.float32)
   for obs in observations_all:
     obs_messages[obs[0]][obs[1]] *= obs_distro[obs[2]]
 
@@ -86,8 +87,9 @@ def test_fward_bward_user():
   user_test = 0
   bp_beliefs_user, _, _ = (
     belief_propagation.forward_backward_user(
-      A_matrix, p0, p1, user_test, map_backward_message[user_test],
-      map_forward_message[user_test], num_time_steps, obs_messages[user_test]))
+      A_matrix, p1, user_test, map_backward_message[user_test],
+      map_forward_message[user_test], num_time_steps, obs_messages[user_test],
+      start_belief_def))
 
   # Compare to result with exact inference
   expected = np.array(
@@ -104,12 +106,13 @@ def test_consistent_fward():
   (p0, p1, alpha, beta, A_matrix, observations_all, contacts_all, num_users,
    num_time_steps) = construct_test_problem()
 
+  start_belief_def = np.array([1.-p0, p0, 0., 0.], dtype=np.float32)
   obs_distro = {
     0: np.array([1-beta, 1-beta, alpha, 1-beta]),
     1: np.array([beta, beta, 1-alpha, beta]),
   }
 
-  obs_messages = np.ones((num_users, num_time_steps, 4))
+  obs_messages = np.ones((num_users, num_time_steps, 4), dtype=np.float32)
   for obs in observations_all:
     obs_messages[obs[0]][obs[1]] *= obs_distro[obs[2]]
 
@@ -120,8 +123,9 @@ def test_consistent_fward():
   user_test = 0
   _, list_bw, list_fw = (
     belief_propagation.forward_backward_user(
-      A_matrix, p0, p1, user_test, map_backward_message[user_test],
-      map_forward_message[user_test], num_time_steps, obs_messages[user_test]))
+      A_matrix, p1, user_test, map_backward_message[user_test],
+      map_forward_message[user_test], num_time_steps, obs_messages[user_test],
+      start_belief_def))
 
   assert np.all(list_bw < 0)
   np.testing.assert_almost_equal(list_fw[0][3], 0.12634230837716198, decimal=5)
@@ -131,12 +135,13 @@ def test_consistent_fward2():
   (p0, p1, alpha, beta, A_matrix, observations_all, contacts_all, num_users,
    num_time_steps) = construct_test_problem()
 
+  start_belief_def = np.array([1.-p0, p0, 0., 0.], dtype=np.float32)
   obs_distro = {
     0: np.array([1-beta, 1-beta, alpha, 1-beta]),
     1: np.array([beta, beta, 1-alpha, beta]),
   }
 
-  obs_messages = np.ones((num_users, num_time_steps, 4))
+  obs_messages = np.ones((num_users, num_time_steps, 4), dtype=np.float32)
   for obs in observations_all + [(0, 3, 1)]:
     obs_messages[obs[0]][obs[1]] *= obs_distro[obs[2]]
 
@@ -147,8 +152,9 @@ def test_consistent_fward2():
   user_test = 0
   _, list_bw, list_fw = (
     belief_propagation.forward_backward_user(
-      A_matrix, p0, p1, user_test, map_backward_message[user_test],
-      map_forward_message[user_test], num_time_steps, obs_messages[user_test]))
+      A_matrix, p1, user_test, map_backward_message[user_test],
+      map_forward_message[user_test], num_time_steps, obs_messages[user_test],
+      start_belief_def))
 
   assert np.all(list_bw < 0)
   np.testing.assert_almost_equal(list_fw[0][3], 0.27795103957754486, decimal=5)
@@ -158,12 +164,13 @@ def test_consistent_bward():
   (p0, p1, alpha, beta, A_matrix, observations_all, contacts_all, num_users,
    num_time_steps) = construct_test_problem()
 
+  start_belief_def = np.array([1.-p0, p0, 0., 0.], dtype=np.float32)
   obs_distro = {
     0: np.array([1-beta, 1-beta, alpha, 1-beta]),
     1: np.array([beta, beta, 1-alpha, beta]),
   }
 
-  obs_messages = np.ones((num_users, num_time_steps, 4))
+  obs_messages = np.ones((num_users, num_time_steps, 4), dtype=np.float32)
   for obs in observations_all + [(2, 3, 1)]:
     obs_messages[obs[0]][obs[1]] *= obs_distro[obs[2]]
 
@@ -178,8 +185,9 @@ def test_consistent_bward():
   user_test = 2
   _, list_bw, list_fw = (
     belief_propagation.forward_backward_user(
-      A_matrix, p0, p1, user_test, map_backward_message[user_test],
-      map_forward_message[user_test], num_time_steps, obs_messages[user_test]))
+      A_matrix, p1, user_test, map_backward_message[user_test],
+      map_forward_message[user_test], num_time_steps, obs_messages[user_test],
+      start_belief_def))
 
   map_bw = {tuple(x[0:3].tolist()): x[3:] for x in list_bw}
 
@@ -198,12 +206,13 @@ def test_consistent_bward2():
   (p0, p1, alpha, beta, A_matrix, observations_all, contacts_all, num_users,
    num_time_steps) = construct_test_problem()
 
+  start_belief_def = np.array([1.-p0, p0, 0., 0.], dtype=np.float32)
   obs_distro = {
     0: np.array([1-beta, 1-beta, alpha, 1-beta]),
     1: np.array([beta, beta, 1-alpha, beta]),
   }
 
-  obs_messages = np.ones((num_users, num_time_steps, 4))
+  obs_messages = np.ones((num_users, num_time_steps, 4), dtype=np.float32)
   for obs in observations_all + [(2, 4, 1)]:
     obs_messages[obs[0]][obs[1]] *= obs_distro[obs[2]]
 
@@ -218,8 +227,9 @@ def test_consistent_bward2():
   user_test = 2
   _, list_bw, list_fw = (
     belief_propagation.forward_backward_user(
-      A_matrix, p0, p1, user_test, map_backward_message[user_test],
-      map_forward_message[user_test], num_time_steps, obs_messages[user_test]))
+      A_matrix, p1, user_test, map_backward_message[user_test],
+      map_forward_message[user_test], num_time_steps, obs_messages[user_test],
+      start_belief_def))
 
   map_bw = {tuple(x[0:3].tolist()): x[3:] for x in list_bw}
 
@@ -243,7 +253,7 @@ def test_fward_bward_messages_simul_receive2():
     1: np.array([beta, beta, 1-alpha, beta]),
   }
 
-  obs_messages = np.ones((num_users, num_time_steps, 4))
+  obs_messages = np.ones((num_users, num_time_steps, 4), dtype=np.float32)
   for obs in observations_all:
     obs_messages[obs[0]][obs[1]] *= obs_distro[obs[2]]
 
@@ -296,7 +306,7 @@ def test_fward_bward_messages_simul_send2():
     1: np.array([beta, beta, 1-alpha, beta]),
   }
 
-  obs_messages = np.ones((num_users, num_time_steps, 4))
+  obs_messages = np.ones((num_users, num_time_steps, 4), dtype=np.float32)
   for obs in observations_all:
     obs_messages[obs[0]][obs[1]] *= obs_distro[obs[2]]
 
@@ -331,7 +341,7 @@ def test_fward_bward_messages_simul_send2():
      [0.3805526299, 0.4083425317, 0.2074122458, 0.0036925926],
      [0.3767471036, 0.2760338807, 0.2743890078, 0.0728300079]]])
 
-  np.testing.assert_array_almost_equal(bp_beliefs, expected, decimal=8)
+  np.testing.assert_array_almost_equal(bp_beliefs, expected, decimal=6)
 
 
 def test_fward_bward_messages_simul_send3():
@@ -350,7 +360,7 @@ def test_fward_bward_messages_simul_send3():
     1: np.array([beta, beta, 1-alpha, beta]),
   }
 
-  obs_messages = np.ones((num_users, num_time_steps, 4))
+  obs_messages = np.ones((num_users, num_time_steps, 4), dtype=np.float32)
   for obs in observations_all:
     obs_messages[obs[0]][obs[1]] *= obs_distro[obs[2]]
 
@@ -393,7 +403,7 @@ def test_fward_bward_messages_simul_send3():
      [0.3805526299, 0.4083425317, 0.2074122458, 0.0036925926],
      [0.3767471036, 0.2760338807, 0.2743890078, 0.0728300079]]])
 
-  np.testing.assert_array_almost_equal(bp_beliefs, expected, decimal=8)
+  np.testing.assert_array_almost_equal(bp_beliefs, expected, decimal=6)
 
 
 def test_fward_bward_messages_simul_receive3():
@@ -418,7 +428,7 @@ def test_fward_bward_messages_simul_receive3():
     1: np.array([beta, beta, 1-alpha, beta]),
   }
 
-  obs_messages = np.ones((num_users, num_time_steps, 4))
+  obs_messages = np.ones((num_users, num_time_steps, 4), dtype=np.float32)
   for obs in observations_all:
     obs_messages[obs[0]][obs[1]] *= obs_distro[obs[2]]
 
@@ -480,7 +490,7 @@ def test_fward_bward_messages_simul_send3_quantized():
     1: np.array([beta, beta, 1-alpha, beta]),
   }
 
-  obs_messages = np.ones((num_users, num_time_steps, 4))
+  obs_messages = np.ones((num_users, num_time_steps, 4), dtype=np.float32)
   for obs in observations_all:
     obs_messages[obs[0]][obs[1]] *= obs_distro[obs[2]]
 

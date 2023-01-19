@@ -29,7 +29,7 @@ def flip_message_send(
   num_elements = 7 if do_bwd else 4
   max_num_contacts = num_time_steps * constants.CTC
   map_messages = -1 * np.ones(
-    (num_users, max_num_contacts, num_elements))
+    (num_users, max_num_contacts, num_elements), dtype=np.float32)
 
   # Maintains how many non-null elements there are for a user
   num_messages = np.zeros((num_users), dtype=np.int32)

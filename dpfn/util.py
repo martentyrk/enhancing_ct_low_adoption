@@ -571,13 +571,14 @@ def maybe_make_dir(dirname: str):
 
 
 @numba.njit
-def quantize(message: Union[np.ndarray, float], num_levels: int
+def quantize(message: np.ndarray, num_levels: int
              ) -> Union[np.ndarray, float]:
   """Quantizes a message based on rounding.
 
   Numerical will be mid-bucket.
 
   TODO: implement quantization with coding scheme."""
+  dtype_in = message.dtype
   if num_levels < 0:
     return message
 
@@ -588,7 +589,7 @@ def quantize(message: Union[np.ndarray, float], num_levels: int
   #   raise ValueError(f"Invalid message {message}")
   message = np.minimum(message, 1.-1E-9)
   message_at_floor = np.floor(message * num_levels) / num_levels
-  return message_at_floor + (.5 / num_levels)
+  return (message_at_floor + (.5 / num_levels)).astype(dtype_in)
 
 
 @numba.njit

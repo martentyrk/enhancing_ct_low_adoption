@@ -59,6 +59,7 @@ def main(cfg, runner):
 
   for t_now in range(num_time_steps):
     sim.steps(1)
+    datalog = {'time': t_now}
 
     if do_collect >= 1:
       contacts_incoming = covid19.get_contacts_daily(
@@ -68,6 +69,8 @@ def main(cfg, runner):
       # Get state
       state = np.array(covid19.get_state(model.model.c_model), dtype=np.int64)
       logger.info(f"State of shape {state.shape}")
+      datalog["num_contacts_per_user"] = (
+        float(len(contacts_incoming)) / num_users)
 
     if do_collect >= 2:
       users_to_quarantine = np.random.choice(
@@ -79,15 +82,11 @@ def main(cfg, runner):
       assert status == 0
       state = np.array(covid19.get_state(model.model.c_model), dtype=np.int64)
       logger.info(f"State of shape {state.shape}")
+    runner.log(datalog)
 
   contacts_final = list(
     covid19.get_contacts_daily(model.model.c_model, num_time_steps-1))
   logger.info(f"Num contacts at final day: {len(contacts_final)}")
-
-  runner.log({
-    'num_contacts_final': len(contacts_final),
-    'num_time_steps': num_time_steps,
-  })
 
 
 if __name__ == "__main__":

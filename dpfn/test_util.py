@@ -542,3 +542,13 @@ def test_spread_buckets():
 def test_spread_buckets_interval():
   user_id = util.spread_buckets_interval(100, 10)
   np.testing.assert_array_almost_equal(user_id, 10*np.arange(11))
+
+
+def test_quantize():
+  x = np.random.randn(13, 13).astype(np.float32)
+
+  x_quantized = util.quantize(x, 8)
+  assert x_quantized.dtype == np.float32
+
+  x_quantized = util.quantize(x, -1)
+  assert x_quantized.dtype == np.float32

@@ -45,7 +45,6 @@ def adjust_matrices_map(
 @numba.njit
 def forward_backward_user(
     A_matrix: np.ndarray,
-    p0: float,
     p1: float,
     user: int,
     backward_messages: np.ndarray,
@@ -79,13 +78,10 @@ def forward_backward_user(
     marginal beliefs for this user after running bp, and the forward and
     backward messages that this user sends out.
   """
-  # Default to start_belief as 1.-p0 in S and p0 in E
-  if start_belief is None:
-    start_belief = np.array([1.-p0, p0, 0., 0.])
   # assert start_belief.shape == (4,), f"Shape {start_belief.shape} is not [4] "
 
   # Collate backward messages
-  mu_back_contact_log = np.zeros((num_time_steps, 4))  # Collate in matrix
+  mu_back_contact_log = np.zeros((num_time_steps, 4), dtype=np.float32)
   for row in backward_messages:
     if row[1] < 0:
       break
@@ -276,19 +272,24 @@ def do_backward_forward_subset(
   messages_forward_subset = np.zeros(
     (num_users_interval, num_time_steps*constants.CTC, 4))
 
+  # Default to start_belief as 1.-p0 in S and p0 in E
+  start_belief_def = np.array([1.-p0, p0, 0., 0.], dtype=np.float32)
+
   for user_id in numba.prange(num_users_interval):  # pylint: disable=not-an-iterable
+    start_belief_user = (
+      start_beliefs[user_id] if start_beliefs is not None else start_belief_def)
     (
       bp_beliefs_subset[user_id],
       messages_backward_subset[user_id],
       messages_forward_subset[user_id]) = (
         forward_backward_user(
-          A_matrix, p0, p1,
+          A_matrix, p1,
           user_id+user_interval[0],
           map_backward_message[user_id],
           map_forward_message[user_id],
           num_time_steps,
           obs_messages[user_id],
-          start_beliefs[user_id] if start_beliefs is not None else None))
+          start_belief_user))
 
   return bp_beliefs_subset, messages_forward_subset, messages_backward_subset
 
