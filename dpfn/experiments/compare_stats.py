@@ -383,11 +383,12 @@ def compare_prequential_quarantine(
       else:
         ave_precision[t_now] = 0.
 
-      logger.info(f"Time spent on full_loop {time.time() - t_start_loop:.0f}")
+      time_full_loop = time.time() - t_start_loop
+      logger.info(f"Time spent on full_loop {time_full_loop:.0f}")
 
       loadavg1, loadavg5, loadavg15 = os.getloadavg()
       runner.log({
-        "timestep": t_now,
+        "time_step": time_full_loop,
         "infection_rate": infection_rate,
         "load1": loadavg1,
         "load5": loadavg5,
@@ -419,7 +420,6 @@ def compare_prequential_quarantine(
     )
 
     time_spent = time.time() - t0
-
     logger.info(f"With {num_rounds} rounds, PIR {pir:5.2f}")
     runner.log({
       "time_spent": time_spent,
