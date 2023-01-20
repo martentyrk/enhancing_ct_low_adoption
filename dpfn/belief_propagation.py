@@ -125,16 +125,16 @@ def forward_backward_user(
                     * obs_messages[t_now] * mu_back_contact[t_now])
 
   # Calculate messages backward
-  messages_send_back = -1 * np.ones((num_time_steps*constants.CTC, 7))
-  num_bw = 0
-  for row in forward_messages:
-    user_backward, timestep_back = int(row[0]), int(row[2])
-    p_message = float(row[3])
+  max_num_messages = num_time_steps*constants.CTC
+  messages_send_back = -1 * np.ones((max_num_messages, 7), dtype=np.single)
+  # for row in forward_messages:
+  for num_row in numba.prange(max_num_messages):  # pylint: disable=not-an-iterable
+    user_backward = int(forward_messages[num_row][0])
     if user_backward < 0:
       continue
-    # assert timestep_back >= 0, (
-    #   "Cannot send a message back on timestep 0. "
-    #   "Probably some contact was defined for -1?")
+
+    timestep_back = int(forward_messages[num_row][2])
+    p_message = float(forward_messages[num_row][3])
     A_back = A_user[timestep_back]
 
     # This is the term that needs cancelling due to the forward message
@@ -158,48 +158,35 @@ def forward_backward_user(
                    * obs_messages[timestep_back+1])
       * mu_f2v_forward[timestep_back] * obs_messages[timestep_back])
     message_back = np.array([mess_SER, mess_SER, mess_I, mess_SER]) + 1E-12
-    # TODO (March 2022): figure out if this normalisation is correct
     message_back /= np.sum(message_back)
-    # if np.any(np.logical_or(np.isinf(message_back), np.isnan(message_back))):
-    #   logger.debug(f"Message back: \n {message_back}")
-    #   logger.debug(f"mu_back_contact: \n {mu_back_contact}")
 
+    # Collect backward message
     array_back = np.array(
       [user, user_backward, timestep_back,
        message_back[0], message_back[1], message_back[2], message_back[3]],
       dtype=np.single)
-    messages_send_back[num_bw] = array_back
-    num_bw += 1
+    messages_send_back[num_row] = array_back
 
   # Calculate messages forward
-  messages_send_forward = -1 * np.ones((num_time_steps*constants.CTC, 4))
-  num_fw = 0
-  for row in backward_messages:
-    user_forward, timestep = int(row[0]), int(row[2])
-    msg_back = row[3:]
+  messages_send_forward = -1 * np.ones((max_num_messages, 4), dtype=np.single)
+  # for row in backward_messages:
+  for num_row in numba.prange(max_num_messages):  # pylint: disable=not-an-iterable
+    user_forward = int(backward_messages[num_row][0])
     if user_forward < 0:
       continue
-    # assert timestep < num_time_steps, (
-    #   "Cannot send a message back on timestep <num_time_steps>. "
-    #   "Probably some contact was defined for <num_time_steps>?")
+
+    timestep = int(backward_messages[num_row][2])
+    msg_back = backward_messages[num_row][3:7]
+
+    # Calculate forward message
     message_backslash = util.normalize(msg_back + 1E-12)
     # TODO: do in logspace
     message = (betas[timestep] / message_backslash)
     message /= np.sum(message)
-    # if np.any(np.logical_or(np.isinf(message), np.isnan(message))):
-    #   logger.debug(f"Message forward: \n {message}")
-    #   logger.debug(f"Betas: \n {betas[timestep]}")
-    #   logger.debug(f"mu_back_contact: \n {mu_back_contact[timestep]}")
-    #   logger.debug(f"mu_f2v_forward: \n {mu_f2v_forward[timestep]}")
-    #   logger.debug(f"mu_f2v_backward: \n {mu_f2v_backward[timestep]}")
-    #   logger.debug(f"obs_messages: \n {obs_messages[timestep]}")
-    #   logger.debug(f"Backward backslash: \n {message_backslash}")
-    #   logger.debug(f"mu_f2v_forward: \n {mu_f2v_forward}")
-    #   raise ValueError("NaN or INF in message")
 
-    array_fwd = np.array([user, user_forward, timestep, message[2]])
-    messages_send_forward[num_fw] = array_fwd
-    num_fw += 1
+    array_fwd = np.array(
+      [user, user_forward, timestep, message[2]], dtype=np.single)
+    messages_send_forward[num_row] = array_fwd
 
   betas /= np.expand_dims(np.sum(betas, axis=1), axis=1)
   return betas, messages_send_back, messages_send_forward
