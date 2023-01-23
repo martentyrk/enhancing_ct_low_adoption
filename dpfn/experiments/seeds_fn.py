@@ -9,6 +9,7 @@ from dpfn import constants
 from dpfn import LOGGER_FILENAME, logger
 from dpfn import util
 from dpfn import util_wandb
+import glob
 import numba
 import os
 import random
@@ -25,6 +26,10 @@ comm_world = MPI.COMM_WORLD
 mpi_rank = comm_world.Get_rank()
 num_proc = comm_world.Get_size()
 print(f"num_proc {num_proc} mpi_rank {mpi_rank}")
+
+
+def strip_seed(filename: str) -> str:
+  return os.path.splitext(os.path.basename(filename))[0][-8:]
 
 
 def make_inference_func(
@@ -144,7 +149,7 @@ def compare_seeds(
     logger.info(f"Start inference method {inference_method}")
 
   for num_seed in range(num_seeds):
-    seed_value = seed + num_seed
+    seed_value = seed + 1000 * num_seed
     random.seed(seed_value)
     np.random.seed(seed_value)
 
@@ -199,6 +204,27 @@ def compare_seeds(
     sys.stdout.flush()
 
 
+def analyse_seeds(
+    trace_dir: str):
+  """Analyse the seeds."""
+  logger.info(f"Analyse seeds in {trace_dir}")
+
+  # Find fnames
+  fnames = list(sorted(glob.glob(f"{trace_dir}/states_*.npy")))
+  seed0 = strip_seed(fnames[0])
+
+  z_ref = 0.0
+  for num_file, fname in enumerate(fnames):
+
+    if num_file == 0:
+      z_ref = np.load(fname)
+    else:
+      z = np.load(fname)
+      dist = np.mean(np.abs(z - z_ref))
+      logger.info(
+        f"Distance between {strip_seed(fname)} and {seed0} is {dist:8.3f}")
+
+
 if __name__ == "__main__":
 
   parser = argparse.ArgumentParser(
@@ -215,6 +241,8 @@ if __name__ == "__main__":
                             ' when left undefined'))
   parser.add_argument('--num_seeds', type=int, default=8,
                       help='Number of seeds to run')
+  parser.add_argument('--do_inference', action='store_true',
+                      help='Do inference')
 
   # TODO make a better heuristic for this:
   numba.set_num_threads(2)
@@ -254,6 +282,7 @@ if __name__ == "__main__":
 
   if mpi_rank == 0:
     runner_global = wandb.init(
+      settings=wandb.Settings(start_method="fork"),
       project="dpfn",
       notes=" ",
       name=args.name,
@@ -292,19 +321,22 @@ if __name__ == "__main__":
   observations_all, contacts_all, states_all = data_load.load_jsons(data_dir)
 
   try:
-    compare_seeds(
-      config_wandb.get("seed", 123),
-      args.num_seeds,
-      inf_method,
-      num_users=config_wandb["data"]["num_users"],
-      num_time_steps=config_wandb["data"]["num_time_steps"],
-      observations=observations_all,
-      contacts=contacts_all,
-      states=states_all,
-      cfg=config_wandb,
-      runner=runner_global,
-      trace_dir=trace_dir_global,
-      )
+    if args.do_inference:
+      compare_seeds(
+        config_wandb.get("seed", 123),
+        args.num_seeds,
+        inf_method,
+        num_users=config_wandb["data"]["num_users"],
+        num_time_steps=config_wandb["data"]["num_time_steps"],
+        observations=observations_all,
+        contacts=contacts_all,
+        states=states_all,
+        cfg=config_wandb,
+        runner=runner_global,
+        trace_dir=trace_dir_global,
+        )
+
+    analyse_seeds(trace_dir_global)
   except Exception as e:
     # This exception sends an WandB alert with the traceback and sweepid
     logger.info(f'Error repr: {repr(e)}')
