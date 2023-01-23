@@ -117,13 +117,18 @@ def compare_seeds(
     states: np.ndarray,
     cfg: Dict[str, Any],
     runner,
-    trace_dir: Optional[str] = None):
+    trace_dir: str):
   """Compares different inference algorithms on the supplied contact graph."""
 
   # Contacts on last day are not of influence
   def filter_fn(datum):
     return datum[2] < (num_time_steps - 1)
   contacts = list(filter(filter_fn, contacts))
+
+  contacts = util.make_default_array(
+    contacts, dtype=np.int32, rowlength=4)
+  observations = util.make_default_array(
+    observations, dtype=np.int32, rowlength=3)
 
   alpha = cfg["model"]["alpha"]
   beta = cfg["model"]["beta"]
@@ -151,31 +156,34 @@ def compare_seeds(
       num_time_steps,
       users_stale=None,
       diagnostic=None)
-    np.testing.assert_array_almost_equal(
-      z_states_inferred.shape, [num_users, num_time_steps, 4])
-    time_spent = time.time() - time_start
-
-    z_states_reshaped = z_states_inferred.reshape((num_users*num_time_steps, 4))
-    like = z_states_reshaped[
-      range(num_users*num_time_steps), states.flatten()].reshape(states.shape)
-
-    fname = f"{trace_dir}/states_{seed_value:08d}.npy"
-    np.save(fname, z_states_inferred.astype(np.float32))
-
-    # Calculate AUPR
-    score_pos = np.array(z_states_inferred[:, :, 2][states == 2]).flatten()
-    score_neg = np.array(z_states_inferred[:, :, 2][states != 2]).flatten()
-    scores = np.concatenate((score_pos, score_neg))
-    labels = np.concatenate((np.ones_like(score_pos), np.zeros_like(score_neg)))
-    auroc = metrics.roc_auc_score(labels, scores)
-    av_precision = metrics.average_precision_score(labels, scores)
-
-    log_like = np.mean(np.log(like+1E-9))
-
-    log_like_obs = prequential.get_evidence_obs(
-      observations, z_states_inferred, alpha, beta)
 
     if mpi_rank == 0:
+      np.testing.assert_array_almost_equal(
+        z_states_inferred.shape, [num_users, num_time_steps, 4])
+      time_spent = time.time() - time_start
+
+      z_states_reshaped = z_states_inferred.reshape(
+        (num_users*num_time_steps, 4))
+      like = z_states_reshaped[
+        range(num_users*num_time_steps), states.flatten()].reshape(states.shape)
+
+      fname = f"{trace_dir}/states_{seed_value:08d}.npy"
+      np.save(fname, z_states_inferred.astype(np.float32))
+
+      # Calculate AUPR
+      score_pos = np.array(z_states_inferred[:, :, 2][states == 2]).flatten()
+      score_neg = np.array(z_states_inferred[:, :, 2][states != 2]).flatten()
+      scores = np.concatenate((score_pos, score_neg))
+      labels = np.concatenate(
+        (np.ones_like(score_pos), np.zeros_like(score_neg)))
+      auroc = metrics.roc_auc_score(labels, scores)
+      av_precision = metrics.average_precision_score(labels, scores)
+
+      log_like = np.mean(np.log(like+1E-9))
+
+      log_like_obs = prequential.get_evidence_obs(
+        observations, z_states_inferred, alpha, beta)
+
       logger.info((
         f"{num_rounds:5} rounds for {num_users:10} users in {time_spent:10.2f} "
         f"seconds with log-like {log_like:10.2f}/{log_like_obs:10.2f} nats "
@@ -218,17 +226,15 @@ if __name__ == "__main__":
   fname_config_data = f"dpfn/config/{configname_data}.ini"
   fname_config_model = f"dpfn/config/{configname_model}.ini"
   data_dir = f"dpfn/data/{configname_data}/"
-  do_abm = '_abm' in configname_data
-
   inf_method = args.inference_method
   # Set up locations to store results
 
+  # Dump seeds here
+  trace_dir_global = (
+    f'results/seeds_{inf_method}/{configname_data}__{configname_model}/')
+  logger.info(f"Dump traces to results_dir_global {trace_dir_global}")
   if mpi_rank == 0:
-    # Dump seeds here
-    trace_dir_global = (
-      f'results/seeds_{inf_method}/{configname_data}__{configname_model}/')
     util.maybe_make_dir(trace_dir_global)
-    logger.info(f"Dump traces to results_dir_global {trace_dir_global}")
 
   config_data = config.ConfigBase(fname_config_data)
   config_model = config.ConfigBase(fname_config_model)
@@ -279,15 +285,11 @@ if __name__ == "__main__":
   # Set random seed
   # TODO research interaction random seeds and multiprocessing
 
-  if not do_abm:
-    if not os.path.exists(data_dir):
-      raise FileNotFoundError((
-        f"{data_dir} not found. Current wd: {os.getcwd()}"))
+  if not os.path.exists(data_dir):
+    raise FileNotFoundError((
+      f"{data_dir} not found. Current wd: {os.getcwd()}"))
 
-    observations_all, contacts_all, states_all = data_load.load_jsons(data_dir)
-  else:
-    observations_all = contacts_all = []
-    states_all = np.zeros((1, 1, 1))
+  observations_all, contacts_all, states_all = data_load.load_jsons(data_dir)
 
   try:
     compare_seeds(
