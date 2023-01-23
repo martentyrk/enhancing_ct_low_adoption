@@ -30,7 +30,6 @@ def fn_step_wrapped(
     probab1: float,
     past_contacts_array: np.ndarray,
     start_belief: np.ndarray,
-    users_stale: Optional[np.ndarray] = None,
     quantization: int = -1,):
   """Wraps one step of Factorised Neighbors over a subset of users.
 
@@ -73,9 +72,6 @@ def fn_step_wrapped(
   start_belief_all = np.log(start_belief.dot(state_start_hot) + 1E-12)
 
   for i in numba.prange(interval_num_users):  # pylint: disable=not-an-iterable
-    if users_stale is not None:
-      if users_stale[i]:
-        continue
 
     d_term, d_no_term = util.precompute_d_penalty_terms_fn(
       p_infected_matrix,
@@ -156,8 +152,8 @@ def fact_neigh(
   num_users_interval = user_interval[1] - user_interval[0]
 
   # Slice out stale_users
-  users_stale_slice = util.get_stale_users_slice(
-    users_stale, user_interval, num_users)
+  users_stale_binary = util.get_stale_users_binary(
+    users_stale, num_users)
 
   seq_array = np.stack(list(
     util.iter_sequences(time_total=num_time_steps, start_se=False)))
@@ -215,9 +211,8 @@ def fact_neigh(
       if mpi_rank == 0:
         logger.info(f"Num update {num_update}")
 
-    # Sample stale users
-    users_stale_now = util.sample_stale_users(
-      users_stale_slice, num_users_interval)
+    if users_stale is not None:
+      q_marginal_infected *= users_stale_binary
 
     post_exp, tstart, t_end = fn_step_wrapped(
       user_interval,
@@ -230,7 +225,6 @@ def fact_neigh(
       probab_1,
       past_contacts,
       start_belief_matrix,
-      users_stale=users_stale_now,
       quantization=quantization)
 
     if np.any(np.isinf(post_exp)):

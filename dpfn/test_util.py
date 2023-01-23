@@ -552,3 +552,17 @@ def test_quantize():
 
   x_quantized = util.quantize(x, -1)
   assert x_quantized.dtype == np.float32
+
+
+def test_get_stale_users_binary():
+  stales = np.array([7, 9, 13], dtype=np.int32)
+
+  num_users = 18
+  result = util.get_stale_users_binary(stales, num_users=num_users)
+
+  np.testing.assert_array_almost_equal(result.shape, [num_users, 1])
+  assert result.dtype == np.bool
+
+  np.testing.assert_almost_equal(result[6], 1)
+  np.testing.assert_almost_equal(result[7], 0)
+  np.testing.assert_almost_equal(result[8], 1)

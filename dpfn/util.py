@@ -697,6 +697,26 @@ def sample_stale_users(
   return users_stale_binary
 
 
+def get_stale_users_binary(
+    user_slice: Optional[np.ndarray], num_users: int) -> np.ndarray:
+  """Returns a binary vector of users that are non-stale.
+
+  The vector is 1 for non-stale users, 0 for stale users.
+  Args:
+    user_slice: Slice of users to sample from, with userid in absolute userid
+    num_users: Number of users in the entire graph.
+
+  Returns:
+    Binary vector of length num_users, with 0s indicating users that are stale.
+  """
+  if user_slice is None:
+    return np.ones((num_users, 1), dtype=np.bool)
+
+  users_stale_binary = np.ones((num_users, 1), dtype=np.bool)
+  users_stale_binary[user_slice] = False
+  return users_stale_binary
+
+
 def get_joblib_backend():
   """Determines a backend for joblib.
 
