@@ -142,6 +142,7 @@ def compare_prequential_quarantine(
 
   fraction_test = cfg["data"]["fraction_test"]
   do_conditional_testing = bool(cfg["data"]["do_conditional_testing"])
+  do_conditional_quarantine = bool(cfg["data"]["do_conditional_quarantine"])
 
   # Data and simulator params
   fraction_stale = cfg["data"]["fraction_stale"]
@@ -201,6 +202,7 @@ def compare_prequential_quarantine(
   # Placeholder for tests on first day
   z_states_inferred = np.zeros((num_users, 1, 4))
   test_include = np.ones((num_users))
+  users_not_quarantined = np.ones((num_users), dtype=np.bool)
 
   logger.info(f"Do random quarantine? {do_random_quarantine}")
   t0 = time.time()
@@ -231,6 +233,8 @@ def compare_prequential_quarantine(
     if do_conditional_testing:
       # TODO double check -1 here!
       rank_score = z_states_inferred[:, -1, 2]
+      if do_conditional_quarantine:
+        rank_score *= users_not_quarantined
 
     if mpi_rank == 0:
       # Grab tests on the main process
@@ -333,12 +337,14 @@ def compare_prequential_quarantine(
       users_to_quarantine = np.random.choice(
         num_users, size=(num_quarantine)).tolist()
 
-    # if inference_method == 'dct':
-    #   users_to_quarantine = [
-    #     obs[1] for obs in obs_today if obs[2] > 0]
+    if do_conditional_quarantine:
+      users_to_quarantine = [
+        obs[0] for obs in obs_today if obs[2] > 0]
 
     if t_now < t_start_quarantine:
       users_to_quarantine = np.array([], dtype=np.int32)
+
+    users_not_quarantined[users_to_quarantine] = False
 
     # This function will remove the contacts that happen TODAY (and which may
     # spread the virus and cause people to shift to E-state tomorrow).
@@ -386,13 +392,13 @@ def compare_prequential_quarantine(
       time_full_loop = time.time() - t_start_loop
       logger.info(f"Time spent on full_loop {time_full_loop:.0f}")
 
-      loadavg1, loadavg5, loadavg15 = os.getloadavg()
+      loadavg1, loadavg5, _ = os.getloadavg()
       runner.log({
         "time_step": time_full_loop,
         "infection_rate": infection_rate,
         "load1": loadavg1,
         "load5": loadavg5,
-        "load15": loadavg15,
+        "recall": recall,
         })
 
   if mpi_rank == 0:
