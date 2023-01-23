@@ -165,7 +165,7 @@ def remove_quarantine_users(
 
 
 def get_evidence_obs(
-    observations: List[constants.Observation],
+    observations: constants.ObservationList,
     z_states: np.ndarray,
     alpha: float,
     beta: float) -> float:
