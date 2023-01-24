@@ -67,7 +67,7 @@ def main(cfg, runner):
       logger.info(
         f"Num contacts {do_collect} at day {t_now}: {len(contacts_incoming)}")
       # Get state
-      state = np.array(covid19.get_state(model.model.c_model), dtype=np.int64)
+      state = np.array(covid19.get_state(model.model.c_model), dtype=np.int32)
       logger.info(f"State of shape {state.shape}")
       datalog["num_contacts_per_user"] = (
         float(len(contacts_incoming)) / num_users)
@@ -80,7 +80,7 @@ def main(cfg, runner):
         list(users_to_quarantine),
         t_now + 5)
       assert status == 0
-      state = np.array(covid19.get_state(model.model.c_model), dtype=np.int64)
+      state = np.array(covid19.get_state(model.model.c_model), dtype=np.int32)
       logger.info(f"State of shape {state.shape}")
     runner.log(datalog)
 

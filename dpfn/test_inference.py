@@ -85,10 +85,10 @@ def test_fact_neigh_with_start_belief():
 
   contacts_all = np.array([
     (0, 1, 2, 1),
-    ])
+    ], dtype=np.int32)
   observations_all = np.array([
     (0, 2, 1)
-  ])
+  ], dtype=np.int32)
   num_users = 2
   num_time_steps = 5
 

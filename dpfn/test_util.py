@@ -377,7 +377,7 @@ def test_past_contact_array():
   np.testing.assert_array_almost_equal(past_contacts[2][1], -1)
   np.testing.assert_array_almost_equal(past_contacts[2][0], [4, 1, 1])
 
-  np.testing.assert_equal(past_contacts.dtype, np.int64)
+  np.testing.assert_equal(past_contacts.dtype, np.int32)
 
 
 def test_past_contact_array_fast():
@@ -394,7 +394,7 @@ def test_past_contact_array_fast():
   np.testing.assert_array_almost_equal(past_contacts[2][1], -1)
   np.testing.assert_array_almost_equal(past_contacts[2][0], [4, 1, 1])
 
-  np.testing.assert_equal(past_contacts.dtype, np.int64)
+  np.testing.assert_equal(past_contacts.dtype, np.int32)
   np.testing.assert_almost_equal(max_num_c, 2)
 
 
@@ -404,7 +404,7 @@ def test_past_contact_array_static():
     (1, 2, 4, 1),
     (2, 1, 4, 1),
     (0, 1, 4, 1)
-    ])
+    ], dtype=np.int32)
 
   past_contacts, max_num_c = util.get_past_contacts_static(
     (0, 3), contacts_all, num_msg=num_msg)
@@ -414,7 +414,7 @@ def test_past_contact_array_static():
   np.testing.assert_array_almost_equal(past_contacts[2][1], -1)
   np.testing.assert_array_almost_equal(past_contacts[2][0], [4, 1, 1])
 
-  np.testing.assert_equal(past_contacts.dtype, np.int64)
+  np.testing.assert_equal(past_contacts.dtype, np.int32)
   np.testing.assert_almost_equal(max_num_c, 2)
 
 
@@ -512,14 +512,14 @@ def test_update_beliefs():
   result = util.update_beliefs(
     matrix,
     beliefs,
-    user_slice=np.array([0, 2], dtype=np.int64))
+    user_slice=np.array([0, 2], dtype=np.int32))
   expected = np.tile(np.array([0, 1, 0]), [4, 1]).T
   np.testing.assert_array_almost_equal(result, expected)
 
   result = util.update_beliefs(
     matrix,
     beliefs,
-    user_slice=np.array([0, 2], dtype=np.int64),
+    user_slice=np.array([0, 2], dtype=np.int32),
     users_stale=[2])
   expected = np.tile(np.array([0, 1, 1]), [4, 1]).T
 

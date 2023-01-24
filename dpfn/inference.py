@@ -59,7 +59,7 @@ def fn_step_wrapped(
   interval_num_users = user_interval[1] - user_interval[0]
 
   post_exps = np.zeros((interval_num_users, num_time_steps, 4))
-  num_days_s = np.sum(seq_array_hot[:, 0], axis=0).astype(np.int64)
+  num_days_s = np.sum(seq_array_hot[:, 0], axis=0).astype(np.int32)
 
   assert np.all(np.sum(seq_array_hot, axis=1) == 1), (
     "seq_array_hot is expected as one-hot array")
@@ -233,21 +233,19 @@ def fact_neigh(
       start_belief_matrix,
       quantization=quantization)
 
-    if np.any(np.isinf(post_exp)):
-      logger.info(f"post_exp has inf {post_exp}")
-    if np.any(np.isnan(post_exp)):
-      logger.info(f"post_exp has nan {post_exp}")
-      users_nan = np.where(
-        np.sum(np.sum(np.isnan(post_exp), axis=-1), axis=-1))[0]
-      logger.info(f"At users {repr(users_nan)}")
+    # if np.any(np.isinf(post_exp)):
+    #   logger.info(f"post_exp has inf {post_exp}")
+    # if np.any(np.isnan(post_exp)):
+    #   logger.info(f"post_exp has nan {post_exp}")
+    #   users_nan = np.where(
+    #     np.sum(np.sum(np.isnan(post_exp), axis=-1), axis=-1))[0]
+    #   logger.info(f"At users {repr(users_nan)}")
 
     if verbose:
       if mpi_rank == 0:
         logger.info(f"Time for fn_step: {t_end - tstart:.1f} seconds")
 
     # Prepare buffer for Allgatherv
-    q_collect = np.empty((num_users, num_time_steps), dtype=np.single)
-
     memory_bucket = user_ids_bucket*num_time_steps
     offsets = memory_bucket[:-1].tolist()
     sizes_memory = (memory_bucket[1:] - memory_bucket[:-1]).tolist()
@@ -255,8 +253,7 @@ def fact_neigh(
     q_send = np.ascontiguousarray(post_exp[:, :, 2], dtype=np.single)
     comm_world.Allgatherv(
       q_send,
-      recvbuf=[q_collect, sizes_memory, offsets, MPI.FLOAT])
-    q_marginal_infected = q_collect
+      recvbuf=[q_marginal_infected, sizes_memory, offsets, MPI.FLOAT])
 
   # Prepare buffer for Allgatherv
   post_exp_collect = np.empty((num_users, num_time_steps, 4), dtype=np.single)

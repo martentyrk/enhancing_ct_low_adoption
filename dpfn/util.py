@@ -23,7 +23,7 @@ class InfectiousContactCount:
                samples: Optional[Mapping[int, Union[np.ndarray, List[int]]]],
                num_users: int,
                num_time_steps: int):
-    self._counts = np.zeros((num_users, num_time_steps + 1), dtype=np.int64)
+    self._counts = np.zeros((num_users, num_time_steps + 1), dtype=np.int32)
     self._num_time_steps = num_time_steps
 
     # TODO: WARNING: This constructor assumes that the contacts don't change!
@@ -59,7 +59,7 @@ class InfectiousContactCount:
     for user in user_slice:
       pc_it = itertools.chain.from_iterable(self.past_contacts[user])
       pc_array = np.array(
-        list(map(lambda x: [x[0], x[1], x[2]], pc_it)), dtype=np.int64)
+        list(map(lambda x: [x[0], x[1], x[2]], pc_it)), dtype=np.int32)
       past_contacts.append(pc_array)
 
       # Update longest amount of messages
@@ -67,7 +67,7 @@ class InfectiousContactCount:
 
     # Default to -1 for undefined past contacts
     pc_tensor = -1 * np.ones(
-      (len(user_slice), max_messages+1, 3), dtype=np.int64)
+      (len(user_slice), max_messages+1, 3), dtype=np.int32)
     for i, user in enumerate(user_slice):
       num_contacts = len(past_contacts[i])
       if num_contacts > 0:
@@ -106,9 +106,9 @@ def get_past_contacts_fast(
   num_users_int = user_interval[1] - user_interval[0]
 
   if len(contacts) == 0:
-    return -1 * np.ones((num_users_int, 1, 3), dtype=np.int64), 0
+    return -1 * np.ones((num_users_int, 1, 3), dtype=np.int32), 0
   if contacts.shape[1] == 0:
-    return -1 * np.ones((num_users_int, 1, 3), dtype=np.int64), 0
+    return -1 * np.ones((num_users_int, 1, 3), dtype=np.int32), 0
 
   contacts_past = [[(-1, -1, -1)] for _ in range(num_users_int)]
 
@@ -121,11 +121,11 @@ def get_past_contacts_fast(
 
   # Then construct Numpy array
   max_messages = max(map(len, contacts_past)) - 1  # Subtract 1 to make clear!
-  pc_tensor = -1 * np.ones((num_users_int, max_messages + 1, 3), dtype=np.int64)
+  pc_tensor = -1 * np.ones((num_users_int, max_messages + 1, 3), dtype=np.int32)
   for i in range(num_users_int):
     num_contacts = len(contacts_past[i])
     if num_contacts > 1:
-      pc_array = np.array(contacts_past[i][1:], dtype=np.int64)
+      pc_array = np.array(contacts_past[i][1:], dtype=np.int32)
       pc_tensor[i][:num_contacts-1] = pc_array
 
   return pc_tensor, max_messages
@@ -140,13 +140,13 @@ def get_past_contacts_static(
   num_users_int = user_interval[1] - user_interval[0]
 
   if len(contacts) == 0:
-    return -1 * np.ones((num_users_int, 1, 3), dtype=np.int64), 0
+    return (-1 * np.ones((num_users_int, 1, 3))).astype(np.int32), 0
   if contacts.shape[1] == 0:
-    return -1 * np.ones((num_users_int, 1, 3), dtype=np.int64), 0
+    return (-1 * np.ones((num_users_int, 1, 3))).astype(np.int32), 0
 
-  contacts_past = -1 * np.ones((num_users_int, num_msg, 3), dtype=np.int64)
+  contacts_past = -1 * np.ones((num_users_int, num_msg, 3), dtype=np.int32)
 
-  contacts_counts = np.zeros(num_users_int, dtype=np.int64)
+  contacts_counts = np.zeros(num_users_int, dtype=np.int32)
 
   # First find all contacts that are in the interval
   for contact in contacts:
@@ -155,11 +155,11 @@ def get_past_contacts_static(
       contact_rel = user_v - user_interval[0]
       contact_count = contacts_counts[contact_rel] % (num_msg - 1)
       contacts_past[contact_rel, contact_count] = np.array(
-        (contact[2], contact[0], contact[3]), dtype=np.int64)
+        (contact[2], contact[0], contact[3]), dtype=np.int32)
 
       contacts_counts[contact_rel] += 1
 
-  return contacts_past, np.max(contacts_counts)
+  return contacts_past.astype(np.int32), int(np.max(contacts_counts))
 
 
 def state_at_time(days_array, timestamp):
@@ -271,7 +271,7 @@ def calc_log_a_start(
   log_A_start += (seq_array[:, 0]-1) * np.log(1-probab_0)
 
   # Due to time in E
-  term_e = ((seq_array[:, 0] + seq_array[:, 1]) >= time_total).astype(np.int64)
+  term_e = ((seq_array[:, 0] + seq_array[:, 1]) >= time_total).astype(np.int32)
   log_A_start += (1-term_t) * (
     (seq_array[:, 1]-1)*np.log(1-g) + (1-term_e)*np.log(g)
   )
@@ -279,7 +279,7 @@ def calc_log_a_start(
   # Due to time in I
   term_i = (seq_array[:, 0] + seq_array[:, 1] + seq_array[:, 2]) >= time_total
   log_A_start += (1-term_e) * (
-    (seq_array[:, 2]-1)*np.log(1-h) + (1-term_i.astype(np.int64))*np.log(h))
+    (seq_array[:, 2]-1)*np.log(1-h) + (1-term_i.astype(np.int32))*np.log(h))
   return log_A_start
 
 
@@ -515,7 +515,7 @@ def precompute_d_penalty_terms_fn(
 
   # Scales with O(T)
   t_contact = past_contacts[0][0]
-  contacts = [np.int64(x) for x in range(0)]
+  contacts = [np.int32(x) for x in range(0)]
   for row in past_contacts:
     if row[0] == t_contact:
       contacts.append(row[1])
@@ -534,7 +534,7 @@ def precompute_d_penalty_terms_fn(
 
       # Reset loop stuff
       t_contact = row[0]
-      contacts = [np.int64(x) for x in range(0)]
+      contacts = [np.int32(x) for x in range(0)]
 
       if t_contact < 0:
         break

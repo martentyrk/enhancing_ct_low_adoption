@@ -284,11 +284,11 @@ def compare_prequential_quarantine(
       observations_now = util.make_default_array(
         sim.get_observations_all(), dtype=np.int32, rowlength=3)
 
-      num_contacts = np.array(contacts_now.shape[0], dtype=np.int64)
-      num_obs = np.array(observations_now.shape[0], dtype=np.int64)
+      num_contacts = np.array(contacts_now.shape[0], dtype=np.int32)
+      num_obs = np.array(observations_now.shape[0], dtype=np.int32)
 
-      comm_world.Bcast([num_contacts, MPI.INT], root=0)
-      comm_world.Bcast([num_obs, MPI.INT], root=0)
+      comm_world.Bcast([num_contacts, MPI.INT32_T], root=0)
+      comm_world.Bcast([num_obs, MPI.INT32_T], root=0)
 
       if mpi_rank == 0:
         logger.info(f"Day {t_now}: {num_contacts} contacts, {num_obs} obs")
