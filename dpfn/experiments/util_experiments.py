@@ -22,6 +22,7 @@ def wrap_fact_neigh_inference(
     p1: float,
     g_param: float,
     h_param: float,
+    dp_noise: float,
     quantization: int = -1,
     trace_dir: Optional[str] = None,
     ):
@@ -47,6 +48,7 @@ def wrap_fact_neigh_inference(
       probab_1=p1,
       g_param=g_param,
       h_param=h_param,
+      dp_noise=dp_noise,
       start_belief=start_belief,
       quantization=quantization,
       users_stale=users_stale,

@@ -804,3 +804,15 @@ def display_top(snapshot, key_type='lineno', limit=3):
   logger.info(f"{len(other)} other: {size / one_mib:.1f} MiB")
   total = sum(stat.size for stat in top_stats)
   logger.info(f"Total allocated size: {total / one_mib:.1f} MiB")
+
+
+@numba.njit
+def add_dp_noise(
+    dp_noise: float, log_joint: np.ndarray, seq_array_hot: np.ndarray):
+  noise_indices = np.logical_and(
+    seq_array_hot[0, 0] == 1,  # Starts Susceptible
+    seq_array_hot[-1, 2] == 1)  # Ends infected
+
+  num_sequences = log_joint.shape[0]
+  noise = dp_noise * np.random.randn(num_sequences).astype(np.float32)
+  return log_joint + noise * noise_indices

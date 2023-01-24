@@ -28,6 +28,7 @@ def fn_step_wrapped(
     num_time_steps: int,
     probab0: float,
     probab1: float,
+    dp_noise: float,
     past_contacts_array: np.ndarray,
     start_belief: np.ndarray,
     quantization: int = -1,):
@@ -87,6 +88,9 @@ def fn_step_wrapped(
 
     # Numba only does matmul with 2D-arrays, so do reshaping below
     log_joint = log_c_z_u[i] + log_A_start + d_penalties + start_belief_all[i]
+    if dp_noise > 0:
+      # Add noise for Differential Privacy
+      log_joint = util.add_dp_noise(dp_noise, log_joint, seq_array_hot)
     joint_distr = softmax(log_joint).astype(np.single)
     post_exps[i] = np.reshape(np.dot(
       seq_array_hot.reshape(num_time_steps*4, num_sequences), joint_distr),
@@ -107,6 +111,7 @@ def fact_neigh(
     probab_1: float,
     g_param: float,
     h_param: float,
+    dp_noise: float = -1.,
     start_belief: Optional[np.ndarray] = None,
     alpha: float = 0.001,
     beta: float = 0.01,
@@ -223,6 +228,7 @@ def fact_neigh(
       num_time_steps,
       probab_0,
       probab_1,
+      dp_noise,
       past_contacts,
       start_belief_matrix,
       quantization=quantization)

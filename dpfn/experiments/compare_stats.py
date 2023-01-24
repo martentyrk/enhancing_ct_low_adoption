@@ -56,6 +56,7 @@ def make_inference_func(
   alpha = cfg["model"]["alpha"]
   beta = cfg["model"]["beta"]
   quantization = cfg["model"]["quantization"]
+  dp_noise = cfg["model"]["dp_noise"]
 
   # Construct dynamics
   # Construct Geometric distro's for E and I states
@@ -81,6 +82,7 @@ def make_inference_func(
       p1=p1,
       g_param=g,
       h_param=h,
+      dp_noise=dp_noise,
       quantization=quantization,
       trace_dir=trace_dir)
   elif inference_method == "sib":
