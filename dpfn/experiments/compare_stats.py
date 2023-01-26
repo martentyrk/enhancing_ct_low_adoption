@@ -19,11 +19,9 @@ import sys
 import time
 import tqdm
 import traceback
-import tracemalloc
 from typing import Any, Dict, List, Optional
 import wandb
 
-TRACEMALLOC = False
 
 comm_world = MPI.COMM_WORLD
 mpi_rank = comm_world.Get_rank()
@@ -129,9 +127,6 @@ def compare_prequential_quarantine(
   """Compares different inference algorithms on the supplied contact graph."""
   del states
 
-  if TRACEMALLOC:
-    tracemalloc.start()
-
   num_users = int(num_users)
   del observations
 
@@ -226,10 +221,17 @@ def compare_prequential_quarantine(
 
   for t_now in tqdm.trange(1, num_time_steps):
     t_start_loop = time.time()
+
+    sim.step()
+
+    # Number of days to use for inference
     num_days = min((t_now + 1, num_days_window))
+    # When num_days exceeds t_now, then offset should start counting at 0
+    days_offset = t_now + 1 - num_days
+    assert 0 <= days_offset <= num_time_steps
 
     # For each value of t_now, only receive observations up to 't_now-1'
-    assert sim.get_current_day() == t_now - 1
+    assert sim.get_current_day() == t_now
 
     rank_score = np.random.randn(num_users)
     if do_conditional_testing:
@@ -257,15 +259,7 @@ def compare_prequential_quarantine(
       users_to_test = []
       obs_today = []
 
-    # When num_days exceeds t_now, then offset should start counting at 0
-    days_offset = t_now + 1 - num_days
-    assert 0 <= days_offset <= num_time_steps
-
     sim.set_window(days_offset)
-
-    if TRACEMALLOC and (t_now > 7):
-      snapshot = tracemalloc.take_snapshot()
-      util.display_top(snapshot)
 
     if not do_random_quarantine:
       t_start = time.time()
@@ -305,14 +299,6 @@ def compare_prequential_quarantine(
       comm_world.Bcast([contacts_now, MPI.INT32_T], root=0)
       comm_world.Bcast([observations_now, MPI.INT32_T], root=0)
 
-      # if t_now == 7:
-      #   fname = f"results/tmp/state_{mpi_rank}_{t_now}.npy"
-      #   with open(fname, 'wb') as f:
-      #     np.savez(
-      #       f, contacts_now=contacts_now, observations_now=observations_now,
-      #       num_rounds=num_rounds, num_days=num_days,
-      #       start_belief=start_belief)
-
       z_states_inferred = inference_func(
         observations_now,
         contacts_now,
@@ -340,6 +326,7 @@ def compare_prequential_quarantine(
         num_users, size=(num_quarantine)).tolist()
 
     if do_conditional_quarantine:
+      logger.info("Conditional quarantine")
       users_to_quarantine = [
         obs[0] for obs in obs_today if obs[2] > 0]
 
@@ -351,8 +338,7 @@ def compare_prequential_quarantine(
     # This function will remove the contacts that happen TODAY (and which may
     # spread the virus and cause people to shift to E-state tomorrow).
     sim.quarantine_users(users_to_quarantine, num_days_quarantine)
-    assert sim.get_current_day() == t_now - 1
-    sim.step()
+    assert sim.get_current_day() == t_now
 
     if mpi_rank == 0:
       # NOTE: fpr is only defined as long as num_users_quarantine is fixed.

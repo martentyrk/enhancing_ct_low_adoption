@@ -3,7 +3,6 @@
 import contextlib
 import functools
 import itertools
-import linecache
 import time  # pylint: disable=unused-import
 import math
 from dpfn import constants, logger
@@ -11,7 +10,6 @@ import numba
 import numpy as np
 import os
 import socket
-import tracemalloc
 from typing import Any, Iterable, List, Mapping, Optional, Tuple, Union
 
 
@@ -775,35 +773,6 @@ def make_default_array(
     return -1 * np.ones((0, rowlength), dtype=dtype)
 
   return array
-
-
-def display_top(snapshot, key_type='lineno', limit=3):
-  """Displays the top consumers of memory."""
-  snapshot = snapshot.filter_traces((
-    tracemalloc.Filter(False, "<frozen importlib._bootstrap>"),
-    tracemalloc.Filter(False, "<unknown>"),
-  ))
-  top_stats = snapshot.statistics(key_type)
-
-  one_mib = 2**20
-
-  logger.info(f"Top {limit} lines")
-  for index, stat in enumerate(top_stats[:limit], 1):
-    frame = stat.traceback[0]
-    # replace "/path/to/module/file.py" with "module/file.py"
-    filename = os.sep.join(frame.filename.split(os.sep)[-2:])
-    logger.info(
-      f"#{index}: {filename}:{frame.lineno}: {stat.size / one_mib:.1f} MiB")
-    line = linecache.getline(frame.filename, frame.lineno).strip()
-    if line:
-      logger.info(f'    {line}')
-
-  other = top_stats[limit:]
-  if other:
-    size = sum(stat.size for stat in other)
-  logger.info(f"{len(other)} other: {size / one_mib:.1f} MiB")
-  total = sum(stat.size for stat in top_stats)
-  logger.info(f"Total allocated size: {total / one_mib:.1f} MiB")
 
 
 @numba.njit

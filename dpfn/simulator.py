@@ -222,8 +222,6 @@ class ABMSimulator(Simulator):
 
   def init_day0(self, contacts: Any):
     del contacts
-    # First call to steps will init day 0
-    self.sim.steps(1)
 
   def get_states_today(self) -> np.ndarray:
     """Returns the states an np.ndarray in size [num_users].
@@ -236,14 +234,13 @@ class ABMSimulator(Simulator):
 
   def step(self, num_steps: int = 1):
     self.sim.steps(num_steps)
-    self._day_current += 1
-
     contacts_incoming = list(map(
       _embed_contact, covid19.get_contacts_daily(
         self.model.model.c_model, self._day_current)))
 
     self._contacts += prequential.offset_contacts(
       contacts_incoming, self._day_start_window)
+    self._day_current += 1
 
   def quarantine_users(
       self,
