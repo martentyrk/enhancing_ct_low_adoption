@@ -74,7 +74,7 @@ def fn_step_wrapped(
 
   for i in numba.prange(interval_num_users):  # pylint: disable=not-an-iterable
 
-    d_term, d_no_term = util.precompute_d_penalty_terms_fn(
+    d_term, d_no_term = util.precompute_d_penalty_terms_fn2(
       p_infected_matrix,
       p0=probab0,
       p1=probab1,

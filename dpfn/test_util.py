@@ -246,14 +246,14 @@ def test_gather_infected_precontacts():
 
 
 def test_d_penalty_term():
-  contacts_all = [
+  contacts_all = np.array([
     (0, 1, 2, 1),
     (1, 0, 2, 1),
     (3, 2, 2, 1),
     (2, 3, 2, 1),
     (4, 5, 2, 1),
     (5, 4, 2, 1),
-    ]
+    ], dtype=np.int32)
   num_users = 6
   num_time_steps = 5
 
@@ -309,14 +309,103 @@ def test_d_penalty_term():
   # With small p1, penalty for termination should be small (low number)
   assert np.all(d_term < 0.001)
 
-  d_term_old, d_no_term_old = util.precompute_d_penalty_terms_fn(
+  past_contacts, _ = util.get_past_contacts_static(
+    (0, num_users), contacts_all, num_msg=int(num_time_steps*100))
+
+  d_term_new, d_no_term_new = util.precompute_d_penalty_terms_fn(
     q_marginal_infected,
     p0=0.01,
     p1=1E-5,
-    past_contacts=infect_counter.get_past_contacts_slice([user])[0],
+    past_contacts=past_contacts[user],
     num_time_steps=num_time_steps)
-  np.testing.assert_array_almost_equal(d_term, d_term_old)
-  np.testing.assert_array_almost_equal(d_no_term, d_no_term_old)
+  np.testing.assert_array_almost_equal(d_term, d_term_new)
+  np.testing.assert_array_almost_equal(d_no_term, d_no_term_new)
+
+
+def test_d_penalty_term_numerical():
+  contacts_all = np.array([
+    (4, 1, 1, 1),
+    (3, 2, 4, 1),
+    ], dtype=np.int32)
+  num_users = 6
+  num_time_steps = 8
+
+  # Second test case
+  user = 1
+  q_marginal_infected = np.array([
+    [.1, .1, .1, .1, .1, .1, .1, .1],
+    [.1, .1, .1, .8, .8, .8, .8, .8],
+    [.1, .1, .1, .1, .1, .1, .1, .1],
+    [.8, .8, .8, .8, .8, .8, .8, .8],
+    [.8, .8, .8, .8, .8, .8, .8, .8],
+    [.1, .1, .1, .1, .1, .1, .1, .1],
+  ])
+
+  past_contacts, _ = util.get_past_contacts_static(
+    (0, num_users), contacts_all, num_msg=int(num_time_steps*100))
+
+  d_term, d_no_term = util.precompute_d_penalty_terms_fn(
+    q_marginal_infected,
+    p0=0.001,
+    p1=0.3,
+    past_contacts=past_contacts[user],
+    num_time_steps=num_time_steps)
+
+  d_term_new, d_no_term_new = util.precompute_d_penalty_terms_fn2(
+    q_marginal_infected,
+    p0=0.001,
+    p1=0.3,
+    past_contacts=past_contacts[user],
+    num_time_steps=num_time_steps)
+
+  np.testing.assert_array_almost_equal(d_term, d_term_new)
+  np.testing.assert_array_almost_equal(d_no_term, d_no_term_new)
+  assert d_no_term_new.dtype == np.float32
+  assert d_term_new.dtype == np.float32
+
+
+def test_d_penalty_term_regression():
+  contacts_all = np.array([
+    (4, 1, 1, 1),
+    (3, 1, 4, 1),
+    ], dtype=np.int32)
+  num_users = 6
+  num_time_steps = 8
+
+  # Second test case
+  user = 1
+  q_marginal_infected = np.array([
+    [.1, .1, .1, .1, .1, .1, .1, .1],
+    [.1, .1, .1, .8, .8, .8, .8, .8],
+    [.1, .1, .1, .1, .1, .1, .1, .1],
+    [.9, .9, .9, .9, .9, .9, .9, .9],
+    [.8, .8, .8, .8, .8, .8, .8, .8],
+    [.1, .1, .1, .1, .1, .1, .1, .1],
+  ])
+
+  past_contacts, _ = util.get_past_contacts_static(
+    (0, num_users), contacts_all, num_msg=int(num_time_steps*100))
+
+  d_term, d_no_term = util.precompute_d_penalty_terms_fn2(
+    q_marginal_infected,
+    p0=0.001,
+    p1=0.3,
+    past_contacts=past_contacts[user],
+    num_time_steps=num_time_steps)
+
+  assert d_no_term.dtype == np.float32
+  assert d_term.dtype == np.float32
+
+  # Note: these are the results from the old implementation
+  # Dump made on January 27, 2023
+
+  d_term_expected = np.array(
+    [0., 0., 5.4838, 0., 0., 5.601122, 0., 0., 0.], dtype=np.float32)
+  d_no_term_expected = np.array(
+    [0., 0., -0.274437, 0., 0., -0.314711, 0., 0., 0.], dtype=np.float32)
+
+  np.testing.assert_array_almost_equal(d_term, d_term_expected)
+  np.testing.assert_array_almost_equal(d_no_term, d_no_term_expected)
 
 
 def test_softmax():

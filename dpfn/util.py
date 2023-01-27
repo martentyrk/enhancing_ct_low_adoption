@@ -543,6 +543,58 @@ def precompute_d_penalty_terms_fn(
   return d_term, d_no_term
 
 
+@numba.njit
+def precompute_d_penalty_terms_fn2(
+    q_marginal_infected: np.ndarray,
+    p0: float,
+    p1: float,
+    past_contacts: np.ndarray,
+    num_time_steps: int) -> Tuple[np.ndarray, np.ndarray]:
+  """Precompute penalty terms for inference with Factorised Neighbors.
+
+  Consider similarity to 'precompute_d_penalty_terms_vi' and how the log-term is
+  applied.
+  """
+  # Make num_time_steps+1 longs, such that penalties are 0 when t0==0
+  d_term = np.zeros((num_time_steps+1), dtype=np.float32)
+  d_no_term = np.zeros((num_time_steps+1), dtype=np.float32)
+
+  if len(past_contacts) == 0:
+    return d_term, d_no_term
+
+  # past_contacts is padded with -1, so break when contact time is negative
+  assert past_contacts[-1][0] < 0
+
+  # Scales with O(T)
+  log_expectations = np.zeros((num_time_steps+1), dtype=np.float32)
+  happened = np.zeros((num_time_steps+1), dtype=np.float32)
+
+  # t_contact = past_contacts[0][0]
+  # contacts = [np.int32(x) for x in range(0)]
+  for row in past_contacts:
+    time_inc = row[0]
+    if time_inc < 0:
+      # past_contacts is padded with -1, so break when contact time is negative
+      break
+
+    happened[time_inc+1] = 1
+    p_inf_inc = q_marginal_infected[row[1]][time_inc]
+    log_expectations[time_inc+1] += np.log(p_inf_inc*(1-p1) + (1-p_inf_inc))
+
+  # Additional penalty term for not terminating, negative by definition
+  d_no_term = log_expectations
+  # Additional penalty term for not terminating, usually positive
+  d_term = (np.log(1 - (1-p0)*np.exp(log_expectations)) - np.log(p0))
+
+  # Prevent numerical imprecision error
+  d_term *= happened
+
+  # No termination (when t0 == num_time_steps) should not incur penalty
+  # because the prior doesn't contribute the p0 factor either
+  d_term[num_time_steps] = 0.
+  return d_term.astype(np.float32), d_no_term.astype(np.float32)
+
+
 def it_num_infected_probs(probs: List[float]) -> Iterable[Tuple[int, float]]:
   """Iterates over the number of infected neighbors and its probabilities.
 
