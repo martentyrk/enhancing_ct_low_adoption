@@ -87,7 +87,6 @@ class Simulator(ABC):
       p_obs_not_infected: Union[List[float], np.ndarray]
       ) -> constants.ObservationList:
     """Returns the observations for current day."""
-
     day_relative = self.get_current_day() - self._day_start_window
     observations_new = list(prequential.get_observations_one_day(
       self.get_states_today(), users_to_observe, day_relative,
@@ -96,9 +95,11 @@ class Simulator(ABC):
     return observations_new
 
   def get_observations_all(self) -> constants.ObservationList:
+    """Returns all observations."""
     return self._observations_all
 
   def step(self, num_steps: int = 1):
+    """Advances the simulator by num_steps days."""
     self._day_current += num_steps
 
   def quarantine_users(
@@ -116,6 +117,7 @@ class DummySimulator(Simulator):
   """Simulator with dummy functions."""
 
   def init_day0(self):
+    """Initializes the simulator for day0."""
     self._contacts = []
     self.states = np.zeros(
       (self.num_users, self.num_time_steps, 4), dtype=np.uint8)
@@ -126,6 +128,7 @@ class CRISPSimulator(Simulator):
   """Simulator based on generative code with CRISP paper."""
 
   def init_day0(self, contacts: List[constants.Contact]):
+    """Initializes the simulator for day0."""
     self._contacts = contacts
     states, obs_list_current = prequential.init_states_observations(
       self.num_users, self.num_time_steps)
@@ -141,6 +144,7 @@ class CRISPSimulator(Simulator):
     return self.states[:, self._day_current]
 
   def step(self, num_steps: int = 1):
+    """Advances the simulator by num_steps days."""
     self._day_current += num_steps
 
     # Set contact days as simulate_one_day works with absolute times.
@@ -221,6 +225,7 @@ class ABMSimulator(Simulator):
     logger.info("Finished constructing ABM simulator")
 
   def init_day0(self, contacts: Any):
+    """Initializes the simulator for day0."""
     del contacts
 
   def get_states_today(self) -> np.ndarray:
@@ -233,6 +238,10 @@ class ABMSimulator(Simulator):
       np.array(covid19.get_state(self.model.model.c_model)))
 
   def step(self, num_steps: int = 1):
+    """Advances the simulator by num_steps days.
+
+    Contacts from OpenABM will be appended to the list of contacts.
+    """
     self.sim.steps(num_steps)
     contacts_incoming = list(map(
       _embed_contact, covid19.get_contacts_daily(

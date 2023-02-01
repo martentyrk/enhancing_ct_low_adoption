@@ -1,4 +1,4 @@
-"""Utility functions for WandB"""
+"""Utility functions for WandB."""
 
 
 class WandbDummy:
@@ -9,7 +9,9 @@ class WandbDummy:
     self.name = "dummy"
 
   def log(self, *args, **kwargs):
+    """Dummy logging function."""
     del args, kwargs
 
   def finish(self, *args, **kwargs):
+    """Dummy finish function."""
     del args, kwargs

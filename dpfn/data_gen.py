@@ -19,7 +19,6 @@ def init_contacts(
     H=None,
     seed: int = 42):
   """Generate random contacts according to parameters."""
-
   random.seed(seed)
   np.random.seed(seed+1)
 

@@ -74,11 +74,16 @@ class InfectiousContactCount:
     return pc_tensor
 
   def num_inf_contacts(self, user: int, time_step: int):
+    """Returns the number of infectious contacts at a given time step."""
     return self._counts[user, time_step]
 
   def update_infect_count(
       self, user: int, trace: Union[List[int], np.ndarray],
       remove: bool = False):
+    """Updates the infectious contact count for a given user.
+
+    Infectious counts are updated for the neighbors of the user.
+    """
     t0, de, di = trace
     for timestep in range(t0+de, t0+de+di):
       for (_, user_v, feature) in self.future_contacts[user][timestep]:
@@ -87,12 +92,15 @@ class InfectiousContactCount:
         self._counts[user_v][timestep+1] += add
 
   def get_future_contacts(self, user: int):
+    """Yields the future contacts of a user."""
     yield from itertools.chain.from_iterable(self.future_contacts[user])
 
   def get_past_contacts(self, user: int):
+    """Yields the past contacts of a user."""
     yield from itertools.chain.from_iterable(self.past_contacts[user])
 
   def get_past_contacts_at_time(self, user: int, timestep: int):
+    """Yields the past contacts of a user at a given time step."""
     yield from self.past_contacts[user][timestep]
 
 
@@ -200,7 +208,6 @@ def gather_infected_precontacts(
 
   For all past contacts, check if the contact was infected according to samples.
   """
-
   num_infected_preparents = np.zeros((num_time_steps))
 
   for (t_contact, user_u, feature) in past_contacts:
@@ -223,10 +230,10 @@ def calc_c_z_u(
 
   Args:
     user_interval: Tuple of (start, end) user indices.
-    potential_sequences: Array in [num_sequences, 3] of potential sequences.
+    obs_array: Array in [num_time_steps, num_sequences, 2] of observations.
+      obs_array[t, :, i] is about the log-likelihood of the observation being
+      i=0 or i=1, at time step t.
     observations: Array in [num_observations, 3] of observations.
-    alpha: FNR.
-    beta: FPR.
 
   Notation follows the original CRISP paper.
   """
@@ -375,8 +382,11 @@ def generate_sequence_days(time_total: int):
 @functools.lru_cache(maxsize=1)
 def make_inf_obs_array(
     num_time_steps: int, alpha: float, beta: float) -> np.ndarray:
-  """Makes an array with observation log-terms per day."""
+  """Makes an array with observation log-terms per day.
 
+  Obs_array is of shape [num_time_steps, num_sequences, 2], where the last
+  dimension is about the log-likelihood of the observation being 0 or 1.
+  """
   pot_seqs = np.stack(list(
     iter_sequences(time_total=num_time_steps, start_se=False)))
   time_seqs = state_seq_to_time_seq(pot_seqs, num_time_steps)
@@ -627,7 +637,8 @@ def quantize(message: np.ndarray, num_levels: int
 
   Numerical will be mid-bucket.
 
-  TODO: implement quantization with coding scheme."""
+  TODO: implement quantization with coding scheme.
+  """
   dtype_in = message.dtype
   if num_levels < 0:
     return message
@@ -649,7 +660,8 @@ def quantize_floor(message: Union[np.ndarray, float], num_levels: int
 
   Numerical will be at the floor of the bucket.
 
-  TODO: implement quantization with coding scheme."""
+  TODO: implement quantization with coding scheme.
+  """
   if num_levels < 0:
     return message
 

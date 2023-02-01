@@ -296,7 +296,6 @@ def do_backward_forward_and_message(
     quantization: Optional[int] = -1,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Tuple[float, float, float]]:
   """Runs forward and backward messages for one user and collates messages."""
-
   with numba.objmode(t0='f8'):
     t0 = time.time()
 

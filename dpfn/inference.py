@@ -35,7 +35,7 @@ def fn_step_wrapped(
   """Wraps one step of Factorised Neighbors over a subset of users.
 
   Args:
-    user_slice: list of user id for this step
+    user_interval: tuple of (user_start, user_end)
     seq_array_hot: array in [num_time_steps, 4, num_sequences]
     log_c_z_u: array in [num_users_int, num_sequences], C-terms according to
       CRISP paper
@@ -44,9 +44,11 @@ def fn_step_wrapped(
     num_time_steps: number of time steps
     probab0: probability of transitioning S->E
     probab1: probability of transmission given contact
-    past_contacts: iterator with elements (timestep, user_u, features)
+    dp_noise: noise for differential privacy
+    past_contacts_array: iterator with elements (timestep, user_u, features)
     start_belief: matrix in [num_users_int, 4], i-th row is assumed to be the
       start_belief of user user_slice[i]
+    quantization: number of quantization levels
   """
   with numba.objmode(t0='f8'):
     t0 = time.time()
