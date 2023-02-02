@@ -125,6 +125,59 @@ def wrap_dct_inference(
   return dct_wrapped
 
 
+def wrap_dpct_inference(
+    num_users: int,
+    epsilon_dp: float,
+    delta_dp: float = 1 / constants.CTC):
+  """Wraps the DPCT function for dummy inference.
+
+  Differentially Private version of DCT.
+
+  Args:
+    num_users: Number of users.
+    epsilon_dp: Privacy parameter epsilon.
+    delta_dp: Privacy parameter delta, defaults to 1/CTC, as that is the number
+      of contacts we registery at most anyway.
+  """
+  noise_sigma = np.sqrt(2 * np.log(1.25 / delta_dp)) / epsilon_dp
+
+  @numba.njit
+  def dpct_wrapped(
+      observations_list: constants.ObservationList,
+      contacts_list: constants.ContactList,
+      num_updates: int,  # pylint: disable=unused-argument
+      num_time_steps: int,
+      start_belief: Optional[np.ndarray] = None,    # pylint: disable=unused-argument
+      users_stale: Optional[np.ndarray] = None,    # pylint: disable=unused-argument
+      diagnostic: Optional[Any] = None) -> np.ndarray:    # pylint: disable=unused-argument
+    # del num_updates, start_belief, users_stale, diagnostic
+
+    score = 0.25 * np.ones((num_users, num_time_steps, 4))
+    score += 0.001 * np.random.rand(num_users, num_time_steps, 4)
+    has_positive_test = np.zeros((num_users), dtype=np.float32)
+    num_positive_neighbors = np.zeros((num_users), dtype=np.float32)
+
+    for obs in observations_list:
+      if obs[2] > 0:
+        user_u = int(obs[0])
+        has_positive_test[user_u] = 1.
+
+    for row in contacts_list:
+      user_u = int(row[0])
+      user_v = int(row[1])
+      num_positive_neighbors[user_v] += has_positive_test[user_u]
+
+    num_positive_neighbors += (
+      noise_sigma * np.random.randn(num_users)).astype(np.float32)
+    num_positive_neighbors = np.maximum(num_positive_neighbors, 0.)
+
+    score[:, -1, 2] = 6*has_positive_test + 3 * num_positive_neighbors
+    score /= np.expand_dims(np.sum(score, axis=-1), axis=-1)
+    return score
+
+  return dpct_wrapped
+
+
 def wrap_belief_propagation(
     num_users: int,
     param_g: float,

@@ -54,7 +54,8 @@ def make_inference_func(
   alpha = cfg["model"]["alpha"]
   beta = cfg["model"]["beta"]
   quantization = cfg["model"]["quantization"]
-  dp_noise = cfg["model"]["dp_noise"]
+  epsilon_dp = cfg["model"]["epsilon_dp"]
+  delta_dp = cfg["model"]["delta_dp"]
 
   # Construct dynamics
   # Construct Geometric distro's for E and I states
@@ -72,6 +73,8 @@ def make_inference_func(
       quantization=quantization,
       trace_dir=trace_dir)
   elif inference_method == "fn":
+    dp_noise = np.sqrt(2 * np.log(1.25 / delta_dp)) / epsilon_dp
+
     inference_func = util_experiments.wrap_fact_neigh_inference(
       num_users=num_users,
       alpha=alpha,
@@ -102,10 +105,13 @@ def make_inference_func(
   elif inference_method == "dct":
     inference_func = util_experiments.wrap_dct_inference(
       num_users=num_users)
+  elif inference_method == "dpct":
+    inference_func = util_experiments.wrap_dpct_inference(
+      num_users=num_users, epsilon_dp=epsilon_dp, delta_dp=delta_dp)
   else:
     raise ValueError((
       f"Not recognised inference method {inference_method}. Should be one of"
-      f"['random', 'fn', 'dummy', 'dct', 'bp', 'sib']"
+      f"['random', 'fn', 'dummy', 'dct', 'dpct', 'bp', 'sib']"
     ))
   return inference_func, do_random_quarantine
 
@@ -522,7 +528,8 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser(
     description='Compare statistics acrosss inference methods')
   parser.add_argument('--inference_method', type=str, default='fn',
-                      choices=['fn', 'dummy', 'random', 'bp', 'dct', 'sib'],
+                      choices=[
+                        'fn', 'dummy', 'random', 'bp', 'dct', 'dpct', 'sib'],
                       help='Name of the inference method')
   parser.add_argument('--experiment_setup', type=str, default='single',
                       choices=['single', 'prequential'],

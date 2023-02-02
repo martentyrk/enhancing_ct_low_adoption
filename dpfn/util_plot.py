@@ -9,6 +9,7 @@ COLOR_MAP_PARETO = {
   "BP": 'b',
   'no_quarant': 'g',
   "dct": "k",
+  "dpct": "k",
   "sib": "y",
 }
 
