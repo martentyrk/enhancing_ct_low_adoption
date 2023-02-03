@@ -58,6 +58,12 @@ def fn_step_wrapped(
     p_infected_matrix = util.quantize_floor(
       p_infected_matrix, num_levels=quantization)
 
+  if dp_noise > 0:
+    # Apply clipping
+    margin = 0.01
+    p_infected_matrix = np.maximum(
+      np.minimum(p_infected_matrix, 1.-margin), margin)
+
   interval_num_users = user_interval[1] - user_interval[0]
 
   post_exps = np.zeros((interval_num_users, num_time_steps, 4))

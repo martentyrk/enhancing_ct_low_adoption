@@ -73,6 +73,7 @@ def make_inference_func(
       quantization=quantization,
       trace_dir=trace_dir)
   elif inference_method == "fn":
+    # Epsilon_dp defaults to negative, then dp_noise also negative
     dp_noise = np.sqrt(2 * np.log(1.25 / delta_dp)) / epsilon_dp
 
     inference_func = util_experiments.wrap_fact_neigh_inference(
