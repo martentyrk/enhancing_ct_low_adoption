@@ -29,6 +29,7 @@ def fn_step_wrapped(
     probab0: float,
     probab1: float,
     dp_noise: float,
+    clip_margin: float,
     past_contacts_array: np.ndarray,
     start_belief: np.ndarray,
     quantization: int = -1,):
@@ -45,6 +46,7 @@ def fn_step_wrapped(
     probab0: probability of transitioning S->E
     probab1: probability of transmission given contact
     dp_noise: noise for differential privacy
+    clip_margin: margin for clipping in preparation for DP calculations
     past_contacts_array: iterator with elements (timestep, user_u, features)
     start_belief: matrix in [num_users_int, 4], i-th row is assumed to be the
       start_belief of user user_slice[i]
@@ -58,11 +60,12 @@ def fn_step_wrapped(
     p_infected_matrix = util.quantize_floor(
       p_infected_matrix, num_levels=quantization)
 
+  p_infected_matrix = p_infected_matrix.astype(np.float32)
   if dp_noise > 0:
     # Apply clipping
-    margin = 0.01
     p_infected_matrix = np.maximum(
-      np.minimum(p_infected_matrix, 1.-margin), margin)
+      np.minimum(p_infected_matrix, 1.-clip_margin), clip_margin)
+    p_infected_matrix = p_infected_matrix.astype(np.float32)
 
   interval_num_users = user_interval[1] - user_interval[0]
 
@@ -120,6 +123,7 @@ def fact_neigh(
     g_param: float,
     h_param: float,
     dp_noise: float = -1.,
+    clip_margin: float = 0.01,
     start_belief: Optional[np.ndarray] = None,
     alpha: float = 0.001,
     beta: float = 0.01,
@@ -236,9 +240,10 @@ def fact_neigh(
       num_time_steps,
       probab_0,
       probab_1,
-      dp_noise,
-      past_contacts,
-      start_belief_matrix,
+      dp_noise=dp_noise,
+      clip_margin=clip_margin,
+      past_contacts_array=past_contacts,
+      start_belief=start_belief_matrix,
       quantization=quantization)
 
     # if np.any(np.isinf(post_exp)):

@@ -582,13 +582,13 @@ def precompute_d_penalty_terms_fn2(
   # t_contact = past_contacts[0][0]
   # contacts = [np.int32(x) for x in range(0)]
   for row in past_contacts:
-    time_inc = row[0]
+    time_inc = int(row[0])
     if time_inc < 0:
       # past_contacts is padded with -1, so break when contact time is negative
       break
 
     happened[time_inc+1] = 1
-    p_inf_inc = q_marginal_infected[row[1]][time_inc]
+    p_inf_inc = q_marginal_infected[int(row[1])][time_inc]
     log_expectations[time_inc+1] += np.log(p_inf_inc*(1-p1) + (1-p_inf_inc))
 
   # Additional penalty term for not terminating, negative by definition

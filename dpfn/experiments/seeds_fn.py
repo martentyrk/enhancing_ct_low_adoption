@@ -83,6 +83,7 @@ def make_inference_func(
       g_param=g,
       h_param=h,
       dp_noise=-1.,
+      clip_margin=0.01,
       quantization=quantization,
       trace_dir=trace_dir)
   elif inference_method == "sib":

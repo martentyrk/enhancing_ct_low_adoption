@@ -70,8 +70,9 @@ def test_factorised_neighbor_step():
     p0,
     p1,
     dp_noise=-1.,
+    clip_margin=0.01,
     past_contacts_array=past_contacts,
-    start_belief=np.ones((num_users, 4), dtype=np.single),
+    start_belief=np.ones((num_users, 4), dtype=np.float32),
     quantization=-1)
 
   time_spent = tend - tstart
@@ -96,7 +97,7 @@ def test_fact_neigh_with_start_belief():
 
   start_belief = np.array(
     [[.1, .4, .5, .0],
-     [.9, .1, .0, .0]], dtype=np.single)
+     [.9, .1, .0, .0]], dtype=np.float32)
 
   post_exp = inference.fact_neigh(
     num_users=num_users,
@@ -188,8 +189,9 @@ def test_factorised_neighbor_step_dp_noise():
     p0,
     p1,
     dp_noise=-1.,
+    clip_margin=0.01,
     past_contacts_array=past_contacts,
-    start_belief=np.ones((num_users, 4), dtype=np.single),
+    start_belief=np.ones((num_users, 4), dtype=np.float32),
     quantization=-1)
 
   post_exp, tstart, tend = inference.fn_step_wrapped(
@@ -202,8 +204,9 @@ def test_factorised_neighbor_step_dp_noise():
     p0,
     p1,
     dp_noise=.5,
+    clip_margin=0.01,
     past_contacts_array=past_contacts,
-    start_belief=np.ones((num_users, 4), dtype=np.single),
+    start_belief=np.ones((num_users, 4), dtype=np.float32),
     quantization=-1)
 
   time_spent = tend - tstart
