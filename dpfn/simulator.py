@@ -26,6 +26,7 @@ class Simulator(ABC):
       num_time_steps: int,
       num_users: int,
       params: Dict[str, Any],
+      positive_e_state: bool = False,
       rng_seed: int = 123) -> None:
     self.num_time_steps = num_time_steps
     self.num_users = num_users
@@ -34,6 +35,9 @@ class Simulator(ABC):
 
     self._day_current = 0
     self.states = None  # Type will depend on implementation
+
+    # When true, both E and I state are considered positive
+    self._postive_e_state = positive_e_state
 
     # Note that contacts are offset with self._day_start_window and contacts
     # prior to self._day_start_window have been discarded.
@@ -96,7 +100,8 @@ class Simulator(ABC):
       len(users_to_observe),
       day_relative,
       p_obs_infected,
-      p_obs_not_infected)
+      p_obs_not_infected,
+      positive_e_state=self._postive_e_state)
     self._observations_all = np.concatenate(
       (self._observations_all, observations_new), axis=0)
     return observations_new
@@ -188,9 +193,12 @@ class ABMSimulator(Simulator):
       num_time_steps: int,
       num_users: int,
       params: Dict[str, Any],
+      positive_e_state: bool = False,
       rng_seed: int = 123,
       ) -> None:
-    super().__init__(num_time_steps, num_users, params)
+    super().__init__(
+      num_time_steps, num_users, params, positive_e_state=positive_e_state,
+      rng_seed=rng_seed)
 
     filename = "baseline_parameters.csv"
     filename_hh = "baseline_household_demographics.csv"
