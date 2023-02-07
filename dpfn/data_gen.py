@@ -13,7 +13,6 @@ def init_contacts(
     qIbar: float = 20.0,
     R0: Union[float, np.ndarray] = 2.5,
     p1: float = 0.01,
-    # decay: float = 0.1,  # TODO why is this argument not used?
     R0_mit=(2.5, 0.5),
     t_mit=None,
     H=None,

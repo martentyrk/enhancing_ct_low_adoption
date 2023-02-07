@@ -31,7 +31,7 @@ def main(cfg, runner):
   util.maybe_make_dir("results/tmp/")
 
   logger.info("Construct ABM simulator")
-  params = abm_model.Parameters(  # TODO, import full module!
+  params = abm_model.Parameters(
     input_param_file=input_param_file,
     param_line_number=1,
     output_file_dir="results/tmp/",

@@ -239,12 +239,11 @@ def compare_prequential_quarantine(
     days_offset = t_now + 1 - num_days
     assert 0 <= days_offset <= num_time_steps
 
-    # For each value of t_now, only receive observations up to 't_now-1'
+    # For each day, t_now, only receive obs up to and including 't_now-1'
     assert sim.get_current_day() == t_now
 
     rank_score = np.random.randn(num_users)
     if do_conditional_testing:
-      # TODO double check -1 here!
       rank_score = z_states_inferred[:, -1, 2]
       if do_conditional_quarantine:
         rank_score *= users_not_quarantined
@@ -301,7 +300,6 @@ def compare_prequential_quarantine(
         contacts_now = np.zeros((num_contacts, 4), dtype=np.int32)
         observations_now = np.zeros((num_obs, 3), dtype=np.int32)
 
-      # TODO: send np.int32
       contacts_now = np.ascontiguousarray(contacts_now, dtype=np.int32)
       observations_now = np.ascontiguousarray(observations_now, dtype=np.int32)
 
@@ -630,7 +628,6 @@ if __name__ == "__main__":
     util_experiments.make_git_log()
 
   # Set random seed
-  # TODO research interaction random seeds and multiprocessing
   seed_value = config_wandb.get("seed", None)
   random.seed(seed_value)
   np.random.seed(seed_value)

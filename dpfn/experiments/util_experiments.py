@@ -229,7 +229,7 @@ def wrap_belief_propagation(
       return (contact[2] + 1) < num_time_steps
     contacts_list = list(filter(filter_fn, contacts_list))
 
-    # TODO make this for-loop in numba
+    # Collect observations, allows for multiple observations per user per day
     obs_messages = np.ones((num_users, num_time_steps, 4))
     for obs in observations_list:
       if obs[1] < num_time_steps:
