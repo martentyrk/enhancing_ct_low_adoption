@@ -124,6 +124,7 @@ def test_decide_tests():
     np.sort(users_to_test), np.array([2, 3, 4]))
   np.testing.assert_array_almost_equal(
     test_include, np.array([0., 0., 1., 1., 1., 1., 1.]))
+  assert users_to_test.dtype == np.int32
 
 
 def test_remove_positive_users():

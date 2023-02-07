@@ -227,7 +227,7 @@ def decide_tests(
   assert scores_infect.shape == test_include.shape
 
   users_to_test = np.argsort(scores_infect*test_include)[-num_tests:]
-  return users_to_test
+  return users_to_test.astype(np.int32)
 
 
 def remove_positive_users(observations, test_include: np.ndarray) -> np.ndarray:

@@ -257,7 +257,7 @@ def compare_prequential_quarantine(
         num_tests=int(fraction_test * num_users))
 
       obs_today = sim.get_observations_today(
-        users_to_test,
+        users_to_test.astype(np.int32),
         p_obs_infected,
         p_obs_not_infected
       )
