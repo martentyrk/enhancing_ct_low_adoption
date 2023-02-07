@@ -56,7 +56,7 @@ def make_inference_func(
   quantization = cfg["model"]["quantization"]
   epsilon_dp = cfg["model"]["epsilon_dp"]
   delta_dp = cfg["model"]["delta_dp"]
-  clip_margin = cfg["model"]["clip_margin_dp"]
+  clip_margin = cfg["model"]["clip_margin"]
 
   # Construct dynamics
   # Construct Geometric distro's for E and I states

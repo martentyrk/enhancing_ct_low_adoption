@@ -28,7 +28,6 @@ def fn_step_wrapped(
     num_time_steps: int,
     probab0: float,
     probab1: float,
-    dp_noise: float,
     clip_margin: float,
     past_contacts_array: np.ndarray,
     start_belief: np.ndarray,
@@ -45,7 +44,6 @@ def fn_step_wrapped(
     num_time_steps: number of time steps
     probab0: probability of transitioning S->E
     probab1: probability of transmission given contact
-    dp_noise: noise for differential privacy
     clip_margin: margin for clipping in preparation for DP calculations
     past_contacts_array: iterator with elements (timestep, user_u, features)
     start_belief: matrix in [num_users_int, 4], i-th row is assumed to be the
@@ -61,7 +59,7 @@ def fn_step_wrapped(
       p_infected_matrix, num_levels=quantization)
 
   p_infected_matrix = p_infected_matrix.astype(np.float32)
-  if dp_noise > 0:
+  if clip_margin > 0:
     # Apply clipping
     p_infected_matrix = np.maximum(
       np.minimum(p_infected_matrix, 1.-clip_margin), clip_margin)
@@ -99,9 +97,6 @@ def fn_step_wrapped(
 
     # Numba only does matmul with 2D-arrays, so do reshaping below
     log_joint = log_c_z_u[i] + log_A_start + d_penalties + start_belief_all[i]
-    if dp_noise > 0:
-      # Add noise for Differential Privacy
-      log_joint = util.add_dp_noise(dp_noise, log_joint, seq_array_hot)
     joint_distr = softmax(log_joint).astype(np.single)
     post_exps[i] = np.reshape(np.dot(
       seq_array_hot.reshape(num_time_steps*4, num_sequences), joint_distr),
@@ -123,7 +118,7 @@ def fact_neigh(
     g_param: float,
     h_param: float,
     dp_noise: float = -1.,
-    clip_margin: float = 0.01,
+    clip_margin: float = -1.,
     start_belief: Optional[np.ndarray] = None,
     alpha: float = 0.001,
     beta: float = 0.01,
@@ -240,7 +235,6 @@ def fact_neigh(
       num_time_steps,
       probab_0,
       probab_1,
-      dp_noise=dp_noise,
       clip_margin=clip_margin,
       past_contacts_array=past_contacts,
       start_belief=start_belief_matrix,
@@ -278,4 +272,15 @@ def fact_neigh(
   comm_world.Gatherv(
     post_exp.astype(np.single),
     recvbuf=[post_exp_collect, sizes_memory, offsets, MPI.FLOAT])
+
+  if dp_noise > 0:
+    # Add noise for Differential Privacy
+    sensitivity = (1-clip_margin) * (1-probab_1) * dp_noise
+    noise = np.random.randn(num_users, num_time_steps)
+
+    post_exp_collect[:, :, 2] += noise * sensitivity
+
+    # Post-process to ensure that the probabilities are still valid
+    post_exp_collect = np.clip(post_exp_collect, 0., 1.)
+    post_exp_collect /= np.sum(post_exp_collect, axis=-1, keepdims=True)
   return post_exp_collect

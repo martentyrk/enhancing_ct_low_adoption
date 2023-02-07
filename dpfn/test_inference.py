@@ -69,8 +69,7 @@ def test_factorised_neighbor_step():
     num_time_steps,
     p0,
     p1,
-    dp_noise=-1.,
-    clip_margin=0.01,
+    clip_margin=-1.,
     past_contacts_array=past_contacts,
     start_belief=np.ones((num_users, 4), dtype=np.float32),
     quantization=-1)
@@ -123,8 +122,8 @@ def test_fact_neigh_with_start_belief():
     assert post_exp[1][4][2] > .1, text + "\n" + repr(post_exp)
 
 
-def test_factorised_neighbor_step_dp_noise():
-  """Tests Factorised Neighbors step."""
+def test_factorised_neighbor_step_clipping():
+  """Tests Factorised Neighbors step when clipping is applied."""
 
   contacts_all = [
     (0, 1, 2, 1),
@@ -179,7 +178,7 @@ def test_factorised_neighbor_step_dp_noise():
   assert obs_diff > 1.0, f"Observation difference is too small {obs_diff}"
 
   # 1 update
-  post_exp_no_noise, _, _ = inference.fn_step_wrapped(
+  post_exp_no_clip, _, _ = inference.fn_step_wrapped(
     user_interval,
     seq_array_hot,
     log_c_z_u,
@@ -188,8 +187,7 @@ def test_factorised_neighbor_step_dp_noise():
     num_time_steps,
     p0,
     p1,
-    dp_noise=-1.,
-    clip_margin=0.01,
+    clip_margin=-1.,
     past_contacts_array=past_contacts,
     start_belief=np.ones((num_users, 4), dtype=np.float32),
     quantization=-1)
@@ -203,8 +201,7 @@ def test_factorised_neighbor_step_dp_noise():
     num_time_steps,
     p0,
     p1,
-    dp_noise=.5,
-    clip_margin=0.01,
+    clip_margin=.2,
     past_contacts_array=past_contacts,
     start_belief=np.ones((num_users, 4), dtype=np.float32),
     quantization=-1)
@@ -214,5 +211,5 @@ def test_factorised_neighbor_step_dp_noise():
   assert time_spent < 1.0, f"FN takes way too long: {time_spent}"
 
   # This is a stochastic test, but should be very unlikely to fail
-  assert np.sum(np.abs(post_exp - post_exp_no_noise)) > 1E-9, (
-    "DP noise did not change the posterior expectation")
+  assert np.sum(np.abs(post_exp - post_exp_no_clip)) > 1E-9, (
+    "Clipping did not change the posterior expectation")
