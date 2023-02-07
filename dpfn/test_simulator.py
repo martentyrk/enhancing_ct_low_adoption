@@ -1,5 +1,5 @@
 """Unit tests for simulator.py"""
-
+import numpy as np
 from dpfn import simulator
 
 
@@ -38,3 +38,17 @@ def test_window_cut():
 
   assert sim.get_contacts() == contacts[:-6]
   assert len(sim.get_contacts()) == 4
+
+  # Test right away for empty observations
+  p_inf = np.array([0., 1.])
+  p_ninf = np.array([1., 0.])
+
+  sim.set_window(days_offset=0)
+  sim.get_observations_today(
+    users_to_observe=np.array([], dtype=np.int32),
+    p_obs_infected=p_inf, p_obs_not_infected=p_ninf)
+
+  # Test for removing all contacts/observations
+  assert len(sim.get_contacts()) == 4
+  sim.set_window(days_offset=999)
+  assert len(sim.get_contacts()) == 0

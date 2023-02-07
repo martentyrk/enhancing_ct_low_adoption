@@ -38,8 +38,8 @@ class Simulator(ABC):
     # Note that contacts are offset with self._day_start_window and contacts
     # prior to self._day_start_window have been discarded.
     self._day_start_window = 0
-    # List of (user, timestep, outcome), all integers
-    self._observations_all = []
+    # Array with rows (user, timestep, outcome), all integers
+    self._observations_all = np.zeros((0, 3), dtype=np.int32)
     # List of (user_u, user_v, timestep, [features])
     self._contacts = []
 
@@ -51,8 +51,8 @@ class Simulator(ABC):
     counting for day0.
     """
     to_cut_off = max((0, days_offset - self._day_start_window))
-    self._observations_all = list(prequential.offset_observations(
-      self._observations_all, to_cut_off))
+    self._observations_all = prequential.offset_observations(
+      self._observations_all, to_cut_off)
     self._contacts = list(prequential.offset_contacts(
       self._contacts, to_cut_off))
     self._day_start_window = days_offset
@@ -82,20 +82,23 @@ class Simulator(ABC):
 
   def get_observations_today(
       self,
-      users_to_observe: Union[List[int], np.ndarray],
+      users_to_observe: np.ndarray,
       p_obs_infected: np.ndarray,
       p_obs_not_infected: np.ndarray,
       ) -> constants.ObservationList:
     """Returns the observations for current day."""
+    assert users_to_observe.dtype == np.int32
+
     day_relative = self.get_current_day() - self._day_start_window
-    observations_new = list(prequential.get_observations_one_day(
+    observations_new = prequential.get_observations_one_day(
       self.get_states_today(),
       users_to_observe,
       len(users_to_observe),
       day_relative,
       p_obs_infected,
-      p_obs_not_infected))
-    self._observations_all += observations_new
+      p_obs_not_infected)
+    self._observations_all = np.concatenate(
+      (self._observations_all, observations_new), axis=0)
     return observations_new
 
   def get_observations_all(self) -> constants.ObservationList:
@@ -138,7 +141,7 @@ class CRISPSimulator(Simulator):
       self.num_users, self.num_time_steps)
 
     self.states = states  # np.ndarray in size [num_users, num_timesteps]
-    self._observations_all = obs_list_current  # List of dictionaries
+    self._observations_all = np.array(obs_list_current, dtype=np.int32)
 
   def get_states_today(self) -> np.ndarray:
     """Returns the states an np.ndarray in size [num_users].

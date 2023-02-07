@@ -127,11 +127,11 @@ def test_decide_tests():
 
 
 def test_remove_positive_users():
-  observations = [
+  observations = np.array([
     (0, 1, 0),
     (1, 1, 1),
     (2, 1, 1),
-  ]
+  ], dtype=np.int32)
   test_include = np.array([1., 1., 0., 1., 1.])
 
   test_include = prequential.remove_positive_users(
@@ -142,21 +142,19 @@ def test_remove_positive_users():
 
 
 def test_offset_observations():
-  observations = [
+  observations = np.array([
     (0, 11, 1),
     (1, 11, 1),
     (2, 1, 1),
-    ]
-  observations_new = list(
-    prequential.offset_observations(observations, offset=2))
+    ], dtype=np.int32)
+  observations_new = prequential.offset_observations(observations, offset=2)
 
   observations_expected = [
     (0, 9, 1),
     (1, 9, 1),
     ]
 
-  assert observations_new == observations_expected, (
-    f"\n{observations_new} \n Does not match \n{observations_expected}")
+  np.testing.assert_array_almost_equal(observations_new, observations_expected)
 
   assert observations[0][1] == 11, (
     "Time changed. Did the function change value in place (change value instead"
@@ -166,14 +164,10 @@ def test_offset_observations():
 
 
 def test_offset_observations_empty():
-  observations = []
-  observations_new = list(
-    prequential.offset_observations(observations, offset=2))
+  observations = np.zeros((0, 3), dtype=np.int32)
+  observations_new = prequential.offset_observations(observations, offset=2)
 
-  observations_expected = []
-
-  assert observations_new == observations_expected, (
-    f"\n{observations_new} \n Does not match \n{observations_expected}")
+  assert len(observations_new) == 0
 
 
 def test_dump_results():

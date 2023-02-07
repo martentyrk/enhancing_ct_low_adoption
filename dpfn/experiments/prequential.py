@@ -122,6 +122,9 @@ def get_observations_one_day(
     The observations, array of shape (num_obs, 3), where the columns are (user,
       timestep, outcome)
   """
+  if num_obs < 1:
+    return np.zeros((0, 3), dtype=np.int32)
+
   assert len(states.shape) == 1
 
   observations = np.zeros((num_obs, 3), dtype=np.int32)
@@ -228,9 +231,16 @@ def decide_tests(
 
 
 def remove_positive_users(observations, test_include: np.ndarray) -> np.ndarray:
-  # o[2] is the outcome of the test: 1 for positive test, 0 for negative test
-  for obs in filter(lambda o: o[2] > 0, observations):
-    test_include[obs[0]] = 0.
+  """Removes users that are positive from the test include list.
+
+  Args:
+    observations: The observations, array of shape (num_obs, 3), where the
+      columns are (user, timestep, outcome)
+    test_include: The test include list, array of shape (num_users, ). A value
+      of 0 indicates that the user should not be tested.
+  """
+  users_positive = np.where(observations[:, 2] > 0)[0]
+  test_include[users_positive] = 0.
   return test_include
 
 
@@ -243,16 +253,16 @@ def delay_contacts(
 
 
 def offset_observations(
-    observations: List[constants.Observation], offset: int
-    ) -> Iterable[constants.Observation]:
+    observations_in: constants.ObservationList, offset: int
+    ) -> constants.ObservationList:
   """Offsets the cobservations by a number of days."""
   if offset == 0:
-    yield from observations
-    return
+    return observations_in
 
-  for obs in observations:
-    if obs[1] >= offset:
-      yield (obs[0], obs[1] - offset, obs[2])
+  observations = np.copy(observations_in)
+  observations = observations[observations[:, 1] >= offset]
+  observations[:, 1] -= offset
+  return observations
 
 
 def offset_contacts(
