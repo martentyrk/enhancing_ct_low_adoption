@@ -83,14 +83,18 @@ class Simulator(ABC):
   def get_observations_today(
       self,
       users_to_observe: Union[List[int], np.ndarray],
-      p_obs_infected: Union[List[float], np.ndarray],
-      p_obs_not_infected: Union[List[float], np.ndarray]
+      p_obs_infected: np.ndarray,
+      p_obs_not_infected: np.ndarray,
       ) -> constants.ObservationList:
     """Returns the observations for current day."""
     day_relative = self.get_current_day() - self._day_start_window
     observations_new = list(prequential.get_observations_one_day(
-      self.get_states_today(), users_to_observe, day_relative,
-      p_obs_infected, p_obs_not_infected))
+      self.get_states_today(),
+      users_to_observe,
+      len(users_to_observe),
+      day_relative,
+      p_obs_infected,
+      p_obs_not_infected))
     self._observations_all += observations_new
     return observations_new
 

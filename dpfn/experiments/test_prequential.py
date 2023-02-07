@@ -27,10 +27,14 @@ def test_simulate_one_day():
 
 def test_get_observations_one_day():
 
+  p_inf = np.array([0., 1.])
+  p_ninf = np.array([1., 0.])
+
   states = np.array([0, 0, 2, 0])
+  users_to_observe = np.array([0, 1, 2, 3], dtype=np.int32)
   observations = list(prequential.get_observations_one_day(
-    states=states, users_to_observe=[0, 1, 2, 3], timestep=1,
-    p_obs_infected=[0., 1.], p_obs_not_infected=[1., 0.]))
+    states=states, users_to_observe=users_to_observe, num_obs=4, timestep=1,
+    p_obs_infected=p_inf, p_obs_not_infected=p_ninf))
 
   observations_expected = [
     (0, 1, 0),
@@ -39,13 +43,13 @@ def test_get_observations_one_day():
     (3, 1, 0),
   ]
 
-  assert observations == observations_expected
+  np.testing.assert_array_almost_equal(observations, observations_expected)
 
   # Flip observation model
   states = np.array([0, 0, 2, 0])
   observations = list(prequential.get_observations_one_day(
-    states=states, users_to_observe=[0, 1, 2, 3], timestep=1,
-    p_obs_infected=[1., 0.], p_obs_not_infected=[0., 1.]))
+    states=states, users_to_observe=users_to_observe, num_obs=4, timestep=1,
+    p_obs_infected=p_ninf, p_obs_not_infected=p_inf))
 
   observations_expected = [
     (0, 1, 1),
@@ -54,7 +58,7 @@ def test_get_observations_one_day():
     (3, 1, 1),
   ]
 
-  assert observations == observations_expected
+  np.testing.assert_array_almost_equal(observations, observations_expected)
 
 
 def test_calc_prec_recall():

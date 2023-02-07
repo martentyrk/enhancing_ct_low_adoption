@@ -1,4 +1,4 @@
-"""Compare inference methods on likelihood and AUROC"""
+"""Compare inference methods on likelihood and AUROC, and run prequentially."""
 import argparse
 import copy
 from mpi4py import MPI  # pytype: disable=import-error
@@ -46,7 +46,6 @@ def make_inference_func(
   Returns:
     the inference function (input: data; output: marginals over SEIR per user)
   """
-
   p0 = cfg["model"]["p0"]
   p1 = cfg["model"]["p1"]
   g = cfg["model"]["prob_g"]
@@ -183,8 +182,10 @@ def compare_prequential_quarantine(
     inference_method, num_users, cfg, trace_dir=trace_dir)
 
   # Set conditional distributions for observations
-  p_obs_infected = [cfg["model"]["alpha"], 1-cfg["model"]["alpha"]]
-  p_obs_not_infected = [1-cfg["model"]["beta"], cfg["model"]["beta"]]
+  p_obs_infected = np.array(
+    [cfg["model"]["alpha"], 1-float(cfg["model"]["alpha"])], dtype=np.float32)
+  p_obs_not_infected = np.array(
+    [1-float(cfg["model"]["beta"]), cfg["model"]["beta"]], dtype=np.float32)
 
   start_belief_global = (
     np.ones((num_users, 4)) * np.array([1. - probab_0, probab_0, 0., 0.]))

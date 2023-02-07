@@ -1,6 +1,7 @@
 """Experiments related to sequential predicton and simulation."""
 import datetime
 import json
+import numba
 import numpy as np
 from dpfn import constants, util
 import os
@@ -20,7 +21,6 @@ def dump_results_json(
     cfg: Dict[str, Any],
     **kwargs):
   """Dumps the results of an experiment to JSONlines."""
-
   kwargs["time"] = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
   kwargs["time_day"] = datetime.datetime.now().strftime("%Y%m%d")
   kwargs["slurm_id"] = str(os.getenv('SLURM_JOB_ID'))  # Defaults to 'none'
@@ -97,21 +97,53 @@ def simulate_one_day(
   return states
 
 
+@numba.njit
 def get_observations_one_day(
-    states: np.ndarray, users_to_observe: List[int], timestep: int,
-    p_obs_infected: List[float], p_obs_not_infected: List[float]):
-  """Makes observations for tests on one day."""
+    states: np.ndarray,
+    users_to_observe: np.ndarray,
+    num_obs: int,
+    timestep: int,
+    p_obs_infected: np.ndarray,
+    p_obs_not_infected: np.ndarray,
+    positive_e_state: bool = False) -> np.ndarray:
+  """Makes observations for tests on one day.
 
+  Args:
+    states: The states of the users, should be in values {0, 1, 2, 3},
+      array of length num_users.
+    users_to_observe: The users to observe, array of length num_obs.
+    num_obs: The number of observations to make.
+    timestep: The timestep of the observations.
+    p_obs_infected: The probability of a positive test for an infected user.
+    p_obs_not_infected: The probability of a positive test for a not infected.
+    positive_e_state: Whether to observe E state as positive
+
+  Returns:
+    The observations, array of shape (num_obs, 3), where the columns are (user,
+      timestep, outcome)
+  """
   assert len(states.shape) == 1
 
-  np.testing.assert_allclose(p_obs_infected[0] + p_obs_infected[1], 1.)
-  np.testing.assert_allclose(p_obs_not_infected[0] + p_obs_not_infected[1], 1.)
+  observations = np.zeros((num_obs, 3), dtype=np.int32)
 
-  for user in users_to_observe:
-    state_user = states[user]
-    sample_prob = p_obs_infected if state_user == 2 else p_obs_not_infected
-    outcome = np.random.choice(2, p=sample_prob)
-    yield (int(user), int(timestep), int(outcome))
+  assert np.abs(p_obs_infected[0] + p_obs_infected[1] - 1.) < 0.001
+  assert np.abs(p_obs_not_infected[0] + p_obs_not_infected[1] - 1.) < 0.001
+
+  states_user = np.take(states, users_to_observe)
+  positive = (states_user == 2)
+
+  if positive_e_state:
+    positive = np.logical_or(positive, states_user == 1)
+
+  sample_prob = np.where(positive, p_obs_infected[1], p_obs_not_infected[1])
+
+  assert sample_prob.shape == (num_obs, )
+
+  observations[:, 0] = users_to_observe
+  observations[:, 1] = timestep
+  observations[:, 2] = sample_prob > np.random.rand(num_obs)
+
+  return observations.astype(np.int32)
 
 
 def calc_prec_recall(
@@ -206,7 +238,6 @@ def delay_contacts(
     contacts: List[constants.Contact], delay: int
     ) -> Iterable[constants.Contact]:
   """Offsets the contacts or observations by a number of days."""
-
   for contact in contacts:
     yield (contact[0], contact[1], contact[2] + delay, contact[3])
 
@@ -215,7 +246,6 @@ def offset_observations(
     observations: List[constants.Observation], offset: int
     ) -> Iterable[constants.Observation]:
   """Offsets the cobservations by a number of days."""
-
   if offset == 0:
     yield from observations
     return
@@ -229,7 +259,6 @@ def offset_contacts(
     contacts: Iterable[constants.Contact], offset: int
     ) -> Iterable[constants.Contact]:
   """Offsets the cobservations by a number of days."""
-
   if offset == 0:
     yield from contacts
     return

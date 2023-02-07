@@ -9,8 +9,8 @@ def clean_hierarchy(config_dict: Dict[str, Any]) -> Dict[str, Any]:
   """Cleans the config hierarchy.
 
   For example, WandB sweep might set the value 'model.a' in the top level.
-  This function will move property 'a' to the 'model' dict in the hierarchy."""
-
+  This function will move property 'a' to the 'model' dict in the hierarchy.
+  """
   for prefix in ["model", "data", "settings"]:
     # Wrap with list() otherwise dict changes during iteration
     prefix_ = f"{prefix}."
@@ -36,11 +36,13 @@ class ConfigBase(configparser.ConfigParser):
     logger.info(f"Reading config: {fname}")
 
   def get_value(self, x, fallback=None):
+    """Gets the value of a config property."""
     try:
       return literal_eval(self.get("DEFAULT", x))
     except configparser.NoOptionError:
       return fallback
 
   def to_dict(self):
+    """Converts the config to a dictionary."""
     config_dict = dict(self.__getitem__("DEFAULT"))  # pylint: disable=unnecessary-dunder-call
     return {k: literal_eval(v) for k, v in config_dict.items()}

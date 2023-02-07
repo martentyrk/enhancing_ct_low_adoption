@@ -47,7 +47,6 @@ def analyse_contacts(
     num_users: int,
     num_time_steps: int) -> np.ndarray:
   """Returns a matrix of contact counts."""
-
   contact_count = np.zeros((num_users, num_time_steps), dtype=np.int32)
   for c in contacts:
     contact_count[c[0], c[2]] += 1
@@ -58,13 +57,14 @@ def analyse_contacts(
 def advance_simulator(
     cfg) -> Tuple[constants.ContactList, constants.ObservationList, np.ndarray]:
   """Advances the simulator all time steps."""
-
   num_users = cfg.get_value("num_users")
   fraction_test = cfg.get_value("fraction_test")
 
   # Set conditional distributions for observations
-  p_obs_infected = [cfg.get_value("alpha"), 1-cfg.get_value("alpha")]
-  p_obs_not_infected = [1-cfg.get_value("beta"), cfg.get_value("beta")]
+  p_obs_infected = np.array(
+    [cfg["model"]["alpha"], 1-float(cfg["model"]["alpha"])], dtype=np.float32)
+  p_obs_not_infected = np.array(
+    [1-float(cfg["model"]["beta"]), cfg["model"]["beta"]], dtype=np.float32)
 
   params_dynamics = {
     "p0": cfg.get_value("p0"),

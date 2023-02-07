@@ -1,4 +1,4 @@
-"""Compare inference methods on likelihood and AUROC"""
+"""Run only the simulator and compare computatinal requirements."""
 import argparse
 from COVID19 import model as abm_model
 from COVID19 import simulation

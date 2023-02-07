@@ -27,7 +27,7 @@ def wrap_fact_neigh_inference(
     quantization: int = -1,
     trace_dir: Optional[str] = None,
     ):
-  """Wraps the inference function that runs Factorised Neighbors"""
+  """Wraps the inference function that runs Factorised Neighbors."""
 
   def fact_neigh_wrapped(
       observations_list: constants.ObservationList,
@@ -332,8 +332,8 @@ def wrap_sib(
     damping: float):
   """Wraps the inference function for the SIB library.
 
-  https://github.com/sibyl-team/sib"""
-
+  https://github.com/sibyl-team/sib
+  """
   sib.set_num_threads(util.get_cpu_count())
 
   def sib_wrapped(

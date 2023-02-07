@@ -1,4 +1,4 @@
-"""Compare inference methods on likelihood and AUROC"""
+"""Runs inference methods with multiple random seeds."""
 import argparse
 from mpi4py import MPI  # pytype: disable=import-error
 import numpy as np
@@ -49,7 +49,6 @@ def make_inference_func(
   Returns:
     the inference function (input: data; output: marginals over SEIR per user)
   """
-
   p0 = cfg["model"]["p0"]
   p1 = cfg["model"]["p1"]
   g = cfg["model"]["prob_g"]
@@ -126,7 +125,6 @@ def compare_seeds(
     runner,
     trace_dir: str):
   """Compares different inference algorithms on the supplied contact graph."""
-
   # Contacts on last day are not of influence
   def filter_fn(datum):
     return datum[2] < (num_time_steps - 1)

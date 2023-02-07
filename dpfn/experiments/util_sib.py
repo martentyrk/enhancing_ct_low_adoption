@@ -1,4 +1,4 @@
-"""Utility functions to run Inference with SIB
+"""Utility functions to run Inference with SIB.
 
 Retrieved on Sept 22, 2022 from
   'github.com/sibyl-team/epidemic_mitigation/blob/master/src/abm_utils.py'
@@ -16,7 +16,8 @@ def gamma_params(mean: float, stddev: float) -> Tuple[float, float]:
 
 
 def gamma_pdf_array(num_time_steps: int, mu: float, sigma: float) -> np.ndarray:
-  """
+  """Returns gamma pdf array.
+
   discrete gamma function:
   T: len(array) = T+1
   mu: mu of gamma
