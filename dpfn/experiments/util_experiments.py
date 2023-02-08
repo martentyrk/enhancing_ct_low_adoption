@@ -418,7 +418,7 @@ def set_noisy_test_params(cfg: Dict[str, Any]) -> Dict[str, Any]:
   if noise_level == 0:
     return cfg
 
-  alpha_betas = [(), (.01, .001), (.1, .01), (.25, .03)]
+  alpha_betas = [(), (.001, 0.01), (.01, .1), (.03, .25)]
 
   # Set model parameters
   cfg["model"]["alpha"] = alpha_betas[noise_level][0]
