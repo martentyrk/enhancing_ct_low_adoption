@@ -276,6 +276,7 @@ def fact_neigh(
   if dp_noise > 0:
     # Add noise for Differential Privacy
     sensitivity = (1-clip_margin) * (1-probab_1) * dp_noise
+    logger.info(f"Adding DP noise with stddev {sensitivity:.5f}")
     noise = np.random.randn(num_users, num_time_steps)
 
     post_exp_collect[:, :, 2] += noise * sensitivity
