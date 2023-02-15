@@ -1,5 +1,5 @@
 """Inference methods for contact-graphs."""
-from dpfn import constants, logger, util
+from dpfn import constants, logger, util, util_dp
 from mpi4py import MPI  # pytype: disable=import-error
 import numba
 import numpy as np
@@ -31,6 +31,9 @@ def fn_step_wrapped(
     clip_margin: float,
     past_contacts_array: np.ndarray,
     start_belief: np.ndarray,
+    dp_method: int = -1,
+    epsilon_dp: float = -1.,
+    delta_dp: float = -1.,
     quantization: int = -1,):
   """Wraps one step of Factorised Neighbors over a subset of users.
 
@@ -48,6 +51,9 @@ def fn_step_wrapped(
     past_contacts_array: iterator with elements (timestep, user_u, features)
     start_belief: matrix in [num_users_int, 4], i-th row is assumed to be the
       start_belief of user user_slice[i]
+    dp_method: DP method to use, as integer
+    epsilon_dp: epsilon for DP
+    delta_dp: delta for DP
     quantization: number of quantization levels
   """
   with numba.objmode(t0='f8'):
@@ -95,8 +101,22 @@ def fn_step_wrapped(
       np.take(d_noterm_cumsum, np.maximum(num_days_s-1, 0))
       + np.take(d_term, num_days_s))
 
+    # Calculate log_joint
     # Numba only does matmul with 2D-arrays, so do reshaping below
     log_joint = log_c_z_u[i] + log_A_start + d_penalties + start_belief_all[i]
+
+    # Calculate noise for differential privacy
+    if dp_method == 2:
+      _, num_contacts_max = util_dp.get_num_contacts_min_max(
+        past_contacts_array[i], num_time_steps)
+      sensitivity_dp = util_dp.get_sensitivity_log(
+        num_contacts_max, probab0, probab1, num_time_steps)
+
+      dp_noise = np.sqrt(2 * np.log(1.25 / delta_dp)) / epsilon_dp
+      dp_noise *= sensitivity_dp
+
+      log_joint += dp_noise*np.random.randn(num_sequences)
+
     joint_distr = softmax(log_joint).astype(np.single)
     post_exps[i] = np.reshape(np.dot(
       seq_array_hot.reshape(num_time_steps*4, num_sequences), joint_distr),
@@ -117,7 +137,6 @@ def fact_neigh(
     probab_1: float,
     g_param: float,
     h_param: float,
-    dp_noise: float = -1.,
     clip_margin: float = -1.,
     start_belief: Optional[np.ndarray] = None,
     alpha: float = 0.001,
@@ -125,6 +144,9 @@ def fact_neigh(
     quantization: int = -1,
     users_stale: Optional[np.ndarray] = None,
     num_updates: int = 1000,
+    dp_method: int = -1,
+    epsilon_dp: float = -1.,
+    delta_dp: float = -1.,
     verbose: bool = False,
     trace_dir: Optional[str] = None,
     diagnostic: Optional[Any] = None) -> Tuple[np.ndarray, np.ndarray]:
@@ -149,6 +171,9 @@ def fact_neigh(
     quantization: number of levels for quantization. Negative number indicates
       no use of quantization.
     num_updates: Number of rounds to update using Factorised Neighbor algorithm
+    dp_method: Differential privacy method to use. -1 indicates no DP.
+    epsilon_dp: Epsilon for differential privacy
+    delta_dp: Delta for differential privacy
     verbose: set to true to get more verbose output
 
   Returns:
@@ -238,6 +263,9 @@ def fact_neigh(
       clip_margin=clip_margin,
       past_contacts_array=past_contacts,
       start_belief=start_belief_matrix,
+      dp_method=dp_method,
+      epsilon_dp=epsilon_dp,
+      delta_dp=delta_dp,
       quantization=quantization)
 
     # if np.any(np.isinf(post_exp)):
@@ -273,10 +301,11 @@ def fact_neigh(
     post_exp.astype(np.single),
     recvbuf=[post_exp_collect, sizes_memory, offsets, MPI.FLOAT])
 
-  if dp_noise > 0:
+  if dp_method == 1:
+    dp_noise = np.sqrt(2 * np.log(1.25 / delta_dp)) / epsilon_dp
+
     # Add noise for Differential Privacy
     sensitivity = (1-clip_margin) * (1-probab_1) * dp_noise
-    logger.info(f"Adding DP noise with stddev {sensitivity:.5f}")
     noise = np.random.randn(num_users, num_time_steps)
 
     post_exp_collect[:, :, 2] += noise * sensitivity

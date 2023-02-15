@@ -81,7 +81,7 @@ def make_inference_func(
       p1=p1,
       g_param=g,
       h_param=h,
-      dp_noise=-1.,
+      dp_method=-1,
       clip_margin=-1.,
       quantization=quantization,
       trace_dir=trace_dir)

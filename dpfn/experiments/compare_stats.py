@@ -56,6 +56,7 @@ def make_inference_func(
   epsilon_dp = cfg["model"]["epsilon_dp"]
   delta_dp = cfg["model"]["delta_dp"]
   clip_margin = cfg["model"]["clip_margin"]
+  dp_method = cfg["model"]["dp_method"]
 
   # Construct dynamics
   # Construct Geometric distro's for E and I states
@@ -73,9 +74,6 @@ def make_inference_func(
       quantization=quantization,
       trace_dir=trace_dir)
   elif inference_method == "fn":
-    # Epsilon_dp defaults to negative, then dp_noise also negative
-    dp_noise = np.sqrt(2 * np.log(1.25 / delta_dp)) / epsilon_dp
-
     inference_func = util_experiments.wrap_fact_neigh_inference(
       num_users=num_users,
       alpha=alpha,
@@ -84,7 +82,9 @@ def make_inference_func(
       p1=p1,
       g_param=g,
       h_param=h,
-      dp_noise=dp_noise,
+      dp_method=dp_method,
+      epsilon_dp=epsilon_dp,
+      delta_dp=delta_dp,
       clip_margin=clip_margin,
       quantization=quantization,
       trace_dir=trace_dir)
