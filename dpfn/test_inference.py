@@ -213,3 +213,26 @@ def test_factorised_neighbor_step_clipping():
   # This is a stochastic test, but should be very unlikely to fail
   assert np.sum(np.abs(post_exp - post_exp_no_clip)) > 1E-9, (
     "Clipping did not change the posterior expectation")
+
+  post_exp_noised, tstart, tend = inference.fn_step_wrapped(
+    user_interval,
+    seq_array_hot,
+    log_c_z_u,
+    log_A_start,
+    q_marginal_infected,
+    num_time_steps,
+    p0,
+    p1,
+    clip_margin=.2,
+    past_contacts_array=past_contacts,
+    dp_method=2,
+    epsilon_dp=1.,
+    delta_dp=1./100,
+    start_belief=np.ones((num_users, 4), dtype=np.float32),
+    quantization=-1)
+
+  assert time_spent < 1.0, f"FN takes way too long: {time_spent}"
+
+  # This is a stochastic test, but should be very unlikely to fail
+  assert np.sum(np.abs(post_exp - post_exp_noised)) > 1E-9, (
+    "DP noise did not change the posterior expectation")

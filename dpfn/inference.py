@@ -112,7 +112,8 @@ def fn_step_wrapped(
 
       num_contacts_max = int(max((num_contacts_max, 5)))
       sensitivity_dp = util_dp.get_sensitivity_log(
-        num_contacts_max, probab0, probab1, num_time_steps)
+        num_contacts_max, probab0, probab1, margin=clip_margin)
+      assert sensitivity_dp >= 0, "Sensitivity should be positive"
 
       dp_noise = np.sqrt(2 * np.log(1.25 / delta_dp)) / epsilon_dp
       dp_noise *= sensitivity_dp
