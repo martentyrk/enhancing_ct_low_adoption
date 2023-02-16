@@ -552,7 +552,7 @@ if __name__ == "__main__":
                             'the code quickly, usually for debugging purpose'))
 
   # TODO make a better heuristic for this:
-  numba.set_num_threads(8)
+  numba.set_num_threads(2)
 
   args = parser.parse_args()
 
