@@ -23,6 +23,10 @@ def get_sensitivity_log(
     probab1: float,
     margin: float) -> float:
   """Calculates the sensitivity in the logits."""
+  assert 0 <= margin <= 1
+  assert 0 <= probab1 <= 1
+  assert 0 <= num_contacts <= 1000
+
   alpha = margin
   beta = 1 - margin
 
