@@ -253,6 +253,8 @@ def fact_neigh(
     if users_stale is not None:
       q_marginal_infected *= users_stale_binary
 
+    dp_method_use = dp_method if (num_update == num_updates-1) else -1
+
     post_exp, tstart, t_end = fn_step_wrapped(
       user_interval,
       seq_array_hot,
@@ -265,7 +267,7 @@ def fact_neigh(
       clip_margin=clip_margin,
       past_contacts_array=past_contacts,
       start_belief=start_belief_matrix,
-      dp_method=dp_method,
+      dp_method=dp_method_use,
       epsilon_dp=epsilon_dp,
       delta_dp=delta_dp,
       quantization=quantization)
