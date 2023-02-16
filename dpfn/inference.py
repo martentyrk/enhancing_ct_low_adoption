@@ -109,6 +109,8 @@ def fn_step_wrapped(
     if dp_method == 2:
       _, num_contacts_max = util_dp.get_num_contacts_min_max(
         past_contacts_array[i], num_time_steps)
+
+      num_contacts_max = int(max((num_contacts_max, 5)))
       sensitivity_dp = util_dp.get_sensitivity_log(
         num_contacts_max, probab0, probab1, num_time_steps)
 
