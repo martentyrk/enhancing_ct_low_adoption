@@ -107,6 +107,9 @@ def fn_step_wrapped(
 
     # Calculate noise for differential privacy
     if dp_method == 2:
+      assert epsilon_dp > 0
+      assert delta_dp > 0
+
       _, num_contacts_max = util_dp.get_num_contacts_min_max(
         past_contacts_array[i], num_time_steps)
 
@@ -115,10 +118,10 @@ def fn_step_wrapped(
         num_contacts_max, probab0, probab1, margin=clip_margin)
       assert sensitivity_dp >= 0, "Sensitivity should be positive"
 
-      dp_noise = np.sqrt(2 * np.log(1.25 / delta_dp)) / epsilon_dp
-      dp_noise *= sensitivity_dp
+      dp_sigma = (  # Noise standard deviation
+        sensitivity_dp * np.sqrt(2 * np.log(1.25 / delta_dp)) / epsilon_dp)
 
-      log_joint += dp_noise*np.random.randn(num_sequences)
+      log_joint += dp_sigma*np.random.randn(num_sequences)
 
     joint_distr = softmax(log_joint).astype(np.single)
     post_exps[i] = np.reshape(np.dot(
