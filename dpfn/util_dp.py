@@ -10,8 +10,12 @@ def get_num_contacts_min_max(
     pc_array: np.ndarray, num_time_steps: int) -> Tuple[int, int]:
   """Get the minimum and maximum number of contacts per any time step."""
   num_contacts = np.zeros((num_time_steps), dtype=np.int32)
+
   for row in pc_array:
-    num_contacts[row[0]] += 1
+    timestep = int(row[0])
+
+    if timestep > 0:
+      num_contacts[timestep] += 1
 
   return int(num_contacts.min()), int(num_contacts.max())
 
@@ -25,7 +29,7 @@ def get_sensitivity_log(
   """Calculates the sensitivity in the logits."""
   assert 0 <= margin <= 1
   assert 0 <= probab1 <= 1
-  assert 0 <= num_contacts <= 1000
+  assert 0 <= num_contacts <= 2000
 
   alpha = margin
   beta = 1 - margin
