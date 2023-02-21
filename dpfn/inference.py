@@ -155,7 +155,7 @@ def fact_neigh(
     delta_dp: float = -1.,
     verbose: bool = False,
     trace_dir: Optional[str] = None,
-    diagnostic: Optional[Any] = None) -> Tuple[np.ndarray, np.ndarray]:
+    diagnostic: Optional[Any] = None) -> np.ndarray:
   """Inferes latent states using Factorised Neighbor method.
 
   Uses Factorised Neighbor approach from
@@ -321,4 +321,4 @@ def fact_neigh(
     # Post-process to ensure that the probabilities are still valid
     post_exp_collect = np.clip(post_exp_collect, 0., 1.)
     post_exp_collect /= np.sum(post_exp_collect, axis=-1, keepdims=True)
-  return post_exp_collect
+  return post_exp_collect.astype(np.float32)

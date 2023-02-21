@@ -38,7 +38,7 @@ def wrap_fact_neigh_inference(
       num_time_steps: int,
       start_belief: Optional[np.ndarray] = None,
       users_stale: Optional[np.ndarray] = None,
-      diagnostic: Optional[Any] = None):
+      diagnostic: Optional[Any] = None) -> np.ndarray:
 
     traces_per_user_fn = inference.fact_neigh(
       num_users=num_users,
@@ -218,7 +218,7 @@ def wrap_belief_propagation(
       num_time_steps: int,
       start_belief: Optional[np.ndarray] = None,
       users_stale: Optional[np.ndarray] = None,
-      diagnostic: Optional[Any] = None):
+      diagnostic: Optional[Any] = None) -> np.ndarray:
     del users_stale, diagnostic
 
     # Set up MPI constants
@@ -347,7 +347,7 @@ def wrap_sib(
       num_time_steps: int,
       start_belief: Optional[np.ndarray] = None,
       users_stale: Optional[np.ndarray] = None,
-      diagnostic: Optional[Any] = None):
+      diagnostic: Optional[Any] = None) -> np.ndarray:
     del start_belief
 
     if users_stale is not None:
