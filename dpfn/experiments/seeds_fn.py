@@ -154,7 +154,7 @@ def compare_seeds(
     np.random.seed(seed_value)
 
     time_start = time.time()
-    z_states_inferred = inference_func(
+    _, z_states_inferred = inference_func(
       np.array(observations),
       np.array(contacts),
       num_rounds,

@@ -7,7 +7,7 @@ from dpfn.experiments import util_sib
 import sib
 import subprocess
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 comm_world = MPI.COMM_WORLD
 mpi_rank = comm_world.Get_rank()
@@ -38,9 +38,9 @@ def wrap_fact_neigh_inference(
       num_time_steps: int,
       start_belief: Optional[np.ndarray] = None,
       users_stale: Optional[np.ndarray] = None,
-      diagnostic: Optional[Any] = None) -> np.ndarray:
+      diagnostic: Optional[Any] = None) -> Tuple[np.ndarray, np.ndarray]:
 
-    traces_per_user_fn = inference.fact_neigh(
+    start_belief, traces_per_user_fn = inference.fact_neigh(
       num_users=num_users,
       num_time_steps=num_time_steps,
       observations_all=observations_list,
@@ -62,7 +62,7 @@ def wrap_fact_neigh_inference(
       verbose=False,
       trace_dir=trace_dir,
       diagnostic=diagnostic)
-    return traces_per_user_fn
+    return start_belief, traces_per_user_fn
   return fact_neigh_wrapped
 
 
@@ -79,14 +79,14 @@ def wrap_dummy_inference(
       num_time_steps: int,
       start_belief: Optional[np.ndarray] = None,
       users_stale: Optional[np.ndarray] = None,
-      diagnostic: Optional[Any] = None) -> np.ndarray:
+      diagnostic: Optional[Any] = None) -> Tuple[np.ndarray, np.ndarray]:
     del diagnostic, start_belief, num_updates, contacts_list, observations_list
     del users_stale
 
     predictions = np.random.randn(num_users, num_time_steps, 4)
     predictions /= np.sum(predictions, axis=-1, keepdims=True)
 
-    return predictions
+    return predictions[:, 1], predictions
 
   return dummy_wrapped
 
@@ -108,7 +108,7 @@ def wrap_dct_inference(
       num_time_steps: int,
       start_belief: Optional[np.ndarray] = None,    # pylint: disable=unused-argument
       users_stale: Optional[np.ndarray] = None,    # pylint: disable=unused-argument
-      diagnostic: Optional[Any] = None) -> np.ndarray:    # pylint: disable=unused-argument
+      diagnostic: Optional[Any] = None) -> Tuple[np.ndarray, np.ndarray]:    # pylint: disable=unused-argument
     # del num_updates, start_belief, users_stale, diagnostic
 
     score = 0.25 * np.ones((num_users, num_time_steps, 4))
@@ -128,7 +128,7 @@ def wrap_dct_inference(
         score[user_u, :, 2] = 10.0  # 40x bigger than noise floor
 
     score /= np.expand_dims(np.sum(score, axis=-1), axis=-1)
-    return score
+    return score[:, 1], score
 
   return dct_wrapped
 
@@ -157,7 +157,7 @@ def wrap_dpct_inference(
       num_time_steps: int,
       start_belief: Optional[np.ndarray] = None,    # pylint: disable=unused-argument
       users_stale: Optional[np.ndarray] = None,    # pylint: disable=unused-argument
-      diagnostic: Optional[Any] = None) -> np.ndarray:    # pylint: disable=unused-argument
+      diagnostic: Optional[Any] = None) -> Tuple[np.ndarray, np.ndarray]:    # pylint: disable=unused-argument
     # del num_updates, start_belief, users_stale, diagnostic
 
     score = 0.25 * np.ones((num_users, num_time_steps, 4))
@@ -181,7 +181,7 @@ def wrap_dpct_inference(
 
     score[:, -1, 2] = 6*has_positive_test + 3 * num_positive_neighbors
     score /= np.expand_dims(np.sum(score, axis=-1), axis=-1)
-    return score
+    return score[:, 1], score
 
   return dpct_wrapped
 
@@ -220,7 +220,7 @@ def wrap_belief_propagation(
       num_time_steps: int,
       start_belief: Optional[np.ndarray] = None,
       users_stale: Optional[np.ndarray] = None,
-      diagnostic: Optional[Any] = None) -> np.ndarray:
+      diagnostic: Optional[Any] = None) -> Tuple[np.ndarray, np.ndarray]:
     del users_stale, diagnostic
 
     # Set up MPI constants
@@ -326,7 +326,7 @@ def wrap_belief_propagation(
       recvbuf=[bp_collect, sizes_memory, offsets, MPI.FLOAT])
 
     bp_collect /= np.sum(bp_collect, axis=-1, keepdims=True)
-    return bp_collect
+    return bp_collect[:, 1], bp_collect
   return bp_wrapped
 
 
@@ -349,7 +349,7 @@ def wrap_sib(
       num_time_steps: int,
       start_belief: Optional[np.ndarray] = None,
       users_stale: Optional[np.ndarray] = None,
-      diagnostic: Optional[Any] = None) -> np.ndarray:
+      diagnostic: Optional[Any] = None) -> Tuple[np.ndarray, np.ndarray]:
     del start_belief
 
     if users_stale is not None:
@@ -412,7 +412,7 @@ def wrap_sib(
        np.zeros((num_users, num_time_steps, 1)),
        marginals_sib[:, :, 1:]),
       axis=-1)
-    return marginals_sib
+    return marginals_sib[:, 1], marginals_sib
   return sib_wrapped
 
 

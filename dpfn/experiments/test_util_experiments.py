@@ -9,7 +9,7 @@ def test_dummy_inference():
 
   inference_func = util_experiments.wrap_dummy_inference(num_users)
 
-  z_states = inference_func(None, None, None, num_time_steps)
+  _, z_states = inference_func(None, None, None, num_time_steps)
 
   np.testing.assert_array_almost_equal(
     z_states.shape, [num_users, num_time_steps, 4])
@@ -30,7 +30,7 @@ def test_dct_inference():
 
   dct_func = util_experiments.wrap_dct_inference(num_users)
 
-  scores = dct_func(
+  _, scores = dct_func(
     observations_all, contacts_all, None, num_time_steps, None, None, None)
 
   # User 1 had an infected contact (user0)
@@ -64,7 +64,7 @@ def test_dpct_inference():
   dpct_func = util_experiments.wrap_dpct_inference(
     num_users, epsilon_dp=10., delta_dp=0.1)
 
-  scores = dpct_func(
+  _, scores = dpct_func(
     observations_all, contacts_all, None, num_time_steps, None, None, None)
 
   # User 1 had an infected contact (user0)

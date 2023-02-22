@@ -98,7 +98,7 @@ def test_fact_neigh_with_start_belief():
     [[.1, .4, .5, .0],
      [.9, .1, .0, .0]], dtype=np.float32)
 
-  post_exp = inference.fact_neigh(
+  _, post_exp = inference.fact_neigh(
     num_users=num_users,
     num_time_steps=num_time_steps,
     observations_all=observations_all,
