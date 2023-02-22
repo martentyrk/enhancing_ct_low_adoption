@@ -187,16 +187,14 @@ def fact_neigh(
     health states {S, E, I, R} for each user at each time step
   """
   del diagnostic
+  if users_stale is not None:
+    raise NotImplementedError("Stale users not implemented")
   t_start_preamble = time.time()
 
   user_ids_bucket = util.spread_buckets_interval(num_users, num_proc)
   user_interval = (
     int(user_ids_bucket[mpi_rank]), int(user_ids_bucket[mpi_rank+1]))
   num_users_interval = user_interval[1] - user_interval[0]
-
-  # Slice out stale_users
-  users_stale_binary = util.get_stale_users_binary(
-    users_stale, num_users)
 
   seq_array = np.stack(list(
     util.iter_sequences(time_total=num_time_steps, start_se=False)))
@@ -254,11 +252,6 @@ def fact_neigh(
       if mpi_rank == 0:
         logger.info(f"Num update {num_update}")
 
-    if users_stale is not None:
-      q_marginal_infected *= users_stale_binary
-
-    dp_method_use = dp_method if (num_update == num_updates-1) else -1
-
     post_exp, tstart, t_end = fn_step_wrapped(
       user_interval,
       seq_array_hot,
@@ -268,10 +261,10 @@ def fact_neigh(
       num_time_steps,
       probab_0,
       probab_1,
-      clip_margin=clip_margin,
+      clip_margin=-1,
       past_contacts_array=past_contacts,
       start_belief=start_belief_matrix,
-      dp_method=dp_method_use,
+      dp_method=-1,
       epsilon_dp=epsilon_dp,
       delta_dp=delta_dp,
       quantization=quantization)
@@ -311,16 +304,53 @@ def fact_neigh(
 
   belief_day1 = post_exp_collect[:, 1]
 
-  if dp_method == 1:
-    dp_noise = np.sqrt(2 * np.log(1.25 / delta_dp)) / epsilon_dp
+  if dp_method > 0:
+    # Only do DP noising on the last update, and get the start_belief unnoised
+    assert epsilon_dp > 0, (
+      f"Cannot run dp_method {dp_method} with epsilon_dp {epsilon_dp}")
 
-    # Add noise for Differential Privacy
-    sensitivity = (1-clip_margin) * (1-probab_1) * dp_noise
-    noise = np.random.randn(num_users, num_time_steps)
+    post_noised, _, _ = fn_step_wrapped(
+      user_interval,
+      seq_array_hot,
+      log_c_z_u,  # already depends in mpi_rank
+      log_A_start,
+      q_marginal_infected,
+      num_time_steps,
+      probab_0,
+      probab_1,
+      clip_margin=clip_margin,
+      past_contacts_array=past_contacts,
+      start_belief=start_belief_matrix,
+      dp_method=dp_method,
+      epsilon_dp=epsilon_dp,
+      delta_dp=delta_dp,
+      quantization=quantization)
 
-    post_exp_collect[:, :, 2] += noise * sensitivity
+    # Prepare buffer for Allgatherv
+    pnoised_collect = np.empty((num_users, num_time_steps, 4), dtype=np.single)
 
-    # Post-process to ensure that the probabilities are still valid
-    post_exp_collect = np.clip(post_exp_collect, 0., 1.)
-    post_exp_collect /= np.sum(post_exp_collect, axis=-1, keepdims=True)
-  return belief_day1, post_exp_collect.astype(np.float32)
+    memory_bucket = user_ids_bucket*num_time_steps*4
+    offsets = memory_bucket[:-1].tolist()
+    sizes_memory = (memory_bucket[1:] - memory_bucket[:-1]).tolist()
+
+    comm_world.Gatherv(
+      post_noised.astype(np.single),
+      recvbuf=[pnoised_collect, sizes_memory, offsets, MPI.FLOAT])
+
+    if dp_method == 1:
+      dp_noise = np.sqrt(2 * np.log(1.25 / delta_dp)) / epsilon_dp
+
+      # Add noise for Differential Privacy
+      sensitivity = (1-clip_margin) * (1-probab_1) * dp_noise
+      noise = np.random.randn(num_users, num_time_steps)
+
+      pnoised_collect[:, :, 2] += noise * sensitivity
+
+      # Post-process to ensure that the probabilities are still valid
+      pnoised_collect = np.clip(pnoised_collect, 0., 1.)
+      pnoised_collect /= np.sum(pnoised_collect, axis=-1, keepdims=True)
+
+    post_final = pnoised_collect
+  else:
+    post_final = post_exp_collect
+  return belief_day1, post_final.astype(np.float32)

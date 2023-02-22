@@ -597,6 +597,8 @@ if __name__ == "__main__":
   else:
     runner_global = util_wandb.WandbDummy()
     config_wandb = None
+    # config_wandb = {
+    #   "data": config_data.to_dict(), "model": config_model.to_dict()}
 
   config_wandb = comm_world.bcast(config_wandb, root=0)
   logger.info((
