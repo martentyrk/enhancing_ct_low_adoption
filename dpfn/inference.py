@@ -302,7 +302,7 @@ def fact_neigh(
     post_exp.astype(np.single),
     recvbuf=[post_exp_collect, sizes_memory, offsets, MPI.FLOAT])
 
-  belief_day1 = post_exp_collect[:, 1]
+  belief_day1 = np.copy(post_exp_collect[:, 1])
 
   if dp_method > 0:
     # Only do DP noising on the last update, and get the start_belief unnoised
