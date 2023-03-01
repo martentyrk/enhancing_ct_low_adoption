@@ -2,6 +2,7 @@
 
 import numba
 import numpy as np
+from scipy import stats
 from typing import Tuple
 
 
@@ -41,3 +42,16 @@ def get_sensitivity_log(
   R2_value = np.abs(np.log(1 / (1-beta*probab1)))
   R3_value = np.abs(np.log(numer/denom))
   return float(max((R2_value, R3_value)))
+
+
+# @numba.njit
+def noise_i_column(data: np.ndarray, sigma: float) -> np.ndarray:
+  assert len(data.shape) == 2
+  num_rows = len(data)
+
+  def make_rv(mean: np.ndarray, sigma: float):
+    return stats.truncnorm(-mean/sigma, (1-mean)/sigma, loc=mean, scale=sigma)
+
+  noise_additive = make_rv(mean=data[:, 2], sigma=sigma)
+  data[:, 2] = noise_additive.rvs(size=(num_rows, ))
+  return data / np.sum(data, axis=-1, keepdims=True)

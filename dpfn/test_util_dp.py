@@ -32,3 +32,20 @@ def test_get_sensitivity_log():
     num_contacts*10, probab0, probab1, margin)
 
   assert sensitivity1 > sensitivity2
+
+
+def test_noise_i_column():
+  nrows = 100
+  data = np.random.rand(nrows, 4)
+  data /= np.sum(data, axis=-1, keepdims=True)
+
+  data_noised = util_dp.noise_i_column(data, sigma=0.01)
+  assert data_noised.shape == data.shape
+
+  # With enormous amount of noise, most infection scores should be high
+  data = np.random.rand(nrows, 4)
+  data[:, 2] = 0.0
+  data /= np.sum(data, axis=-1, keepdims=True)
+
+  data_noised = util_dp.noise_i_column(data, sigma=2.)
+  assert np.median(data_noised[:, 2]) > .1

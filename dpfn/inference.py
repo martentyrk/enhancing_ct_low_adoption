@@ -4,7 +4,6 @@ from mpi4py import MPI  # pytype: disable=import-error
 import numba
 import numpy as np
 import os  # pylint: disable=unused-import
-from scipy import stats
 import time
 from typing import Any, Optional, Tuple
 
@@ -357,13 +356,9 @@ def fact_neigh(
     assert delta_dp < 0
     assert clip_margin < 0
 
-    def make_rv(mean, sigma):
-      return stats.truncnorm(-mean/sigma, (1-mean)/sigma, loc=mean, scale=sigma)
-
-    noise_additive = make_rv(mean=post_exp_collect[:, -1, 2], sigma=epsilon_dp)
-    post_exp_collect[:, -1, 2] += noise_additive.rvs(size=(num_users, ))
-    post_final = post_exp_collect / np.sum(
-      post_exp_collect, axis=-1, keepdims=True)
+    post_exp_collect[:, -1] = util_dp.noise_i_column(
+      post_exp_collect[:, -1], sigma=epsilon_dp)
+    post_final = post_exp_collect
   else:
     post_final = post_exp_collect
   return belief_day1, post_final.astype(np.float32)
