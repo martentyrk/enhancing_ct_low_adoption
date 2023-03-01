@@ -233,9 +233,10 @@ def fact_neigh(
       f"Max number of contacts {max_num_contacts} >= {num_max_msg}")
 
   if trace_dir:
-    fname = os.path.join(trace_dir, f"fact_neigh_{mpi_rank}.txt")
-    with open(fname, 'a') as fp:
-      fp.write(f"{max_num_contacts:.0f}\n")
+    pass
+    # fname = os.path.join(trace_dir, f"fact_neigh_{mpi_rank}.txt")
+    # with open(fname, 'a') as fp:
+    #   fp.write(f"{max_num_contacts:.0f}\n")
 
   start_belief_matrix = np.ones((num_users_interval, 4), dtype=np.single)
   if start_belief is not None:
@@ -265,8 +266,8 @@ def fact_neigh(
       past_contacts_array=past_contacts,
       start_belief=start_belief_matrix,
       dp_method=-1,
-      epsilon_dp=epsilon_dp,
-      delta_dp=delta_dp,
+      epsilon_dp=-1.,
+      delta_dp=-1.,
       quantization=quantization)
 
     # if np.any(np.isinf(post_exp)):
