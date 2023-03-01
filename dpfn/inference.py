@@ -352,7 +352,7 @@ def fact_neigh(
       pnoised_collect /= np.sum(pnoised_collect, axis=-1, keepdims=True)
 
     post_final = pnoised_collect
-  if dp_method == 3:
+  elif dp_method == 3:
     assert delta_dp < 0
     assert clip_margin < 0
 
