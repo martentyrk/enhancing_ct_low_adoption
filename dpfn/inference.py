@@ -3,7 +3,8 @@ from dpfn import constants, logger, util, util_dp
 from mpi4py import MPI  # pytype: disable=import-error
 import numba
 import numpy as np
-import os
+import os  # pylint: disable=unused-import
+from scipy import stats
 import time
 from typing import Any, Optional, Tuple
 
@@ -305,7 +306,7 @@ def fact_neigh(
 
   belief_day1 = np.copy(post_exp_collect[:, 1])
 
-  if dp_method > 0:
+  if 0 < dp_method <= 2:
     # Only do DP noising on the last update, and get the start_belief unnoised
     assert epsilon_dp > 0, (
       f"Cannot run dp_method {dp_method} with epsilon_dp {epsilon_dp}")
@@ -352,6 +353,17 @@ def fact_neigh(
       pnoised_collect /= np.sum(pnoised_collect, axis=-1, keepdims=True)
 
     post_final = pnoised_collect
+  if dp_method == 3:
+    assert delta_dp < 0
+    assert clip_margin < 0
+
+    def make_rv(mean, sigma):
+      return stats.truncnorm(-mean/sigma, (1-mean)/sigma, loc=mean, scale=sigma)
+
+    noise_additive = make_rv(mean=post_exp_collect[:, -1, 2], sigma=epsilon_dp)
+    post_exp_collect[:, -1, 2] += noise_additive.rvs(size=(num_users, ))
+    post_final = post_exp_collect / np.sum(
+      post_exp_collect, axis=-1, keepdims=True)
   else:
     post_final = post_exp_collect
   return belief_day1, post_final.astype(np.float32)
