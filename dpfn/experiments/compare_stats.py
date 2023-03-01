@@ -13,6 +13,7 @@ from dpfn import util
 from dpfn import util_wandb
 import numba
 import os
+import psutil
 import random
 from sklearn import metrics
 import sys
@@ -154,6 +155,7 @@ def compare_prequential_quarantine(
   fraction_stale = cfg["data"]["fraction_stale"]
   fraction_quarantine = cfg["data"]["fraction_quarantine"]
   num_days_quarantine = cfg["data"]["num_days_quarantine"]
+  t_start_quarantine = cfg["data"]["t_start_quarantine"]
 
   probab_0 = cfg["model"]["p0"]
   params_dynamics = {
@@ -169,7 +171,6 @@ def compare_prequential_quarantine(
     f"conditional testing {do_conditional_testing} at {fraction_test}%"))
 
   # Manual parameters for quarantining
-  t_start_quarantine = 3
   num_quarantine = int(fraction_quarantine * num_users)
 
   users_stale = None
@@ -391,11 +392,13 @@ def compare_prequential_quarantine(
       logger.info(f"Time spent on full_loop {time_full_loop:.0f}")
 
       loadavg1, loadavg5, _ = os.getloadavg()
+      swap_use = psutil.swap_memory().used / (1024.0 ** 3)
       runner.log({
         "time_step": time_full_loop,
         "infection_rate": infection_rate,
         "load1": loadavg1,
         "load5": loadavg5,
+        "swap_use": swap_use,
         "recall": recall,
         })
 
