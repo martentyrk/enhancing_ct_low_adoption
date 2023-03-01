@@ -54,10 +54,10 @@ wget ftp://ftp.gnu.org/gnu/gsl/gsl-latest.tar.gz
 tar -zxvf gsl-latest.tar.gz
 
 # make a directory for the gsl installation
-mkdir /var/scratch/rromijnd/projects/gsl
+mkdir /var/scratch/${USER}/projects/gsl
 
 # installation
-./configure --prefix=/var/scratch/rromijnd/projects/gsl
+./configure --prefix=/var/scratch/${USER}/projects/gsl
 make
 make check
 make install
@@ -86,8 +86,8 @@ make swig-all
 ```
 
 Insights from debugging:
-  * 'gsl/gsl_rng.h: No such file or directory' -> make sure the includes are set correctly. Like -I/var/scratch/rromijnd/projects/gsl/include to the compiler
-  * 'cannot find -lgsl' -> Make sure the libraries are set correctly. Like -L/var/scratch/rromijnd/projects/gsl/lib to the linker
+  * 'gsl/gsl_rng.h: No such file or directory' -> make sure the includes are set correctly. Like -I/var/scratch/${USER}/projects/gsl/include to the compiler
+  * 'cannot find -lgsl' -> Make sure the libraries are set correctly. Like -L/var/scratch/${USER}/projects/gsl/lib to the linker
 
 ## Run a sweep with WandB
 To run a sweep with WandB, run the following command
