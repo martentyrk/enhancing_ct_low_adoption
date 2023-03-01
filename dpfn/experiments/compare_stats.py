@@ -188,7 +188,7 @@ def compare_prequential_quarantine(
 
   if cfg["model"]["dp_method"] == 3:
     start_belief_global = util_dp.noise_i_column(
-      start_belief_global, cfg["model"]["epsilon_dp"])
+      start_belief_global, float(cfg["model"]["epsilon_dp"]) / 10)
 
   if quick:
     num_rounds = 2
