@@ -39,8 +39,9 @@ def test_noise_i_column():
   data = np.random.rand(nrows, 4)
   data /= np.sum(data, axis=-1, keepdims=True)
 
-  data_noised = util_dp.noise_i_column(data, sigma=0.01)
+  data_noised = util_dp.noise_i_column(data, sigma=0.0001)
   assert data_noised.shape == data.shape
+  np.testing.assert_array_almost_equal(data, data_noised, decimal=3)
 
   # With enormous amount of noise, most infection scores should be high
   data = np.random.rand(nrows, 4)

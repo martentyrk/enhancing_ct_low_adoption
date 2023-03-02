@@ -28,9 +28,9 @@ def dump_results_json(
   kwargs["sweep_id"] = str(os.getenv('SWEEPID'))  # Defaults to 'none'
 
   model_keys = [
-    "p0", "p1", "alpha", "beta", "prob_g", "prob_h",
-    "noisy_test", "num_days_window", "quantization",
-    "num_rounds", "sib_mult"]
+    "p0", "p1", "alpha", "beta", "prob_g", "prob_h", "noisy_test",
+    "num_days_window", "quantization", "num_rounds",
+    "sib_mult", "epsilon_dp", "delta_dp", "dp_method", "clip_margin"]
   data_keys = [
     "num_users", "num_time_steps", "num_days_quarantine",
     "fraction_test", "fraction_stale"]

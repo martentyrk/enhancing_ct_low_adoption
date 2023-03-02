@@ -305,7 +305,7 @@ def fact_neigh(
 
   belief_day1 = np.copy(post_exp_collect[:, 1])
 
-  if 0 < dp_method <= 2:
+  if 1 <= dp_method <= 2:
     # Only do DP noising on the last update, and get the start_belief unnoised
     assert epsilon_dp > 0, (
       f"Cannot run dp_method {dp_method} with epsilon_dp {epsilon_dp}")
