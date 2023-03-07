@@ -2,6 +2,7 @@
 
 import numba
 import numpy as np
+from dpfn import logger
 from scipy import stats
 from typing import Tuple, Union
 
@@ -73,7 +74,11 @@ def calc_ab_beta(
       sigma -= 0.005 * (a_param < 1)
       a_param = mean*(mean*(1-mean)/sigma**2 - 1)
 
-      if np.any(mean > .99):
+      if np.any(mean > 1.):
+        with np.printoptions(threshold=np.inf, precision=3):
+          logger.debug(f"mean{mean}")
+          logger.debug(f"sigma{sigma}")
+          logger.debug(f"a_param{a_param}")
         raise ValueError(f"a{a_param}, mean{mean}")
   return a_param, a_param*(1-mean)/mean
 
