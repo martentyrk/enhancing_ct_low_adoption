@@ -34,12 +34,34 @@ def test_get_sensitivity_log():
   assert sensitivity1 > sensitivity2
 
 
-def test_noise_i_column():
-  nrows = 100
+def test_noise_i_column_beta_edges():
+  nrows = 13
+
+  # Test with means close to 1
   data = np.random.rand(nrows, 4)
+  data[:, 2] = 100.
   data /= np.sum(data, axis=-1, keepdims=True)
 
-  data_noised = util_dp.noise_i_column(data, sigma=0.0001)
+  # Simply test that the function runs
+  data_noised = util_dp.noise_i_column_beta(data, sigma=0.1)
+  assert data_noised.shape == data.shape
+
+  # Test with means close to 0
+  data = 100*np.random.rand(nrows, 4)
+  data[:, 2] = 0.
+  data /= np.sum(data, axis=-1, keepdims=True)
+
+  # Simply test that the function runs
+  data_noised = util_dp.noise_i_column_beta(data, sigma=0.1)
+  assert data_noised.shape == data.shape
+
+
+def test_noise_i_column_beta():
+  nrows = 100
+  data = 0.04 + np.random.rand(nrows, 4)*0.92
+  data /= np.sum(data, axis=-1, keepdims=True)
+
+  data_noised = util_dp.noise_i_column_beta(data, sigma=0.0001)
   assert data_noised.shape == data.shape
   np.testing.assert_array_almost_equal(data, data_noised, decimal=3)
 
@@ -48,5 +70,5 @@ def test_noise_i_column():
   data[:, 2] = 0.0
   data /= np.sum(data, axis=-1, keepdims=True)
 
-  data_noised = util_dp.noise_i_column(data, sigma=2.)
+  data_noised = util_dp.noise_i_column_beta(data, sigma=2.)
   assert np.median(data_noised[:, 2]) > .1

@@ -187,7 +187,7 @@ def compare_prequential_quarantine(
     np.ones((num_users, 4)) * np.array([1. - probab_0, probab_0, 0., 0.]))
 
   if cfg["model"]["dp_method"] == 3:
-    start_belief_global = util_dp.noise_i_column(
+    start_belief_global = util_dp.noise_i_column_beta(
       start_belief_global, float(cfg["model"]["epsilon_dp"]) / 10)
 
   if quick:

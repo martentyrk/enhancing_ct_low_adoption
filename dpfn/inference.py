@@ -356,7 +356,7 @@ def fact_neigh(
     assert delta_dp < 0
     assert clip_margin < 0
 
-    post_exp_collect[:, -1] = util_dp.noise_i_column(
+    post_exp_collect[:, -1] = util_dp.noise_i_column_beta(
       post_exp_collect[:, -1], sigma=epsilon_dp)
     post_final = post_exp_collect
   else:
