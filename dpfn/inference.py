@@ -338,6 +338,10 @@ def fact_neigh(
       recvbuf=[pnoised_collect, sizes_memory, offsets, MPI.FLOAT])
 
     if dp_method == 1:
+      assert delta_dp > 0
+      assert epsilon_dp > 0
+      assert clip_margin > 0
+
       dp_noise = np.sqrt(2 * np.log(1.25 / delta_dp)) / epsilon_dp
 
       # Add noise for Differential Privacy

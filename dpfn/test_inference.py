@@ -163,7 +163,8 @@ def test_factorised_neighbor_step_clipping():
     obs_array,
     observations_all)
 
-  q_marginal_infected = np.zeros((num_users, num_time_steps), dtype=np.float32)
+  q_marginal_infected = np.random.rand(
+    num_users, num_time_steps).astype(np.float32)
 
   infect_counter = util.InfectiousContactCount(
     contacts=contacts_all,
@@ -201,7 +202,7 @@ def test_factorised_neighbor_step_clipping():
     num_time_steps,
     p0,
     p1,
-    clip_margin=.2,
+    clip_margin=.8,
     past_contacts_array=past_contacts,
     start_belief=np.ones((num_users, 4), dtype=np.float32),
     quantization=-1)
