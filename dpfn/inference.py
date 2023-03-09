@@ -67,8 +67,7 @@ def fn_step_wrapped(
   p_infected_matrix = p_infected_matrix.astype(np.float32)
   if clip_margin > 0:
     # Apply clipping
-    p_infected_matrix = np.maximum(
-      np.minimum(p_infected_matrix, 1.-clip_margin), clip_margin)
+    p_infected_matrix = np.minimum(p_infected_matrix, 1.-clip_margin)
     p_infected_matrix = p_infected_matrix.astype(np.float32)
 
   interval_num_users = user_interval[1] - user_interval[0]
