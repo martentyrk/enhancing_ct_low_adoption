@@ -109,12 +109,12 @@ def fn_step_wrapped(
       assert epsilon_dp > 0
       assert delta_dp > 0
 
-      _, num_contacts_max = util_dp.get_num_contacts_min_max(
+      num_contacts_min, _ = util_dp.get_num_contacts_min_max(
         past_contacts_array[i], num_time_steps)
 
-      num_contacts_max = int(max((num_contacts_max, 5)))
+      num_contacts_min = int(max((num_contacts_min, 5)))
       sensitivity_dp = util_dp.get_sensitivity_log(
-        num_contacts_max, probab0, probab1, margin=clip_margin)
+        num_contacts_min, probab0, probab1, margin=clip_margin)
       assert sensitivity_dp >= 0, "Sensitivity should be positive"
 
       dp_sigma = (  # Noise standard deviation
@@ -345,7 +345,7 @@ def fact_neigh(
       dp_noise = np.sqrt(2 * np.log(1.25 / delta_dp)) / epsilon_dp
 
       # Add noise for Differential Privacy
-      sensitivity = (1-clip_margin) * (1-probab_1) * dp_noise
+      sensitivity = (1-clip_margin) * (1-probab_1) * dp_noise + clip_margin
       noise = np.random.randn(num_users, num_time_steps)
 
       pnoised_collect[:, :, 2] += noise * sensitivity
@@ -359,8 +359,6 @@ def fact_neigh(
     assert delta_dp < 0
     assert clip_margin < 0
 
-    # post_exp_collect[:, -1] = util_dp.noise_i_column_beta(
-    #   post_exp_collect[:, -1], sigma=epsilon_dp)
     post_final = post_exp_collect
   else:
     post_final = post_exp_collect
