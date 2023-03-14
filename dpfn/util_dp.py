@@ -27,20 +27,19 @@ def get_sensitivity_log(
     num_contacts: int,
     probab0: float,
     probab1: float,
-    margin: float) -> float:
+    clip_lower: float,
+    clip_upper: float) -> float:
   """Calculates the sensitivity in the logits."""
-  assert 0 <= margin <= 1
+  assert 0 <= clip_lower <= 1
+  assert 0 <= clip_upper <= 1
   assert 0 <= probab1 <= 1
   assert 0 <= num_contacts <= 2000
 
-  alpha = margin
-  beta = 1 - margin
-
-  M = (1 - probab0)*np.power(1 - alpha*probab1, num_contacts)
-  numer = (1 - (beta*(1 - probab1) + (1 - beta))*M)
+  M = (1 - probab0)*np.power(1 - clip_lower*probab1, num_contacts)
+  numer = (1 - (clip_upper*(1 - probab1) + (1 - clip_upper))*M)
   denom = 1 - M
 
-  R2_value = np.abs(np.log(1 / (1-beta*probab1)))
+  R2_value = np.abs(np.log(1 / (1-clip_upper*probab1)))
   R3_value = np.abs(np.log(numer/denom))
   return float(max((R2_value, R3_value)))
 

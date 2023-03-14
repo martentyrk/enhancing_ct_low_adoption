@@ -28,9 +28,10 @@ def fn_step_wrapped(
     num_time_steps: int,
     probab0: float,
     probab1: float,
-    clip_margin: float,
     past_contacts_array: np.ndarray,
     start_belief: np.ndarray,
+    clip_lower: float = -1.,
+    clip_upper: float = 10000.,
     dp_method: int = -1,
     epsilon_dp: float = -1.,
     delta_dp: float = -1.,
@@ -47,7 +48,8 @@ def fn_step_wrapped(
     num_time_steps: number of time steps
     probab0: probability of transitioning S->E
     probab1: probability of transmission given contact
-    clip_margin: margin for clipping in preparation for DP calculations
+    clip_lower: lower margin for clipping in preparation for DP calculations
+    clip_upper: upper margin for clipping in preparation for DP calculations
     past_contacts_array: iterator with elements (timestep, user_u, features)
     start_belief: matrix in [num_users_int, 4], i-th row is assumed to be the
       start_belief of user user_slice[i]
@@ -65,9 +67,15 @@ def fn_step_wrapped(
       p_infected_matrix, num_levels=quantization)
 
   p_infected_matrix = p_infected_matrix.astype(np.float32)
-  if clip_margin > 0:
+  if clip_upper < 1.0:
     # Apply clipping
-    p_infected_matrix = np.minimum(p_infected_matrix, 1.-clip_margin)
+    p_infected_matrix = np.minimum(p_infected_matrix, clip_upper)
+    p_infected_matrix = p_infected_matrix.astype(np.float32)
+
+  p_infected_matrix = p_infected_matrix.astype(np.float32)
+  if clip_lower > 0.0:
+    # Apply clipping
+    p_infected_matrix = np.maximum(p_infected_matrix, clip_lower)
     p_infected_matrix = p_infected_matrix.astype(np.float32)
 
   interval_num_users = user_interval[1] - user_interval[0]
@@ -114,7 +122,8 @@ def fn_step_wrapped(
 
       num_contacts_min = int(max((num_contacts_min, 5)))
       sensitivity_dp = util_dp.get_sensitivity_log(
-        num_contacts_min, probab0, probab1, margin=clip_margin)
+        num_contacts_min, probab0, probab1,
+        clip_lower=clip_lower, clip_upper=clip_upper)
       assert sensitivity_dp >= 0, "Sensitivity should be positive"
 
       dp_sigma = (  # Noise standard deviation
@@ -142,7 +151,8 @@ def fact_neigh(
     probab_1: float,
     g_param: float,
     h_param: float,
-    clip_margin: float = -1.,
+    clip_lower: float = -1.,
+    clip_upper: float = 10000.,
     start_belief: Optional[np.ndarray] = None,
     alpha: float = 0.001,
     beta: float = 0.01,
@@ -261,7 +271,8 @@ def fact_neigh(
       num_time_steps,
       probab_0,
       probab_1,
-      clip_margin=-1,
+      clip_lower=-1.,
+      clip_upper=10000.,
       past_contacts_array=past_contacts,
       start_belief=start_belief_matrix,
       dp_method=-1,
@@ -318,7 +329,8 @@ def fact_neigh(
       num_time_steps,
       probab_0,
       probab_1,
-      clip_margin=clip_margin,
+      clip_lower=clip_lower,
+      clip_upper=clip_upper,
       past_contacts_array=past_contacts,
       start_belief=start_belief_matrix,
       dp_method=dp_method,
@@ -340,12 +352,12 @@ def fact_neigh(
     if dp_method == 1:
       assert delta_dp > 0
       assert epsilon_dp > 0
-      assert clip_margin > 0
+      assert clip_upper < 1.0
 
       dp_noise = np.sqrt(2 * np.log(1.25 / delta_dp)) / epsilon_dp
 
       # Add noise for Differential Privacy
-      sensitivity = (1-clip_margin) * (1-probab_1) * dp_noise + clip_margin
+      sensitivity = clip_upper * (1-probab_1) * dp_noise + (1. - clip_upper)
       noise = np.random.randn(num_users, num_time_steps)
 
       pnoised_collect[:, :, 2] += noise * sensitivity
@@ -357,7 +369,7 @@ def fact_neigh(
     post_final = pnoised_collect
   elif dp_method == 3:
     assert delta_dp < 0
-    assert clip_margin < 0
+    assert clip_upper > 1.0
 
     post_final = post_exp_collect
   else:

@@ -57,7 +57,8 @@ def make_inference_func(
   quantization = cfg["model"]["quantization"]
   epsilon_dp = cfg["model"]["epsilon_dp"]
   delta_dp = cfg["model"]["delta_dp"]
-  clip_margin = cfg["model"]["clip_margin"]
+  clip_lower = cfg["model"]["clip_lower"]
+  clip_upper = cfg["model"]["clip_upper"]
   dp_method = cfg["model"]["dp_method"]
 
   # Construct dynamics
@@ -87,7 +88,8 @@ def make_inference_func(
       dp_method=dp_method,
       epsilon_dp=epsilon_dp,
       delta_dp=delta_dp,
-      clip_margin=clip_margin,
+      clip_lower=clip_lower,
+      clip_upper=clip_upper,
       quantization=quantization,
       trace_dir=trace_dir)
   elif inference_method == "sib":
@@ -414,6 +416,8 @@ def compare_prequential_quarantine(
     time_spent = time.time() - t0
     logger.info(f"With {num_rounds} rounds, PIR {pir:5.2f}")
     runner.log({
+      "high_score": np.max(rank_score*test_include),
+      "high_score_all": np.max(rank_score),
       "time_spent": time_spent,
       "pir_mean": pir})
 

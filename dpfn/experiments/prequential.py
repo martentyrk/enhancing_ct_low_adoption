@@ -30,7 +30,8 @@ def dump_results_json(
   model_keys = [
     "p0", "p1", "alpha", "beta", "prob_g", "prob_h", "noisy_test",
     "num_days_window", "quantization", "num_rounds",
-    "sib_mult", "epsilon_dp", "delta_dp", "dp_method", "clip_margin"]
+    "sib_mult", "epsilon_dp", "delta_dp", "dp_method", "clip_lower",
+    "clip_upper"]
   data_keys = [
     "num_users", "num_time_steps", "num_days_quarantine",
     "fraction_test", "fraction_stale"]

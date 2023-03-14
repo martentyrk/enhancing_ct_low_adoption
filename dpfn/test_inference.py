@@ -69,7 +69,6 @@ def test_factorised_neighbor_step():
     num_time_steps,
     p0,
     p1,
-    clip_margin=-1.,
     past_contacts_array=past_contacts,
     start_belief=np.ones((num_users, 4), dtype=np.float32),
     quantization=-1)
@@ -188,7 +187,6 @@ def test_factorised_neighbor_step_clipping():
     num_time_steps,
     p0,
     p1,
-    clip_margin=-1.,
     past_contacts_array=past_contacts,
     start_belief=np.ones((num_users, 4), dtype=np.float32),
     quantization=-1)
@@ -202,7 +200,8 @@ def test_factorised_neighbor_step_clipping():
     num_time_steps,
     p0,
     p1,
-    clip_margin=.8,
+    clip_lower=.1,
+    clip_upper=.8,
     past_contacts_array=past_contacts,
     start_belief=np.ones((num_users, 4), dtype=np.float32),
     quantization=-1)
@@ -224,7 +223,8 @@ def test_factorised_neighbor_step_clipping():
     num_time_steps,
     p0,
     p1,
-    clip_margin=.2,
+    clip_lower=.01,
+    clip_upper=.8,
     past_contacts_array=past_contacts,
     dp_method=2,
     epsilon_dp=1.,

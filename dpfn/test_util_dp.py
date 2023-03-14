@@ -27,9 +27,9 @@ def test_get_sensitivity_log():
   margin = 0.05
 
   sensitivity1 = util_dp.get_sensitivity_log(
-    num_contacts, probab0, probab1, margin)
+    num_contacts, probab0, probab1, margin, 1.-margin)
   sensitivity2 = util_dp.get_sensitivity_log(
-    num_contacts*10, probab0, probab1, margin)
+    num_contacts*10, probab0, probab1, margin, 1.-margin)
 
   assert sensitivity1 > sensitivity2
 

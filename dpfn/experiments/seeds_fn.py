@@ -82,7 +82,8 @@ def make_inference_func(
       g_param=g,
       h_param=h,
       dp_method=-1,
-      clip_margin=-1.,
+      clip_lower=-1.,  # No clipping needed for seeds_fn
+      clip_upper=10000.,  # No clipping needed for seeds_fn
       quantization=quantization,
       trace_dir=trace_dir)
   elif inference_method == "sib":
