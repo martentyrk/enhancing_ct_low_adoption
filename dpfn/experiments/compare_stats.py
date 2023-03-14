@@ -387,6 +387,8 @@ def compare_prequential_quarantine(
         "load5": loadavg5,
         "swap_use": swap_use,
         "recall": recall,
+        "high_score": np.max(rank_score*test_include),
+        "high_score_all": np.max(rank_score),
         })
 
   if mpi_rank == 0:
@@ -416,8 +418,6 @@ def compare_prequential_quarantine(
     time_spent = time.time() - t0
     logger.info(f"With {num_rounds} rounds, PIR {pir:5.2f}")
     runner.log({
-      "high_score": np.max(rank_score*test_include),
-      "high_score_all": np.max(rank_score),
       "time_spent": time_spent,
       "pir_mean": pir})
 
