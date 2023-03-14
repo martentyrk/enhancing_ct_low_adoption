@@ -130,15 +130,17 @@ def test_decide_tests():
 def test_remove_positive_users():
   observations = np.array([
     (0, 1, 0),
-    (1, 1, 1),
+    (4, 1, 0),
+    (5, 1, 1),
+    (3, 1, 1),
     (2, 1, 1),
   ], dtype=np.int32)
-  test_include = np.array([1., 1., 0., 1., 1.])
+  test_include = np.array([1., 1., 0., 1., 1., 1., 1.])
 
   test_include = prequential.remove_positive_users(
     observations=observations, test_include=test_include)
 
-  expected = np.array([1., 0., 0., 1., 1.])
+  expected = np.array([1., 1., 0., 0., 1., 0., 1.])
   np.testing.assert_array_almost_equal(test_include, expected)
 
 

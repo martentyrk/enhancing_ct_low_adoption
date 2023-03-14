@@ -239,7 +239,7 @@ def remove_positive_users(observations, test_include: np.ndarray) -> np.ndarray:
     test_include: The test include list, array of shape (num_users, ). A value
       of 0 indicates that the user should not be tested.
   """
-  users_positive = np.where(observations[:, 2] > 0)[0]
+  users_positive = observations[observations[:, 2] > 0][:, 0]
   test_include[users_positive] = 0.
   return test_include
 
