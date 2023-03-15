@@ -315,7 +315,7 @@ def fact_neigh(
 
   belief_day1 = np.copy(post_exp_collect[:, 1])
 
-  if 1 <= dp_method <= 2:
+  if dp_method in [1, 2, 4]:
     # Only do DP noising on the last update, and get the start_belief unnoised
     assert epsilon_dp > 0, (
       f"Cannot run dp_method {dp_method} with epsilon_dp {epsilon_dp}")
@@ -357,10 +357,10 @@ def fact_neigh(
       dp_noise = np.sqrt(2 * np.log(1.25 / delta_dp)) / epsilon_dp
 
       # Add noise for Differential Privacy
-      sensitivity = clip_upper * (1-probab_1) * dp_noise + (1. - clip_upper)
+      sensitivity = clip_upper * (1-probab_1) + (1. - clip_upper)
       noise = np.random.randn(num_users, num_time_steps)
 
-      pnoised_collect[:, :, 2] += noise * sensitivity
+      pnoised_collect[:, :, 2] += noise * sensitivity * dp_noise
 
       # Post-process to ensure that the probabilities are still valid
       pnoised_collect = np.clip(pnoised_collect, 0., 1.)
