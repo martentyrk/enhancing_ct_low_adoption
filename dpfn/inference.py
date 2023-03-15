@@ -349,6 +349,9 @@ def fact_neigh(
       post_noised.astype(np.single),
       recvbuf=[pnoised_collect, sizes_memory, offsets, MPI.FLOAT])
 
+    if dp_method == 4:
+      assert epsilon_dp < 0
+
     if dp_method == 1:
       assert delta_dp > 0
       assert epsilon_dp > 0
