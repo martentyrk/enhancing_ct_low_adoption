@@ -334,7 +334,7 @@ def fact_neigh(
 
   belief_day1 = np.copy(post_exp_collect[:, 1])
 
-  if dp_method in [1, 2, 4]:
+  if dp_method in [1, 2, 4, 5]:
 
     post_noised, _, _ = fn_step_wrapped(
       user_interval,
