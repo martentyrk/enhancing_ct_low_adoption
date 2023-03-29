@@ -605,6 +605,81 @@ def precompute_d_penalty_terms_fn2(
   return d_term.astype(np.float32), d_no_term.astype(np.float32)
 
 
+@numba.njit
+def precompute_d_penalty_terms_rdp(
+    q_marginal_infected: np.ndarray,
+    p0: float,
+    p1: float,
+    clip_lower: float,
+    clip_upper: float,
+    a_rdp: float,
+    epsilon_rdp: float,
+    past_contacts: np.ndarray,
+    num_time_steps: int) -> Tuple[np.ndarray, np.ndarray]:
+  """Precompute penalty terms for inference with Factorised Neighbors.
+
+  Consider similarity to 'precompute_d_penalty_terms_vi' and how the log-term is
+  applied.
+  """
+  # Make num_time_steps+1 longs, such that penalties are 0 when t0==0
+  d_term = np.zeros((num_time_steps+1), dtype=np.float32)
+  d_no_term = np.zeros((num_time_steps+1), dtype=np.float32)
+
+  if len(past_contacts) == 0:
+    return d_term, d_no_term
+
+  # past_contacts is padded with -1, so break when contact time is negative
+  assert past_contacts[-1][0] < 0
+
+  # Scales with O(T)
+  log_expectations = np.zeros((num_time_steps+1), dtype=np.float32)
+  num_contacts = np.zeros((num_time_steps+1), dtype=np.int32)
+  happened = np.zeros((num_time_steps+1), dtype=np.float32)
+
+  # t_contact = past_contacts[0][0]
+  # contacts = [np.int32(x) for x in range(0)]
+  for row in past_contacts:
+    time_inc = int(row[0])
+    if time_inc < 0:
+      # past_contacts is padded with -1, so break when contact time is negative
+      break
+
+    happened[time_inc+1] = 1
+    p_inf_inc = q_marginal_infected[int(row[1])][time_inc]
+    log_expectations[time_inc+1] += np.log(p_inf_inc*(1-p1) + (1-p_inf_inc))
+    num_contacts[time_inc+1] += 1
+
+  # Add RDP noise
+  assert clip_lower < 0.
+  assert clip_upper > 1.
+  num_contacts = np.maximum(num_contacts, 1)  # TODO assert this contact
+  sensitivity = np.log(1 - p1)
+  sigma_squared_lognormal = a_rdp / (2 * num_contacts * epsilon_rdp)
+  sigma_squared_lognormal *= sensitivity**2
+  mu_lognormal = log_expectations - 0.5 * sigma_squared_lognormal
+
+  log_expectations_noised = (
+    mu_lognormal
+    + np.sqrt(sigma_squared_lognormal) * np.random.randn(num_time_steps+1))
+
+  # Everything hereafter is post-processing
+  # Clip to [0, 1]
+  log_expectations = np.minimum(log_expectations_noised, 0.)
+
+  # Additional penalty term for not terminating, negative by definition
+  d_no_term = log_expectations
+  # Additional penalty term for not terminating, usually positive
+  d_term = (np.log(1 - (1-p0)*np.exp(log_expectations)) - np.log(p0))
+
+  # Prevent numerical imprecision error
+  d_term *= happened
+
+  # No termination (when t0 == num_time_steps) should not incur penalty
+  # because the prior doesn't contribute the p0 factor either
+  d_term[num_time_steps] = 0.
+  return d_term.astype(np.float32), d_no_term.astype(np.float32)
+
+
 def it_num_infected_probs(probs: List[float]) -> Iterable[Tuple[int, float]]:
   """Iterates over the number of infected neighbors and its probabilities.
 

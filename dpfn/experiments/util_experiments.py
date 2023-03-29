@@ -27,6 +27,7 @@ def wrap_fact_neigh_inference(
     dp_method: int = -1,
     epsilon_dp: float = -1.,
     delta_dp: float = -1.,
+    a_rdp: float = -1.,
     quantization: int = -1,
     trace_dir: Optional[str] = None,
     ):
@@ -48,15 +49,16 @@ def wrap_fact_neigh_inference(
       contacts_all=contacts_list,
       alpha=alpha,
       beta=beta,
-      probab_0=p0,
-      probab_1=p1,
-      g_param=g_param,
-      h_param=h_param,
-      dp_method=dp_method,
-      epsilon_dp=epsilon_dp,
-      delta_dp=delta_dp,
-      clip_lower=clip_lower,
-      clip_upper=clip_upper,
+      probab_0=p0,  # Probability of spontaneous infection
+      probab_1=p1,  # Probability of transmission given a contact
+      g_param=g_param,  # Dynamics parameter for E -> I transition
+      h_param=h_param,  # Dynamics parameter for I -> R transition
+      dp_method=dp_method,  # Integer to choose an experimental dp method
+      epsilon_dp=epsilon_dp,  # epsilon parameter for Differential Privacy
+      delta_dp=delta_dp,  # delta parameter for Differential Privacy
+      a_rdp=a_rdp,  # alpha parameter for Renyi Differential Privacy
+      clip_lower=clip_lower,  # Lower bound for clipping, depends on method
+      clip_upper=clip_upper,  # Upper bound for clipping, depends on method
       start_belief=start_belief,
       quantization=quantization,
       users_stale=users_stale,

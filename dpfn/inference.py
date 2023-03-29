@@ -35,6 +35,7 @@ def fn_step_wrapped(
     dp_method: int = -1,
     epsilon_dp: float = -1.,
     delta_dp: float = -1.,
+    a_rdp: float = -1.,
     quantization: int = -1,):
   """Wraps one step of Factorised Neighbors over a subset of users.
 
@@ -56,6 +57,7 @@ def fn_step_wrapped(
     dp_method: DP method to use, as integer
     epsilon_dp: epsilon for DP
     delta_dp: delta for DP
+    a_rdp: alpha parameter for Renyi Differential Privacy
     quantization: number of quantization levels
   """
   with numba.objmode(t0='f8'):
@@ -102,6 +104,21 @@ def fn_step_wrapped(
       p1=probab1,
       past_contacts=past_contacts_array[i],
       num_time_steps=num_time_steps)
+
+    if dp_method == 5:
+      assert delta_dp < 0
+      assert epsilon_dp > 0
+      assert a_rdp > 0
+      d_term, d_no_term = util.precompute_d_penalty_terms_rdp(
+        p_infected_matrix,
+        p0=probab0,
+        p1=probab1,
+        clip_lower=clip_lower,
+        clip_upper=clip_upper,
+        a_rdp=a_rdp,
+        epsilon_rdp=epsilon_dp,
+        past_contacts=past_contacts_array[i],
+        num_time_steps=num_time_steps)
     d_noterm_cumsum = np.cumsum(d_no_term)
 
     d_penalties = (
@@ -120,7 +137,7 @@ def fn_step_wrapped(
       num_contacts_min, _ = util_dp.get_num_contacts_min_max(
         past_contacts_array[i], num_time_steps)
 
-      num_contacts_min = int(max((num_contacts_min, 5)))
+      num_contacts_min = int(max((num_contacts_min, 2)))
       sensitivity_dp = util_dp.get_sensitivity_log(
         num_contacts_min, probab0, probab1,
         clip_lower=clip_lower, clip_upper=clip_upper)
@@ -162,6 +179,7 @@ def fact_neigh(
     dp_method: int = -1,
     epsilon_dp: float = -1.,
     delta_dp: float = -1.,
+    a_rdp: float = -1.,
     verbose: bool = False,
     trace_dir: Optional[str] = None,
     diagnostic: Optional[Any] = None) -> Tuple[np.ndarray, np.ndarray]:
@@ -189,6 +207,7 @@ def fact_neigh(
     dp_method: Differential privacy method to use. -1 indicates no DP.
     epsilon_dp: Epsilon for differential privacy
     delta_dp: Delta for differential privacy
+    a_rdp: alpha parameter for Renyi Differential Privacy
     verbose: set to true to get more verbose output
 
   Returns:
@@ -333,6 +352,7 @@ def fact_neigh(
       dp_method=dp_method,
       epsilon_dp=epsilon_dp,
       delta_dp=delta_dp,
+      a_rdp=a_rdp,
       quantization=quantization)
 
     # Prepare buffer for Allgatherv

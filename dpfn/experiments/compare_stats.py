@@ -57,6 +57,7 @@ def make_inference_func(
   quantization = cfg["model"]["quantization"]
   epsilon_dp = cfg["model"]["epsilon_dp"]
   delta_dp = cfg["model"]["delta_dp"]
+  a_rdp = cfg["model"]["a_rdp"]
   clip_lower = cfg["model"]["clip_lower"]
   clip_upper = cfg["model"]["clip_upper"]
   dp_method = cfg["model"]["dp_method"]
@@ -88,6 +89,7 @@ def make_inference_func(
       dp_method=dp_method,
       epsilon_dp=epsilon_dp,
       delta_dp=delta_dp,
+      a_rdp=a_rdp,
       clip_lower=clip_lower,
       clip_upper=clip_upper,
       quantization=quantization,
