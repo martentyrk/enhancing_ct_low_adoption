@@ -70,6 +70,16 @@ def test_calc_prec_recall():
   np.testing.assert_almost_equal(recall, 0.75)
 
 
+def test_calc_prec_recall_nan():
+  states = np.array([4, 4, 4, 4, 4, 4, 4, 4, 4])
+  users_to_quarantine = np.array([1, 2, 3, 5, 7])
+  precision, recall = prequential.calc_prec_recall(states, users_to_quarantine)
+
+  # When no users are infected, precision should be 0 and recall should be 1
+  np.testing.assert_almost_equal(precision, 0.0)
+  np.testing.assert_almost_equal(recall, 1.0)
+
+
 def test_select_quarantine_users():
   states = np.array([
     [[0., 0.3, 0., 0.]],
