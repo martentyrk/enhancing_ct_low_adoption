@@ -652,7 +652,7 @@ def precompute_d_penalty_terms_rdp(
   # Add RDP noise
   assert clip_lower < 0.
   assert clip_upper > 1.
-  num_contacts = np.maximum(num_contacts, 1)  # TODO assert this contact
+  num_contacts = np.maximum(np.sum(num_contacts), 1)
   sensitivity = np.log(1 - p1)
   sigma_squared_lognormal = a_rdp / (2 * num_contacts * epsilon_rdp)
   sigma_squared_lognormal *= sensitivity**2
