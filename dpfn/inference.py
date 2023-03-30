@@ -130,7 +130,7 @@ def fn_step_wrapped(
     log_joint = log_c_z_u[i] + log_A_start + d_penalties + start_belief_all[i]
 
     # Calculate noise for differential privacy
-    if dp_method == 2:
+    if dp_method == 4:
       assert epsilon_dp > 0
       assert delta_dp > 0
 
@@ -334,7 +334,7 @@ def fact_neigh(
 
   belief_day1 = np.copy(post_exp_collect[:, 1])
 
-  if dp_method in [1, 2, 4, 5]:
+  if dp_method >= 4:
 
     post_noised, _, _ = fn_step_wrapped(
       user_interval,
@@ -366,32 +366,7 @@ def fact_neigh(
       post_noised.astype(np.single),
       recvbuf=[pnoised_collect, sizes_memory, offsets, MPI.FLOAT])
 
-    if dp_method == 4:
-      assert epsilon_dp < 0
-
-    if dp_method == 1:
-      assert delta_dp > 0
-      assert epsilon_dp > 0
-      assert clip_upper < 1.0
-
-      dp_noise = np.sqrt(2 * np.log(1.25 / delta_dp)) / epsilon_dp
-
-      # Add noise for Differential Privacy
-      sensitivity = clip_upper * (1-probab_1) + (1. - clip_upper)
-      noise = np.random.randn(num_users, num_time_steps)
-
-      pnoised_collect[:, :, 2] += noise * sensitivity * dp_noise
-
-      # Post-process to ensure that the probabilities are still valid
-      pnoised_collect = np.clip(pnoised_collect, 0., 1.)
-      pnoised_collect /= np.sum(pnoised_collect, axis=-1, keepdims=True)
-
     post_final = pnoised_collect
-  elif dp_method == 3:
-    assert delta_dp < 0
-    assert clip_upper > 1.0
-
-    post_final = post_exp_collect
   else:
     post_final = post_exp_collect
   return belief_day1, post_final.astype(np.float32)

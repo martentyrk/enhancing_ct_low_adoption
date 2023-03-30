@@ -10,7 +10,6 @@ from dpfn import constants
 from dpfn import LOGGER_FILENAME, logger
 from dpfn import simulator
 from dpfn import util
-from dpfn import util_dp
 from dpfn import util_wandb
 import numba
 import os
@@ -189,10 +188,6 @@ def compare_prequential_quarantine(
   start_belief_inferred = -1 * np.ones((num_users, 4))
   start_belief_global = (
     np.ones((num_users, 4)) * np.array([1. - probab_0, probab_0, 0., 0.]))
-
-  if cfg["model"]["dp_method"] == 3:
-    start_belief_global = util_dp.noise_i_column_beta(
-      start_belief_global, float(cfg["model"]["epsilon_dp"]))
 
   if quick:
     num_rounds = 2

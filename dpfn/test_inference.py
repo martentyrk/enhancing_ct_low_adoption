@@ -226,7 +226,7 @@ def test_factorised_neighbor_step_clipping():
     clip_lower=.01,
     clip_upper=.8,
     past_contacts_array=past_contacts,
-    dp_method=2,
+    dp_method=4,
     epsilon_dp=1.,
     delta_dp=1./100,
     start_belief=np.ones((num_users, 4), dtype=np.float32),
