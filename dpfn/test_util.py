@@ -425,7 +425,7 @@ def test_d_penalty_rdp_regression():
     [.9, .9, .9, .9, .9, .9, .9, .9],
     [.8, .8, .8, .8, .8, .8, .8, .8],
     [.1, .1, .1, .1, .1, .1, .1, .1],
-  ])
+  ], dtype=np.float32)
 
   past_contacts, _ = util.get_past_contacts_static(
     (0, num_users), contacts_all, num_msg=int(num_time_steps*100))
@@ -506,6 +506,40 @@ def test_d_penalty_rdp_noisy():
 
   assert np.max(np.abs(d_term1 - d_term2)) > 1E-2
   assert np.max(np.abs(d_no_term1 - d_no_term2)) > 1E-2
+
+
+def test_add_lognormal_noise_rdp():
+  means = np.array([.1, .3, .6, .9, .99])
+
+  results = np.exp(util.add_lognormal_noise_rdp(
+    np.log(means),
+    num_contacts=5,
+    epsilon_dp=10000,
+    a_rdp=5,
+    sensitivity=np.log(0.9),
+    clip_lower=-1,
+    clip_upper=1000,
+  ))
+
+  np.testing.assert_array_almost_equal(results, means, decimal=2)
+
+
+def test_add_lognormal_noise_rdp_repeat():
+  means = np.array([.1, .3, .6, .9, .99])
+
+  num_repeats = 30
+
+  results = np.mean([np.exp(util.add_lognormal_noise_rdp(
+    np.log(means),
+    num_contacts=5,
+    epsilon_dp=5,
+    a_rdp=5,
+    sensitivity=np.log(0.9),
+    clip_lower=-1,
+    clip_upper=1000)) for _ in range(num_repeats)], axis=0)
+
+  np.testing.assert_array_almost_equal(results, means, decimal=2, err_msg=(
+    "Stochastic test, but should be very unlikely to fail."))
 
 
 def test_softmax():

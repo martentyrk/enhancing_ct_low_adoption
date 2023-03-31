@@ -71,7 +71,11 @@ def make_inference_func(
       param_g=g,
       param_h=h,
       quantization=quantization,
-      trace_dir=trace_dir)
+      trace_dir=trace_dir,
+      a_rdp=-1,
+      epsilon_dp=-1,
+      clip_lower=-1,
+      clip_upper=10000)
   elif inference_method == "fn":
     inference_func = util_experiments.wrap_fact_neigh_inference(
       num_users=num_users,

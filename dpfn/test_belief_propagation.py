@@ -14,7 +14,7 @@ def construct_test_problem():
     [0, 1-g, g, 0],
     [0, 0, 1-h, h],
     [0, 0, 0, 1]
-  ])
+  ], dtype=np.float32)
 
   num_time_steps = 5
   observations_all = [
@@ -40,7 +40,7 @@ def test_adjust_matrices_map():
     [0, 1-g, g, 0],
     [0, 0, 1-h, h],
     [0, 0, 0, 1]
-  ])
+  ], dtype=np.float32)
 
   # User 0 receives a forward message from user 1 at timestep 1
   forward_incoming_messages = np.array(
@@ -50,7 +50,8 @@ def test_adjust_matrices_map():
     A_matrix=A_matrix,
     p1=p1,
     forward_messages=forward_incoming_messages,
-    num_time_steps=3)
+    num_time_steps=3,
+    a_rdp=-1, epsilon_dp=-1, clip_lower=-1., clip_upper=10000.)
 
   # The probably infected user 0 changes the p(s->s) for user 1
   p_ss = (1-p0)*(0.5*(1-p1) + 0.5)
@@ -59,7 +60,7 @@ def test_adjust_matrices_map():
     [0, 1-g, g, 0],
     [0, 0, 1-h, h],
     [0, 0, 0, 1]
-  ])
+  ], dtype=np.float32)
   expected = np.stack((A_matrix, A_matrix_adj, A_matrix))
 
   # Message backward should go to user 1 at timestep 1
@@ -99,7 +100,7 @@ def test_fward_bward_user():
      [0.5439617808, 0.0133640701, 0.2960082206, 0.1466659284],
      [0.538522163, 0.0143489979, 0.2017935038, 0.2453353353]]
   )
-  np.testing.assert_array_almost_equal(bp_beliefs_user, expected, decimal=8)
+  np.testing.assert_array_almost_equal(bp_beliefs_user, expected, decimal=6)
 
 
 def test_consistent_fward():
@@ -289,7 +290,7 @@ def test_fward_bward_messages_simul_receive2():
        [0.7991252922, 0.1307034257, 0.0664786895, 0.0036925926],
        [0.7911340393, 0.0951268701, 0.0878869349, 0.0258521558]]])
 
-  np.testing.assert_array_almost_equal(bp_beliefs, expected, decimal=8)
+  np.testing.assert_array_almost_equal(bp_beliefs, expected, decimal=6)
 
 
 def test_fward_bward_messages_simul_send2():
@@ -471,7 +472,7 @@ def test_fward_bward_messages_simul_receive3():
      [0.75008794, 0.1632298849, 0.0829895825, 0.0036925926],
      [0.7425870606, 0.1163208027, 0.10973635, 0.0313557868]]])
 
-  np.testing.assert_array_almost_equal(bp_beliefs, expected, decimal=8)
+  np.testing.assert_array_almost_equal(bp_beliefs, expected, decimal=6)
 
 
 def test_fward_bward_messages_simul_send3_quantized():

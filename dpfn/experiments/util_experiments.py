@@ -198,6 +198,10 @@ def wrap_belief_propagation(
     beta: float,
     p0: float,
     p1: float,
+    clip_lower: float,
+    clip_upper: float,
+    epsilon_dp: float,
+    a_rdp: float,
     quantization: int = -1,
     freeze_backwards: bool = False,
     trace_dir: Optional[str] = None,
@@ -210,11 +214,11 @@ def wrap_belief_propagation(
     [0, 1-param_g, param_g, 0],
     [0, 0, 1-param_h, param_h],
     [0, 0, 0, 1]
-  ])
+  ], dtype=np.float32)
 
   obs_distro = {
-    0: np.array([1-beta, 1-beta, alpha, 1-beta]),
-    1: np.array([beta, beta, 1-alpha, beta]),
+    0: np.array([1-beta, 1-beta, alpha, 1-beta], dtype=np.float32),
+    1: np.array([beta, beta, 1-alpha, beta], dtype=np.float32),
   }
 
   def bp_wrapped(
@@ -240,7 +244,7 @@ def wrap_belief_propagation(
     contacts_list = list(filter(filter_fn, contacts_list))
 
     # Collect observations, allows for multiple observations per user per day
-    obs_messages = np.ones((num_users, num_time_steps, 4))
+    obs_messages = np.ones((num_users, num_time_steps, 4), dtype=np.float32)
     for obs in observations_list:
       if obs[1] < num_time_steps:
         obs_messages[obs[0]][obs[1]] *= obs_distro[obs[2]]
@@ -262,12 +266,12 @@ def wrap_belief_propagation(
         belief_propagation.do_backward_forward_and_message(
           A_matrix, p0, p1, num_time_steps, obs_messages, num_users,
           map_backward_message, map_forward_message, user_interval,
-          start_belief=start_belief,
+          clip_lower, clip_upper, epsilon_dp, a_rdp, start_belief=start_belief,
           quantization=quantization))
-      if num_time_steps > 5:
-        # Only check after a few burnin days
-        assert np.max(map_forward_message[:, -1, :]) < 0
-        assert np.max(map_backward_message[:, -1, :]) < 0
+      # if num_time_steps > 5:
+      #   # Only check after a few burnin days
+      #   assert np.max(map_forward_message[:, -1, :]) < 0
+      #   assert np.max(map_backward_message[:, -1, :]) < 0
 
       t_inference += timing[1] - timing[0]
       t_quant += timing[2] - timing[1]

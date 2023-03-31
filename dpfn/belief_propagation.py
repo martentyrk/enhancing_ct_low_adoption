@@ -16,13 +16,18 @@ def adjust_matrices_map(
     A_matrix: np.ndarray,
     p1: float,
     forward_messages: np.ndarray,
-    num_time_steps: int) -> np.ndarray:
+    num_time_steps: int,
+    clip_lower: float,
+    clip_upper: float,
+    epsilon_dp: float,
+    a_rdp: float) -> np.ndarray:
   """Adjusts dynamics matrices based in messages from incoming contacts."""
   A_adjusted = np.copy(A_matrix)
   A_adjusted = np.ones((num_time_steps, 4, 4), dtype=np.single) * A_adjusted
 
   # First collate all incoming forward messages according to timestep
-  log_probs = np.ones((num_time_steps)) * np.log(A_matrix[0][0])
+  log_probs = np.ones(
+    (num_time_steps), dtype=np.float32) * np.log(A_matrix[0][0])
   for row in forward_messages:
     _, user_me, timestep, p_inf_message = (
       int(row[0]), int(row[1]), int(row[2]), row[3])
@@ -31,8 +36,13 @@ def adjust_matrices_map(
     # assert user_me == user, f"User {user_me} is not {user}"
 
     # Calculation
-    add_term = np.log((p_inf_message * (1-p1) + (1-p_inf_message) * 1))
+    add_term = np.log(p_inf_message * (1-p1) + (1-p_inf_message))
     log_probs[timestep] += add_term
+
+  if a_rdp > 0:
+    log_probs = util.add_lognormal_noise_rdp(
+      log_probs, np.sum(forward_messages[:, 0] > 0), a_rdp, epsilon_dp,
+      np.log(1-p1), clip_lower=clip_lower, clip_upper=clip_upper)
 
   transition_prob = np.exp(log_probs)
 
@@ -51,7 +61,11 @@ def forward_backward_user(
     forward_messages: np.ndarray,
     num_time_steps: int,
     obs_messages: np.ndarray,
-    start_belief: Optional[np.ndarray] = None
+    start_belief: Optional[np.ndarray] = None,
+    clip_lower: float = -1.,
+    clip_upper: float = 10000.,
+    epsilon_dp: float = -1.,
+    a_rdp: float = -1.,
     ) -> Tuple[np.ndarray, List[Any], List[Any]]:
   """Does forward backward step for one user.
 
@@ -93,15 +107,17 @@ def forward_backward_user(
   mu_back_contact /= np.expand_dims(np.sum(mu_back_contact, axis=1), axis=1)
 
   # Clip messages in case of quantization
-  mu_back_contact = np.minimum(0.9999, np.maximum(mu_back_contact, 0.0001))
+  mu_back_contact = np.minimum(
+    0.9999, np.maximum(mu_back_contact, 0.0001)).astype(np.float32)
 
-  mu_f2v_forward = np.zeros((num_time_steps, 4))
-  mu_f2v_backward = np.zeros((num_time_steps, 4))
+  mu_f2v_forward = np.zeros((num_time_steps, 4), dtype=np.float32)
+  mu_f2v_backward = np.zeros((num_time_steps, 4), dtype=np.float32)
 
   # Forward messages can be interpreted as modifying the dynamics matrix.
   # Therefore, we precompute these matrices using the incoming forward messages
   A_user = adjust_matrices_map(
-    A_matrix, p1, forward_messages, num_time_steps)
+    A_matrix, p1, forward_messages, num_time_steps, clip_lower, clip_upper,
+    epsilon_dp=epsilon_dp, a_rdp=a_rdp)
 
   betas = np.zeros((num_time_steps, 4))
   # Move all messages forward
@@ -244,6 +260,10 @@ def do_backward_forward_subset(
     obs_messages: np.ndarray,
     map_backward_message: np.ndarray,
     map_forward_message: np.ndarray,
+    clip_lower: float = -1.,
+    clip_upper: float = 10000.,
+    epsilon_dp: float = -1.,
+    a_rdp: float = -1.,
     start_beliefs: Optional[np.ndarray] = None,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
   """Does forward backward on a subset of users in sequence.
@@ -276,7 +296,11 @@ def do_backward_forward_subset(
           map_forward_message[user_id],
           num_time_steps,
           obs_messages[user_id],
-          start_belief_user))
+          start_belief_user,
+          clip_lower,
+          clip_upper,
+          epsilon_dp=epsilon_dp,
+          a_rdp=a_rdp))
 
   return bp_beliefs_subset, messages_forward_subset, messages_backward_subset
 
@@ -292,6 +316,10 @@ def do_backward_forward_and_message(
     map_backward_message: np.ndarray,
     map_forward_message: np.ndarray,
     user_interval: Tuple[int, int],
+    clip_lower: float = -1.,
+    clip_upper: float = 10000.,
+    epsilon_dp: float = -1.,
+    a_rdp: float = -1.,
     start_belief: Optional[np.ndarray] = None,
     quantization: Optional[int] = -1,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Tuple[float, float, float]]:
@@ -308,6 +336,10 @@ def do_backward_forward_and_message(
     obs_messages=obs_messages,
     map_backward_message=map_backward_message,
     map_forward_message=map_forward_message,
+    clip_lower=clip_lower,
+    clip_upper=clip_upper,
+    epsilon_dp=epsilon_dp,
+    a_rdp=a_rdp,
     start_beliefs=start_belief)
 
   with numba.objmode(t1='f8'):

@@ -74,6 +74,10 @@ def make_inference_func(
       p1=p1,
       param_g=g,
       param_h=h,
+      epsilon_dp=epsilon_dp,
+      a_rdp=a_rdp,
+      clip_lower=clip_lower,
+      clip_upper=clip_upper,
       quantization=quantization,
       trace_dir=trace_dir)
   elif inference_method == "fn":

@@ -501,6 +501,36 @@ def softmax(x):
 
 
 @numba.njit
+def add_lognormal_noise_rdp(
+    log_means: np.ndarray,
+    num_contacts: int,
+    a_rdp: float,
+    epsilon_dp: float,
+    sensitivity: float,
+    clip_lower: float,
+    clip_upper: float,) -> np.ndarray:
+  """Adds noise to log_means using RDP."""
+  # Add RDP noise
+  assert clip_lower < 0., "No clipping implemented yet"
+  assert clip_upper > 1., "No clipping implemented yet"
+  assert np.abs(sensitivity) > 1E-5, "Sensitivity must be defined for now"
+  assert len(log_means.shape) == 1, "Only implemented for arrays"
+
+  num_contacts = np.maximum(num_contacts, 1)
+
+  sigma_squared_lognormal = a_rdp / (2 * num_contacts * epsilon_dp)
+  sigma_squared_lognormal *= sensitivity**2
+
+  # Mu parameter is the mean in the log-domain
+  mu_lognormal = log_means - 0.5 * sigma_squared_lognormal
+
+  num_vars = len(log_means)
+  log_values = (mu_lognormal
+                + np.sqrt(sigma_squared_lognormal) * np.random.randn(num_vars))
+  return log_values.astype(np.float32)
+
+
+@numba.njit
 def precompute_d_penalty_terms_fn(
     q_marginal_infected: np.ndarray,
     p0: float,
@@ -633,7 +663,7 @@ def precompute_d_penalty_terms_rdp(
 
   # Scales with O(T)
   log_expectations = np.zeros((num_time_steps+1), dtype=np.float32)
-  num_contacts = np.zeros((num_time_steps+1), dtype=np.int32)
+  num_contacts = 0
   happened = np.zeros((num_time_steps+1), dtype=np.float32)
 
   # t_contact = past_contacts[0][0]
@@ -647,24 +677,18 @@ def precompute_d_penalty_terms_rdp(
     happened[time_inc+1] = 1
     p_inf_inc = q_marginal_infected[int(row[1])][time_inc]
     log_expectations[time_inc+1] += np.log(p_inf_inc*(1-p1) + (1-p_inf_inc))
-    num_contacts[time_inc+1] += 1
 
-  # Add RDP noise
-  assert clip_lower < 0.
-  assert clip_upper > 1.
-  num_contacts = np.maximum(np.sum(num_contacts), 1)
-  sensitivity = np.log(1 - p1)
-  sigma_squared_lognormal = a_rdp / (2 * num_contacts * epsilon_rdp)
-  sigma_squared_lognormal *= sensitivity**2
-  mu_lognormal = log_expectations - 0.5 * sigma_squared_lognormal
+    num_contacts += 1
 
-  log_expectations_noised = (
-    mu_lognormal
-    + np.sqrt(sigma_squared_lognormal) * np.random.randn(num_time_steps+1))
+  if a_rdp > 0:
+    log_expectations_noised = add_lognormal_noise_rdp(
+      log_expectations, num_contacts, a_rdp, epsilon_rdp, np.log(1 - p1),
+      clip_lower, clip_upper)
 
-  # Everything hereafter is post-processing
-  # Clip to [0, 1]
-  log_expectations = np.minimum(log_expectations_noised, 0.)
+    # Everything hereafter is post-processing
+    # Clip to [0, 1], equals clip to [\infty, 0] in logdomain
+    log_expectations = np.minimum(
+      log_expectations_noised, 0.).astype(np.float32)
 
   # Additional penalty term for not terminating, negative by definition
   d_no_term = log_expectations
