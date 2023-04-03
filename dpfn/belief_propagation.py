@@ -44,6 +44,11 @@ def adjust_matrices_map(
       log_probs, np.sum(forward_messages[:, 0] > 0), a_rdp, epsilon_dp,
       np.log(1-p1), clip_lower=clip_lower, clip_upper=clip_upper)
 
+    # Everything hereafter is post-processing
+    # Clip to [0, 1], equals clip to [\infty, 0] in logdomain
+    log_probs = np.minimum(
+      log_probs, 0.).astype(np.float32)
+
   transition_prob = np.exp(log_probs)
 
   A_adjusted[:, 0, 0] = transition_prob
