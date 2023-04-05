@@ -417,12 +417,12 @@ def wrap_sib(
 def set_noisy_test_params(cfg: Dict[str, Any]) -> Dict[str, Any]:
   """Sets the noise parameters of the observational model."""
   noise_level = cfg["model"]["noisy_test"]
-  assert 0 <= noise_level <= 3
+  assert noise_level <= 3
 
-  if noise_level == 0:
+  if noise_level < 0:
     return cfg
 
-  alpha_betas = [(), (.001, 0.01), (.01, .1), (.03, .25)]
+  alpha_betas = [(1E-9, 1E-9), (.001, 0.01), (.01, .1), (.03, .25)]
 
   # Set model parameters
   cfg["model"]["alpha"] = alpha_betas[noise_level][0]
