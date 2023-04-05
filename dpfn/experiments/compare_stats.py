@@ -388,8 +388,6 @@ def compare_prequential_quarantine(
         "load5": loadavg5,
         "swap_use": swap_use,
         "recall": recall,
-        "high_score": np.max(rank_score*test_include),
-        "high_score_all": np.max(rank_score),
         })
 
   if mpi_rank == 0:
