@@ -227,27 +227,11 @@ def get_evidence_obs(
 
 def decide_tests(
     scores_infect: np.ndarray,
-    test_include: np.ndarray,
     num_tests: int) -> np.ndarray:
   assert num_tests < len(scores_infect)
-  assert scores_infect.shape == test_include.shape
 
-  users_to_test = np.argsort(scores_infect*test_include)[-num_tests:]
+  users_to_test = np.argsort(scores_infect)[-num_tests:]
   return users_to_test.astype(np.int32)
-
-
-def remove_positive_users(observations, test_include: np.ndarray) -> np.ndarray:
-  """Removes users that are positive from the test include list.
-
-  Args:
-    observations: The observations, array of shape (num_obs, 3), where the
-      columns are (user, timestep, outcome)
-    test_include: The test include list, array of shape (num_users, ). A value
-      of 0 indicates that the user should not be tested.
-  """
-  users_positive = observations[observations[:, 2] > 0][:, 0]
-  test_include[users_positive] = 0.
-  return test_include
 
 
 def delay_contacts(

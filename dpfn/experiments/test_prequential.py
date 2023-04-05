@@ -151,32 +151,12 @@ def test_get_evidence_obs():
 def test_decide_tests():
 
   scores = np.array([.9, .9, .3, .4, .5, .1, .2])
-  test_include = np.array([0., 0., 1., 1., 1., 1., 1.])
   users_to_test = prequential.decide_tests(
-    scores, test_include, num_tests=3)
+    scores, num_tests=3)
 
   np.testing.assert_array_almost_equal(
-    np.sort(users_to_test), np.array([2, 3, 4]))
-  np.testing.assert_array_almost_equal(
-    test_include, np.array([0., 0., 1., 1., 1., 1., 1.]))
+    np.sort(users_to_test), np.array([0, 1, 4]))
   assert users_to_test.dtype == np.int32
-
-
-def test_remove_positive_users():
-  observations = np.array([
-    (0, 1, 0),
-    (4, 1, 0),
-    (5, 1, 1),
-    (3, 1, 1),
-    (2, 1, 1),
-  ], dtype=np.int32)
-  test_include = np.array([1., 1., 0., 1., 1., 1., 1.])
-
-  test_include = prequential.remove_positive_users(
-    observations=observations, test_include=test_include)
-
-  expected = np.array([1., 1., 0., 0., 1., 0., 1.])
-  np.testing.assert_array_almost_equal(test_include, expected)
 
 
 def test_offset_observations():

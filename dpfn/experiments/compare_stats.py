@@ -210,8 +210,7 @@ def compare_prequential_quarantine(
 
   # Placeholder for tests on first day
   z_states_inferred = np.zeros((num_users, 1, 4))
-  test_include = np.ones((num_users))
-  user_quarantine_ends = np.zeros((num_users), dtype=np.int32)
+  user_quarantine_ends = -1*np.ones((num_users), dtype=np.int32)
 
   logger.info(f"Do random quarantine? {do_random_quarantine}")
   t0 = time.time()
@@ -256,7 +255,6 @@ def compare_prequential_quarantine(
       # Grab tests on the main process
       users_to_test = prequential.decide_tests(
         scores_infect=rank_score,
-        test_include=test_include,
         num_tests=int(fraction_test * num_users))
 
       obs_today = sim.get_observations_today(
@@ -265,8 +263,6 @@ def compare_prequential_quarantine(
         p_obs_not_infected
       )
 
-      test_include = prequential.remove_positive_users(
-        obs_today, test_include)
     else:
       users_to_test = []
       obs_today = []
