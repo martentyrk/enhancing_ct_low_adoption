@@ -105,21 +105,6 @@ def test_calc_prec_recall_nan():
   np.testing.assert_almost_equal(recall, 1.0)
 
 
-def test_select_quarantine_users():
-  states = np.array([
-    [[0., 0.3, 0., 0.]],
-    [[0., .55, 0., 0.]],
-    [[0., .65, 0., 0.]],
-    [[0., .45, 0., 0.]]
-  ])
-
-  users = prequential.select_quarantine_users(states, threshold=.4)
-  assert set(users.tolist()) == {1, 2, 3}
-
-  users = prequential.select_quarantine_users_max(states, num_quarantine=2)
-  assert set(users.tolist()) == {1, 2}
-
-
 def test_get_evidence_obs():
   alpha = 1E-9
   beta = 1E-9

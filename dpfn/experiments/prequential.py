@@ -30,10 +30,10 @@ def dump_results_json(
   model_keys = [
     "p0", "p1", "alpha", "beta", "prob_g", "prob_h",
     "noisy_test", "num_days_window", "quantization",
-    "threshold_quarantine", "num_rounds", "sib_mult"]
+    "num_rounds", "sib_mult"]
   data_keys = [
-    "num_users", "num_time_steps", "fraction_quarantine", "num_days_quarantine",
-    "fraction_test", "do_conditional_testing", "fraction_stale"]
+    "num_users", "num_time_steps", "num_days_quarantine",
+    "fraction_test", "fraction_stale"]
 
   for key in model_keys:
     kwargs[f"model.{key}"] = cfg["model"][key]
@@ -172,19 +172,6 @@ def calc_prec_recall(
   precision = true_positives / (np.sum(users_quarantine_array) + eps)
   recall = true_positives / (np.sum(states_e_i) + eps)
   return precision, recall
-
-
-def select_quarantine_users(
-    traces: np.ndarray, threshold: float = .3) -> np.ndarray:
-  """Selects users to quarantine if p(z in {E,I}) exceeds threshold."""
-  return np.where((traces[:, -1, 1] + traces[:, -1, 2]) > threshold)[0]
-
-
-def select_quarantine_users_max(
-    traces: np.ndarray, num_quarantine=20) -> np.ndarray:
-  """Selects users to quarantine based on highest p(z in {E,I}) score."""
-  score = traces[:, -1, 1] + traces[:, -1, 2]
-  return np.argsort(score)[-num_quarantine:]
 
 
 def remove_quarantine_users(

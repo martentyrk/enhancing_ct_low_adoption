@@ -141,19 +141,15 @@ def compare_prequential_quarantine(
 
   num_days_window = cfg["model"]["num_days_window"]
   quantization = cfg["model"]["quantization"]
-  threshold_quarantine = cfg["model"]["threshold_quarantine"]
 
   num_rounds = cfg["model"]["num_rounds"]
   rng_seed = cfg.get("seed", 123)
 
   fraction_test = cfg["data"]["fraction_test"]
-  do_conditional_testing = bool(cfg["data"]["do_conditional_testing"])
-  do_conditional_quarantine = bool(cfg["data"]["do_conditional_quarantine"])
   positive_e_state = bool(cfg["data"]["positive_e_state"])
 
   # Data and simulator params
   fraction_stale = cfg["data"]["fraction_stale"]
-  fraction_quarantine = cfg["data"]["fraction_quarantine"]
   num_days_quarantine = cfg["data"]["num_days_quarantine"]
   t_start_quarantine = cfg["data"]["t_start_quarantine"]
 
@@ -166,12 +162,7 @@ def compare_prequential_quarantine(
   }
 
   logger.info((
-    f"Settings at experiment: {quantization:.0f} quant, "
-    f"{threshold_quarantine:.3f} threshold, "
-    f"conditional testing {do_conditional_testing} at {fraction_test}%"))
-
-  # Manual parameters for quarantining
-  num_quarantine = int(fraction_quarantine * num_users)
+    f"Settings at experiment: {quantization:.0f} quant, at {fraction_test}%"))
 
   users_stale = None
   if fraction_stale > 0:
@@ -245,11 +236,10 @@ def compare_prequential_quarantine(
     # For each day, t_now, only receive obs up to and including 't_now-1'
     assert sim.get_current_day() == t_now
 
-    rank_score = np.random.rand(num_users)
-    if do_conditional_testing:
-      rank_score = (z_states_inferred[:, -1, 1] + z_states_inferred[:, -1, 2])
-      if do_conditional_quarantine:
-        rank_score *= (user_quarantine_ends < t_now)
+    rank_score = (z_states_inferred[:, -1, 1] + z_states_inferred[:, -1, 2])
+
+    # Do not test when user in quarantine
+    rank_score *= (user_quarantine_ends < t_now)
 
     if mpi_rank == 0:
       # Grab tests on the main process
@@ -258,11 +248,7 @@ def compare_prequential_quarantine(
         num_tests=int(fraction_test * num_users))
 
       obs_today = sim.get_observations_today(
-        users_to_test.astype(np.int32),
-        p_obs_infected,
-        p_obs_not_infected
-      )
-
+        users_to_test.astype(np.int32), p_obs_infected, p_obs_not_infected)
     else:
       users_to_test = []
       obs_today = []
@@ -320,21 +306,13 @@ def compare_prequential_quarantine(
       if mpi_rank == 0:
         logger.info(f"Time spent on inference_func {time.time() - t_start:.0f}")
 
-      # Decide who to quarantine and subtract contacts
-      if threshold_quarantine > 0:
-        users_to_quarantine = prequential.select_quarantine_users(
-          z_states_inferred, threshold=threshold_quarantine)
-      else:
-        users_to_quarantine = prequential.select_quarantine_users_max(
-          z_states_inferred, num_quarantine=num_quarantine)
     else:
       z_states_inferred = np.zeros((num_users, num_days, 4))
       users_to_quarantine = np.random.choice(
-        num_users, size=(num_quarantine)).tolist()
+        num_users, size=(int(0.05*num_users))).tolist()
 
-    if do_conditional_quarantine:
-      logger.info("Conditional quarantine")
-      users_to_quarantine = obs_today[np.where(obs_today[:, 2] > 0)[0], 0]
+    logger.info("Conditional quarantine")
+    users_to_quarantine = obs_today[np.where(obs_today[:, 2] > 0)[0], 0]
 
     if t_now < t_start_quarantine:
       users_to_quarantine = np.array([], dtype=np.int32)
