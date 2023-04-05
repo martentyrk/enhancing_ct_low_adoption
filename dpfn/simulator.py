@@ -252,6 +252,10 @@ class ABMSimulator(Simulator):
       constants.state_to_seir,
       np.array(covid19.get_state(self.model.model.c_model)))
 
+  def _get_states_abm(self) -> np.ndarray:
+    """Returns the states of the underlying abm simulator."""
+    return np.array(covid19.get_state(self.model.model.c_model))
+
   def step(self, num_steps: int = 1):
     """Advances the simulator by num_steps days.
 

@@ -132,7 +132,7 @@ def get_observations_one_day(
   assert np.abs(p_obs_infected[0] + p_obs_infected[1] - 1.) < 0.001
   assert np.abs(p_obs_not_infected[0] + p_obs_not_infected[1] - 1.) < 0.001
 
-  states_user = np.take(states, users_to_observe)
+  states_user = states[users_to_observe]
   positive = (states_user == 2)
 
   if positive_e_state:
@@ -144,7 +144,7 @@ def get_observations_one_day(
 
   observations[:, 0] = users_to_observe
   observations[:, 1] = timestep
-  observations[:, 2] = sample_prob > np.random.rand(num_obs)
+  observations[:, 2] = sample_prob >= np.random.rand(num_obs)
 
   return observations.astype(np.int32)
 

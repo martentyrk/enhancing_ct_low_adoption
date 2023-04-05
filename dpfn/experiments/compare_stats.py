@@ -185,9 +185,9 @@ def compare_prequential_quarantine(
 
   # Set conditional distributions for observations
   p_obs_infected = np.array(
-    [cfg["model"]["alpha"], 1-float(cfg["model"]["alpha"])], dtype=np.float32)
+    [cfg["data"]["alpha"], 1-float(cfg["data"]["alpha"])], dtype=np.float32)
   p_obs_not_infected = np.array(
-    [1-float(cfg["model"]["beta"]), cfg["model"]["beta"]], dtype=np.float32)
+    [1-float(cfg["data"]["beta"]), cfg["data"]["beta"]], dtype=np.float32)
 
   start_belief_global = (
     np.ones((num_users, 4)) * np.array([1. - probab_0, probab_0, 0., 0.]))
@@ -211,7 +211,7 @@ def compare_prequential_quarantine(
   # Placeholder for tests on first day
   z_states_inferred = np.zeros((num_users, 1, 4))
   test_include = np.ones((num_users))
-  users_not_quarantined = np.ones((num_users), dtype=np.bool)
+  user_quarantine_ends = np.zeros((num_users), dtype=np.int32)
 
   logger.info(f"Do random quarantine? {do_random_quarantine}")
   t0 = time.time()
@@ -246,11 +246,11 @@ def compare_prequential_quarantine(
     # For each day, t_now, only receive obs up to and including 't_now-1'
     assert sim.get_current_day() == t_now
 
-    rank_score = np.random.randn(num_users)
+    rank_score = np.random.rand(num_users)
     if do_conditional_testing:
-      rank_score = z_states_inferred[:, -1, 2]
+      rank_score = (z_states_inferred[:, -1, 1] + z_states_inferred[:, -1, 2])
       if do_conditional_quarantine:
-        rank_score *= users_not_quarantined
+        rank_score *= (user_quarantine_ends < t_now)
 
     if mpi_rank == 0:
       # Grab tests on the main process
@@ -338,13 +338,12 @@ def compare_prequential_quarantine(
 
     if do_conditional_quarantine:
       logger.info("Conditional quarantine")
-      users_to_quarantine = [
-        obs[0] for obs in obs_today if obs[2] > 0]
+      users_to_quarantine = obs_today[np.where(obs_today[:, 2] > 0)[0], 0]
 
     if t_now < t_start_quarantine:
       users_to_quarantine = np.array([], dtype=np.int32)
 
-    users_not_quarantined[users_to_quarantine] = False
+    user_quarantine_ends[users_to_quarantine] = t_now + num_days_quarantine
 
     # This function will remove the contacts that happen TODAY (and which may
     # spread the virus and cause people to shift to E-state tomorrow).
@@ -364,7 +363,8 @@ def compare_prequential_quarantine(
       pir_running = max((pir_running, infection_rate))
       logger.info((f"precision: {precision:5.2f}, recall: {recall: 5.2f}, "
                    f"infection rate: {infection_rate:5.3f}({pir_running:5.3f}),"
-                   f"{exposed_rate:5.3f}, tests: {len(users_to_test):5.0f}"))
+                   f"{exposed_rate:5.3f}, tests: {len(users_to_test):5.0f} "
+                   f"Qs: {len(users_to_quarantine):5.0f}"))
 
       precisions[t_now] = precision
       recalls[t_now] = recall

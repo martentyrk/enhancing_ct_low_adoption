@@ -61,6 +61,31 @@ def test_get_observations_one_day():
   np.testing.assert_array_almost_equal(observations, observations_expected)
 
 
+def test_get_observations_one_day_slice():
+
+  p_inf = np.array([0., 1.])
+  p_ninf = np.array([1., 0.])
+
+  states = np.array([0, 0, 2, 0, 0, 0])
+  users_to_observe = np.array([3, 1, 4, 2], dtype=np.int32)
+  observations = list(prequential.get_observations_one_day(
+    states=states,
+    users_to_observe=users_to_observe,
+    num_obs=len(users_to_observe),
+    timestep=1,
+    p_obs_infected=p_inf,
+    p_obs_not_infected=p_ninf))
+
+  observations_expected = [
+    (3, 1, 0),
+    (1, 1, 0),
+    (4, 1, 0),
+    (2, 1, 1),
+  ]
+
+  np.testing.assert_array_almost_equal(observations, observations_expected)
+
+
 def test_calc_prec_recall():
   states = np.array([0, 0, 1, 1, 2, 2, 3, 4, 3])
   users_to_quarantine = np.array([1, 2, 3, 5, 7])
