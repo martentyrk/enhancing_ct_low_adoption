@@ -148,45 +148,60 @@ def forward_backward_user(
   # Calculate messages backward
   max_num_messages = num_time_steps*constants.CTC
   messages_send_back = -1 * np.ones((max_num_messages, 7), dtype=np.single)
-  # for row in forward_messages:
-  for num_row in numba.prange(max_num_messages):  # pylint: disable=not-an-iterable
-    user_backward = int(forward_messages[num_row][0])
-    if user_backward < 0:
-      continue
+  # TODO: unfreeze backward messages
+  if a_rdp < 0:
+    for num_row in numba.prange(max_num_messages):  # pylint: disable=not-an-iterable
+      user_backward = int(forward_messages[num_row][0])
+      if user_backward < 0:
+        continue
 
-    timestep_back = int(forward_messages[num_row][2])
-    p_message = float(forward_messages[num_row][3])
-    A_back = A_user[timestep_back]
+      timestep_back = int(forward_messages[num_row][2])
+      p_message = float(forward_messages[num_row][3])
+      A_back = A_user[timestep_back]
 
-    # This is the term that needs cancelling due to the forward message
-    p_transition = A_back[0][0] / (p_message * (1-p1) + (1-p_message) * 1)
+      # This is the term that needs cancelling due to the forward message
+      p_transition = A_back[0][0] / (p_message * (1-p1) + (1-p_message) * 1)
 
-    # Cancel the terms in the two dynamics matrices
-    A_back_0 = np.copy(A_back)
-    A_back_1 = np.copy(A_back)
-    A_back_0[0][0] = p_transition  # S --> S
-    A_back_0[0][1] = 1. - p_transition  # S --> E
-    A_back_1[0][0] = p_transition * (1-p1)  # S --> S
-    A_back_1[0][1] = 1. - p_transition * (1-p1)  # S --> E
+      # Cancel the terms in the two dynamics matrices
+      A_back_0 = np.copy(A_back)
+      A_back_1 = np.copy(A_back)
+      A_back_0[0][0] = p_transition  # S --> S
+      A_back_0[0][1] = 1. - p_transition  # S --> E
+      A_back_1[0][0] = p_transition * (1-p1)  # S --> S
+      A_back_1[0][1] = 1. - p_transition * (1-p1)  # S --> E
 
-    # Calculate the SER terms and calculate the I term
-    mess_SER = np.sum(
-      A_back_0.dot(mu_f2v_backward[timestep_back+1]
-                   * obs_messages[timestep_back+1])
-      * mu_f2v_forward[timestep_back] * obs_messages[timestep_back])
-    mess_I = np.sum(
-      A_back_1.dot(mu_f2v_backward[timestep_back+1]
-                   * obs_messages[timestep_back+1])
-      * mu_f2v_forward[timestep_back] * obs_messages[timestep_back])
-    message_back = np.array([mess_SER, mess_SER, mess_I, mess_SER]) + 1E-12
-    message_back /= np.sum(message_back)
+      # Calculate the SER terms and calculate the I term
+      mess_SER = np.sum(
+        A_back_0.dot(mu_f2v_backward[timestep_back+1]
+                     * obs_messages[timestep_back+1])
+        * mu_f2v_forward[timestep_back] * obs_messages[timestep_back])
+      mess_I = np.sum(
+        A_back_1.dot(mu_f2v_backward[timestep_back+1]
+                     * obs_messages[timestep_back+1])
+        * mu_f2v_forward[timestep_back] * obs_messages[timestep_back])
+      message_back = np.array([mess_SER, mess_SER, mess_I, mess_SER]) + 1E-12
+      message_back /= np.sum(message_back)
 
-    # Collect backward message
-    array_back = np.array(
-      [user, user_backward, timestep_back,
-       message_back[0], message_back[1], message_back[2], message_back[3]],
-      dtype=np.single)
-    messages_send_back[num_row] = array_back
+      # Collect backward message
+      array_back = np.array(
+        [user, user_backward, timestep_back,
+         message_back[0], message_back[1], message_back[2], message_back[3]],
+        dtype=np.single)
+      messages_send_back[num_row] = array_back
+    messages_send_back = messages_send_back.astype(np.float32)
+  else:
+    # On positive a_rdp, we send back uniform messages, because noised up
+    #  forward messages may generate NaN. TODO: fix this
+    messages_send_back[:, 0] = user * np.ones(
+      (max_num_messages), dtype=np.float32)  # user sending
+    messages_send_back[:, 1] = forward_messages[:, 0]  # user receiving
+    messages_send_back[:, 2] = forward_messages[:, 2]  # timestep
+    messages_send_back[:, 3:7] = 0.25  # uniform message
+
+    # Set unused messages to -1
+    num_fwd_messages = int(np.sum(forward_messages[:, 0] >= 0))
+    messages_send_back[num_fwd_messages:] = -1.
+    messages_send_back = messages_send_back.astype(np.float32)
 
   # Calculate messages forward
   messages_send_forward = -1 * np.ones((max_num_messages, 4), dtype=np.single)

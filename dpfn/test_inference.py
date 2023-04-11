@@ -200,7 +200,7 @@ def test_factorised_neighbor_step_clipping():
     num_time_steps,
     p0,
     p1,
-    clip_lower=.1,
+    clip_lower=.2,
     clip_upper=.8,
     past_contacts_array=past_contacts,
     start_belief=np.ones((num_users, 4), dtype=np.float32),

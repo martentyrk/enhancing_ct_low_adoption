@@ -536,3 +536,38 @@ def test_fward_bward_messages_simul_send3_quantized():
      [0.3767471036, 0.2760338807, 0.2743890078, 0.0728300079]]])
 
   np.testing.assert_array_almost_equal(bp_beliefs, expected, decimal=2)
+
+
+def test_fward_bward_user_rdp():
+  (p0, p1, alpha, beta, A_matrix, observations_all, contacts_all, num_users,
+   num_time_steps) = construct_test_problem()
+
+  start_belief_def = np.array([1.-p0, p0, 0., 0.], dtype=np.float32)
+  obs_distro = {
+    0: np.array([1-beta, 1-beta, alpha, 1-beta]),
+    1: np.array([beta, beta, 1-alpha, beta]),
+  }
+
+  obs_messages = np.ones((num_users, num_time_steps, 4), dtype=np.float32)
+  for obs in observations_all:
+    obs_messages[obs[0]][obs[1]] *= obs_distro[obs[2]]
+
+  map_forward_message, map_backward_message = (
+    belief_propagation.init_message_maps(
+      contacts_all, (0, num_users), num_time_steps))
+
+  user_test = 0
+  bp_beliefs_user, _, _ = (
+    belief_propagation.forward_backward_user(
+      A_matrix, p1, user_test, map_backward_message[user_test],
+      map_forward_message[user_test], num_time_steps, obs_messages[user_test],
+      start_belief_def))
+
+  bp_noised, _, _ = (
+    belief_propagation.forward_backward_user(
+      A_matrix, p1, user_test, map_backward_message[user_test],
+      map_forward_message[user_test], num_time_steps, obs_messages[user_test],
+      start_belief_def, a_rdp=5, epsilon_dp=0.1))
+
+  diff = np.sum(np.abs(bp_beliefs_user - bp_noised))
+  assert diff > 1E-3
