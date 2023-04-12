@@ -812,3 +812,30 @@ def test_add_dp_noise():
   assert np.abs(log_joint_noisy[13] - log_joint[13]) > 1e-9
   assert np.abs(log_joint_noisy[14] - log_joint[14]) > 1e-9
   assert np.abs(log_joint_noisy[16] - log_joint[16]) > 1e-9
+
+
+def test_root_find_a_rdp():
+
+  delta = 1/200
+
+  a_value, eps_value = util.root_find_a_rdp(1., delta)
+  mult1 = a_value / eps_value
+  a_value, eps_value = util.root_find_a_rdp(2., delta)
+  mult2 = a_value / eps_value
+
+  assert mult1 > mult2
+
+
+def test_root_find_a_rdp_error():
+  with np.testing.assert_raises(AssertionError):
+    util.root_find_a_rdp(0., 1/200)
+  with np.testing.assert_raises(AssertionError):
+    util.root_find_a_rdp(1., 200)
+
+
+def test_root_find_a_rdp_values():
+  num_interp = 5
+
+  for delta_inv in 10**np.linspace(1, 4, num=num_interp):
+    for eps in 10**np.linspace(-4, 4, num=num_interp):
+      _ = util.root_find_a_rdp(eps, 1 / delta_inv)

@@ -948,3 +948,34 @@ def add_dp_noise(
   num_sequences = log_joint.shape[0]
   noise = dp_noise * np.random.randn(num_sequences).astype(np.float32)
   return log_joint + noise * noise_indices
+
+
+def root_find_a_rdp(
+    eps: float,
+    delta: float):
+  """Finds a root of the RDP lagrangian."""
+  assert eps > 0
+  assert 0 < delta < 1
+
+  # Fourth order polynomial, see paper for derivation of the coefficients
+  delta_mod = np.log(1/delta)
+  roots = np.roots([eps**2, -2*delta_mod*eps, delta_mod**2, 0, -delta_mod**2])
+
+  for root in roots:
+    if np.imag(root) > 1E-3:
+      # Don't use imaginary roots
+      continue
+
+    root = np.abs(root)
+    if root < 0:
+      # RDP only works with \alpha > 1
+      continue
+
+    a_value = root + 1
+    rho_value = eps - delta_mod / (a_value - 1)
+
+    if rho_value > 0:
+      # \rho must be positive
+      return a_value, rho_value
+
+  raise ValueError(f"No value for rho found \nroots are {roots}")

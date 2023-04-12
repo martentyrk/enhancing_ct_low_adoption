@@ -61,6 +61,13 @@ def make_inference_func(
   clip_upper = cfg["model"]["clip_upper"]
   dp_method = cfg["model"]["dp_method"]
 
+  # TODO: put a flag here to use the analytic solution for a_rdp
+  if int(a_rdp) == -42:
+    # In this clause, we optimize for a_rdp analytically
+    # For any other value of a_rdp, we use the value provided
+    a_rdp, epsilon_dp = util.root_find_a_rdp(eps=epsilon_dp, delta=delta_dp)
+    assert a_rdp / epsilon_dp > 0.0
+
   # Construct dynamics
   # Construct Geometric distro's for E and I states
 
