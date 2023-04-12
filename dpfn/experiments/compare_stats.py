@@ -68,6 +68,12 @@ def make_inference_func(
     a_rdp, epsilon_dp = util.root_find_a_rdp(eps=epsilon_dp, delta=delta_dp)
     assert a_rdp / epsilon_dp > 0.0
 
+    logger.info((
+      f"Optimize a_rdp manually at (eps{epsilon_dp:.2f}, delta{delta_dp:.2f})\n"
+      f"Optimisation returns (a_rdp{a_rdp:.2f}, e{epsilon_dp:.2f})\n"
+      f"At multiplier {a_rdp/epsilon_dp:.2f}"))
+    delta_dp = -1.0  # Set to negative, as we optimised for a_rdp
+
   # Construct dynamics
   # Construct Geometric distro's for E and I states
 

@@ -814,13 +814,43 @@ def test_add_dp_noise():
   assert np.abs(log_joint_noisy[16] - log_joint[16]) > 1e-9
 
 
-def test_root_find_a_rdp():
+def test_root_find_a_rdp_eps():
 
   delta = 1/200
 
+  # Test at intermediate values
   a_value, eps_value = util.root_find_a_rdp(1., delta)
   mult1 = a_value / eps_value
   a_value, eps_value = util.root_find_a_rdp(2., delta)
+  mult2 = a_value / eps_value
+
+  assert mult1 > mult2
+
+  # Test at extreme values
+  a_value, eps_value = util.root_find_a_rdp(0.01, delta)
+  mult1 = a_value / eps_value
+  a_value, eps_value = util.root_find_a_rdp(0.02, delta)
+  mult2 = a_value / eps_value
+
+  assert mult1 > mult2
+
+
+def test_root_find_a_rdp_delta():
+
+  eps = 1.1
+
+  # Test at intermediate values
+  a_value, eps_value = util.root_find_a_rdp(eps, 1/200)
+  mult1 = a_value / eps_value
+  a_value, eps_value = util.root_find_a_rdp(eps, 1/100)
+  mult2 = a_value / eps_value
+
+  assert mult1 > mult2
+
+  # Test at extreme values
+  a_value, eps_value = util.root_find_a_rdp(eps, 1/2000)
+  mult1 = a_value / eps_value
+  a_value, eps_value = util.root_find_a_rdp(eps, 1/1000)
   mult2 = a_value / eps_value
 
   assert mult1 > mult2
