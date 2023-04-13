@@ -65,12 +65,13 @@ def make_inference_func(
   if int(a_rdp) == -42:
     # In this clause, we optimize for a_rdp analytically
     # For any other value of a_rdp, we use the value provided
+    eps_orig = copy.copy(epsilon_dp)
     a_rdp, epsilon_dp = util.root_find_a_rdp(eps=epsilon_dp, delta=delta_dp)
     assert a_rdp / epsilon_dp > 0.0
 
     logger.info((
-      f"Optimize a_rdp manually at (eps{epsilon_dp:.2f}, delta{delta_dp:.2f})\n"
-      f"Optimisation returns (a_rdp{a_rdp:.2f}, e{epsilon_dp:.2f})\n"
+      f"Optimize a_rdp manually at (e, d) ({eps_orig:.2e}, {delta_dp:.2e})\n"
+      f"Optimisation returns (a, e) ({a_rdp:.2e}, {epsilon_dp:.2e})\n"
       f"At multiplier {a_rdp/epsilon_dp:.2f}"))
     delta_dp = -1.0  # Set to negative, as we optimised for a_rdp
 
