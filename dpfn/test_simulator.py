@@ -46,7 +46,8 @@ def test_window_cut():
   sim.set_window(days_offset=0)
   sim.get_observations_today(
     users_to_observe=np.array([], dtype=np.int32),
-    p_obs_infected=p_inf, p_obs_not_infected=p_ninf)
+    p_obs_infected=p_inf, p_obs_not_infected=p_ninf,
+    obs_rng=np.random.default_rng(seed=30))
 
   # Test for removing all contacts/observations
   assert len(sim.get_contacts()) == 4

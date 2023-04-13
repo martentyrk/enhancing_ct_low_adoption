@@ -27,18 +27,19 @@ def test_simulate_one_day():
 
 def test_get_observations_one_day():
 
-  p_inf = np.array([0., 1.])
-  p_ninf = np.array([1., 0.])
+  test_rng = np.random.default_rng(seed=25)
+  p_inf = np.array([0.2, 0.8])
+  p_ninf = np.array([0.8, 0.2])
 
   states = np.array([0, 0, 2, 0])
   users_to_observe = np.array([0, 1, 2, 3], dtype=np.int32)
   observations = list(prequential.get_observations_one_day(
     states=states, users_to_observe=users_to_observe, num_obs=4, timestep=1,
-    p_obs_infected=p_inf, p_obs_not_infected=p_ninf))
+    p_obs_infected=p_inf, p_obs_not_infected=p_ninf, obs_rng=test_rng))
 
   observations_expected = [
-    (0, 1, 0),
-    (1, 1, 0),
+    (0, 1, 1),
+    (1, 1, 1),
     (2, 1, 1),
     (3, 1, 0),
   ]
@@ -49,7 +50,7 @@ def test_get_observations_one_day():
   states = np.array([0, 0, 2, 0])
   observations = list(prequential.get_observations_one_day(
     states=states, users_to_observe=users_to_observe, num_obs=4, timestep=1,
-    p_obs_infected=p_ninf, p_obs_not_infected=p_inf))
+    p_obs_infected=p_ninf, p_obs_not_infected=p_inf, obs_rng=test_rng))
 
   observations_expected = [
     (0, 1, 1),
@@ -63,8 +64,8 @@ def test_get_observations_one_day():
 
 def test_get_observations_one_day_slice():
 
-  p_inf = np.array([0., 1.])
-  p_ninf = np.array([1., 0.])
+  p_inf = np.array([0.2, 0.8])
+  p_ninf = np.array([0.8, 0.2])
 
   states = np.array([0, 0, 2, 0, 0, 0])
   users_to_observe = np.array([3, 1, 4, 2], dtype=np.int32)
@@ -74,11 +75,12 @@ def test_get_observations_one_day_slice():
     num_obs=len(users_to_observe),
     timestep=1,
     p_obs_infected=p_inf,
-    p_obs_not_infected=p_ninf))
+    p_obs_not_infected=p_ninf,
+    obs_rng=np.random.default_rng(seed=25)))
 
   observations_expected = [
-    (3, 1, 0),
-    (1, 1, 0),
+    (3, 1, 1),
+    (1, 1, 1),
     (4, 1, 0),
     (2, 1, 1),
   ]

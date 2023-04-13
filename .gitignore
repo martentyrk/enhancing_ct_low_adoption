@@ -20,3 +20,4 @@ slurm*
 # Local scripts
 copy_jl.sh
 *license.pdf
+scripts/test.sh
