@@ -975,7 +975,12 @@ def root_find_a_rdp(
     rho_value = eps - delta_mod / (a_value - 1)
 
     if rho_value > 0:
+
+      # Prevent floating point precision
+      rho_mod = max((rho_value, 1E-6))
+      a_mod = (a_value / rho_value) * rho_mod
+
       # \rho must be positive
-      return a_value, rho_value
+      return a_mod, rho_mod
 
   raise ValueError(f"No value for rho found \nroots are {roots}")
