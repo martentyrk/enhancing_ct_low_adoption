@@ -688,7 +688,10 @@ def precompute_d_penalty_terms_rdp(
     # Everything hereafter is post-processing
     # Clip to [0, 1], equals clip to [\infty, 0] in logdomain
     log_expectations = np.minimum(
-      log_expectations_noised, 0.).astype(np.float32)
+      log_expectations_noised, 0.)
+
+    log_expectations = np.maximum(
+      log_expectations, num_contacts * np.log(1 - p1)).astype(np.float32)
 
   # Additional penalty term for not terminating, negative by definition
   d_no_term = log_expectations
