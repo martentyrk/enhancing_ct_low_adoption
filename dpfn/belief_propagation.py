@@ -205,24 +205,39 @@ def forward_backward_user(
 
   # Calculate messages forward
   messages_send_forward = -1 * np.ones((max_num_messages, 4), dtype=np.single)
-  # for row in backward_messages:
-  for num_row in numba.prange(max_num_messages):  # pylint: disable=not-an-iterable
-    user_forward = int(backward_messages[num_row][0])
-    if user_forward < 0:
-      continue
+  if a_rdp == -1:
+    # for row in backward_messages:
+    for num_row in numba.prange(max_num_messages):  # pylint: disable=not-an-iterable
+      user_forward = int(backward_messages[num_row][0])
+      if user_forward < 0:
+        continue
 
-    timestep = int(backward_messages[num_row][2])
-    msg_back = backward_messages[num_row][3:7]
+      timestep = int(backward_messages[num_row][2])
+      msg_back = backward_messages[num_row][3:7]
 
-    # Calculate forward message
-    message_backslash = util.normalize(msg_back + 1E-12)
-    # TODO: do in logspace
-    message = betas[timestep] / message_backslash
-    message /= np.sum(message)
+      # Calculate forward message
+      message_backslash = util.normalize(msg_back + 1E-12)
+      # TODO: do in logspace
+      message = betas[timestep] / message_backslash
+      message /= np.sum(message)
 
-    array_fwd = np.array(
-      [user, user_forward, timestep, message[2]], dtype=np.single)
-    messages_send_forward[num_row] = array_fwd
+      array_fwd = np.array(
+        [user, user_forward, timestep, message[2]], dtype=np.single)
+      messages_send_forward[num_row] = array_fwd
+  else:
+    messages_send_forward[:, 0] = user * np.ones(
+      (max_num_messages), dtype=np.float32)  # user sending
+    messages_send_forward[:, 1] = backward_messages[:, 0]  # user receiving
+    messages_send_forward[:, 2] = backward_messages[:, 2]  # timestep
+
+    timestep_array = backward_messages[:, 2].astype(np.int32)
+    messages_send_forward[:, 3] = np.take(
+      betas[:, 3], timestep_array)
+
+    # Set unused messages to -1
+    num_bwd_messages = int(np.sum(backward_messages[:, 0] >= 0))
+    messages_send_forward[num_bwd_messages:] = -1.
+    messages_send_forward = messages_send_forward.astype(np.float32)
 
   betas /= np.expand_dims(np.sum(betas, axis=1), axis=1)
   return betas, messages_send_back, messages_send_forward
