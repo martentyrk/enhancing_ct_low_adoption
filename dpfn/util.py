@@ -700,6 +700,7 @@ def precompute_d_penalty_terms_rdp(
 
   # Prevent numerical imprecision error
   d_term *= happened
+  d_no_term *= happened
 
   # No termination (when t0 == num_time_steps) should not incur penalty
   # because the prior doesn't contribute the p0 factor either
