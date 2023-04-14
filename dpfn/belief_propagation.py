@@ -149,7 +149,7 @@ def forward_backward_user(
   max_num_messages = num_time_steps*constants.CTC
   messages_send_back = -1 * np.ones((max_num_messages, 7), dtype=np.single)
   # TODO: unfreeze backward messages
-  if a_rdp < 0:
+  if a_rdp == -1:
     for num_row in numba.prange(max_num_messages):  # pylint: disable=not-an-iterable
       user_backward = int(forward_messages[num_row][0])
       if user_backward < 0:

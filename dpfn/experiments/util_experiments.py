@@ -268,10 +268,15 @@ def wrap_belief_propagation(
           map_backward_message, map_forward_message, user_interval,
           clip_lower, clip_upper, epsilon_dp, a_rdp, start_belief=start_belief,
           quantization=quantization))
-      # if num_time_steps > 5:
-      #   # Only check after a few burnin days
-      #   assert np.max(map_forward_message[:, -1, :]) < 0
-      #   assert np.max(map_backward_message[:, -1, :]) < 0
+
+      if np.any(np.isinf(map_forward_message)):
+        raise ValueError('Forward message is infinite')
+      if np.any(np.isinf(map_backward_message)):
+        raise ValueError('Backward message is infinite')
+      if np.any(np.isnan(map_forward_message)):
+        raise ValueError('Forward message is NaN')
+      if np.any(np.isnan(map_backward_message)):
+        raise ValueError('Backward message is NaN')
 
       t_inference += timing[1] - timing[0]
       t_quant += timing[2] - timing[1]
