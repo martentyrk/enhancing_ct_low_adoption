@@ -233,7 +233,7 @@ def forward_backward_user(
 
     timestep_array = backward_messages[:, 2].astype(np.int32)
     messages_send_forward[:, 3] = np.take(
-      betas[:, 3], timestep_array)
+      betas[:, 2], timestep_array)
 
     # Set unused messages to -1
     num_bwd_messages = int(np.sum(backward_messages[:, 0] >= 0))
