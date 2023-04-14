@@ -964,26 +964,25 @@ def root_find_a_rdp(
   delta_mod = np.log(1/delta)
   roots = np.roots([eps**2, -2*delta_mod*eps, delta_mod**2, 0, -delta_mod**2])
 
-  for root in roots:
-    if np.imag(root) > 1E-3:
-      # Don't use imaginary roots
-      continue
+  # Only consider real roots
+  roots = np.abs(roots[np.imag(roots) < 1E-3])
 
-    root = np.abs(root)
-    if root < 0:
-      # RDP only works with \alpha > 1
-      continue
+  # Primal feasibility of 'x = a-1>0'
+  roots = roots[roots > 0]
 
-    a_value = root + 1
-    rho_value = eps - delta_mod / (a_value - 1)
+  rho_values = eps - delta_mod / roots
 
-    if rho_value > 0:
+  # Primal feasibility of 'rho>0'
+  rho_values = rho_values[rho_values > 0]
 
-      # Prevent floating point precision
-      rho_mod = max((rho_value, 1E-6))
-      a_mod = (a_value / rho_value) * rho_mod
+  # Prevent numerical error
+  rho_values = np.maximum(rho_values, 1E-6)
+  a_values = 1 + delta_mod / (eps - rho_values)
 
-      # \rho must be positive
-      return a_mod, rho_mod
+  mult_values = a_values / rho_values
+  if len(mult_values) == 0:
+    raise ValueError(f"No solutions {eps:.2e}, {delta:.2e}")
 
-  raise ValueError(f"No value for rho found \nroots are {roots}")
+  # Find lowest multiplier
+  idx = np.argmin(mult_values)
+  return a_values[idx], rho_values[idx]
