@@ -203,9 +203,10 @@ def compare_prequential_quarantine(
   p_obs_not_infected = np.array(
     [1-float(cfg["data"]["beta"]), cfg["data"]["beta"]], dtype=np.float32)
 
-  start_belief_inferred = -1 * np.ones((num_users, 4))
+  # start_belief_inferred = -1 * np.ones((num_users, 4))
   start_belief_global = (
     np.ones((num_users, 4)) * np.array([1. - probab_0, probab_0, 0., 0.]))
+  start_belief_global = start_belief_global.astype(np.float32)
 
   if quick:
     num_rounds = 2
@@ -320,7 +321,7 @@ def compare_prequential_quarantine(
       comm_world.Bcast([contacts_now, MPI.INT32_T], root=0)
       comm_world.Bcast([observations_now, MPI.INT32_T], root=0)
 
-      start_belief_inferred, z_states_inferred = inference_func(
+      _, z_states_inferred = inference_func(
         observations_now,
         contacts_now,
         num_rounds,
