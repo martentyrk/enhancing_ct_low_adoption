@@ -287,13 +287,13 @@ def compare_prequential_quarantine(
 
       # Make inference over SEIR states
       start_belief = start_belief_global
-      if num_days <= t_now:
-        # This condition is true when num_days_window > t_now
-        if mpi_rank == 0:
-          logger.info("Use window!")
-        start_belief = start_belief_inferred
-      start_belief = np.ascontiguousarray(start_belief, dtype=np.single)
-      comm_world.Bcast([start_belief, MPI.FLOAT], root=0)
+      # if num_days <= t_now:
+      #   # This condition is true when num_days_window > t_now
+      #   if mpi_rank == 0:
+      #     logger.info("Use window!")
+      #   start_belief = start_belief_inferred
+      # start_belief = np.ascontiguousarray(start_belief, dtype=np.single)
+      # comm_world.Bcast([start_belief, MPI.FLOAT], root=0)
 
       contacts_now = util.make_default_array(
         sim.get_contacts(), dtype=np.int32, rowlength=4)
