@@ -77,6 +77,7 @@ def advance_simulator(
   sim.init_day0(contacts=[])
 
   states = np.zeros((num_users, num_time_steps), dtype=np.int32)
+  obs_rng = np.random.default_rng(seed=2345)
 
   for t in range(1, num_time_steps):
     users_to_test = np.random.choice(
@@ -84,7 +85,8 @@ def advance_simulator(
     sim.get_observations_today(
       users_to_test,
       p_obs_infected,
-      p_obs_not_infected)
+      p_obs_not_infected,
+      obs_rng)
 
     states[:, t] = sim.get_states_today()
     sim.step()

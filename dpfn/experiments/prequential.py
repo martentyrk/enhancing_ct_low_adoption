@@ -105,6 +105,7 @@ def get_observations_one_day(
     timestep: int,
     p_obs_infected: np.ndarray,
     p_obs_not_infected: np.ndarray,
+    obs_rng: np.random._generator.Generator,
     positive_e_state: bool = False) -> np.ndarray:
   """Makes observations for tests on one day.
 
@@ -116,6 +117,7 @@ def get_observations_one_day(
     timestep: The timestep of the observations.
     p_obs_infected: The probability of a positive test for an infected user.
     p_obs_not_infected: The probability of a positive test for a not infected.
+    obs_rng: Random number generator to ensure reproducibility for a fixed seed.
     positive_e_state: Whether to observe E state as positive
 
   Returns:
@@ -144,7 +146,7 @@ def get_observations_one_day(
 
   observations[:, 0] = users_to_observe
   observations[:, 1] = timestep
-  observations[:, 2] = sample_prob >= np.random.rand(num_obs)
+  observations[:, 2] = sample_prob >= obs_rng.random(num_obs)
 
   return observations.astype(np.int32)
 

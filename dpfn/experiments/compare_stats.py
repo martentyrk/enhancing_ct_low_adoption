@@ -248,7 +248,10 @@ def compare_prequential_quarantine(
         num_tests=int(fraction_test * num_users))
 
       obs_today = sim.get_observations_today(
-        users_to_test.astype(np.int32), p_obs_infected, p_obs_not_infected)
+        users_to_test.astype(np.int32),
+        p_obs_infected,
+        p_obs_not_infected,
+        arg_rng)
     else:
       users_to_test = []
       obs_today = []
@@ -611,6 +614,8 @@ if __name__ == "__main__":
   seed_value = config_wandb.get("seed", None)
   random.seed(seed_value)
   np.random.seed(seed_value)
+  # Random number generator to pass as argument to some imported functions
+  arg_rng = np.random.default_rng(seed=seed_value)
 
   if not do_abm:
     if not os.path.exists(data_dir):

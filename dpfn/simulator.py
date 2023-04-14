@@ -89,6 +89,7 @@ class Simulator(ABC):
       users_to_observe: np.ndarray,
       p_obs_infected: np.ndarray,
       p_obs_not_infected: np.ndarray,
+      obs_rng: np.random._generator.Generator,
       ) -> constants.ObservationList:
     """Returns the observations for current day."""
     assert users_to_observe.dtype == np.int32
@@ -101,6 +102,7 @@ class Simulator(ABC):
       day_relative,
       p_obs_infected,
       p_obs_not_infected,
+      obs_rng,
       positive_e_state=self._postive_e_state)
     self._observations_all = np.concatenate(
       (self._observations_all, observations_new), axis=0)
