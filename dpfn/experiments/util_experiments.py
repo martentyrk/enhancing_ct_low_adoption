@@ -273,10 +273,17 @@ def wrap_belief_propagation(
         raise ValueError('Forward message is infinite')
       if np.any(np.isinf(map_backward_message)):
         raise ValueError('Backward message is infinite')
+      if np.any(np.isinf(bp_beliefs)):
+        raise ValueError('bp_beliefs is infinite')
       if np.any(np.isnan(map_forward_message)):
         raise ValueError('Forward message is NaN')
       if np.any(np.isnan(map_backward_message)):
         raise ValueError('Backward message is NaN')
+      if np.any(np.isnan(bp_beliefs)):
+        raise ValueError('bp_beliefs is NaN')
+
+      if np.any(bp_beliefs < 0):
+        raise ValueError('bp_beliefs is negative???')
 
       t_inference += timing[1] - timing[0]
       t_quant += timing[2] - timing[1]
