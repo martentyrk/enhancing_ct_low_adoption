@@ -140,10 +140,11 @@ def forward_backward_user(
       * mu_back_contact[t_now+1])
 
   # Collect marginal beliefs
-  for t_now in range(num_time_steps):
-    # TODO: do in logspace
-    betas[t_now] = (mu_f2v_forward[t_now] * mu_f2v_backward[t_now]
-                    * obs_messages[t_now] * mu_back_contact[t_now])
+  betas = np.exp(
+    np.log(mu_f2v_forward) + np.log(mu_f2v_backward) + np.log(obs_messages)
+    + np.log(mu_back_contact))
+  # TODO: normalize in log domain
+  betas /= np.expand_dims(np.sum(betas, axis=1), axis=1)
 
   # Calculate messages backward
   max_num_messages = num_time_steps*constants.CTC
@@ -239,7 +240,6 @@ def forward_backward_user(
     messages_send_forward[num_bwd_messages:] = -1.
     messages_send_forward = messages_send_forward.astype(np.float32)
 
-  betas /= np.expand_dims(np.sum(betas, axis=1), axis=1)
   return betas, messages_send_back, messages_send_forward
 
 
