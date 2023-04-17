@@ -1,4 +1,5 @@
 """Utility functions for running experiments."""
+import crisp
 import numba
 import numpy as np
 from mpi4py import MPI  # pytype: disable=import-error
@@ -437,6 +438,61 @@ def wrap_sib(
       axis=-1)
     return marginals_sib[:, 1], marginals_sib
   return sib_wrapped
+
+
+def wrap_gibbs_inference(
+    num_users: int,
+    g_param: float,
+    h_param: float,
+    alpha: float,
+    beta: float,
+    probab_0: float,
+    probab_1: float):
+  """Wraps the inference function that runs Gibbs sampling."""
+  # Construct Geometric distro's for E and I states
+  q_e_vec = [0] + [
+    g_param*(1-g_param)**(i-1) for i in range(1, 100*100+1)]
+  q_i_vec = [0] + [
+    h_param*(1-h_param)**(i-1) for i in range(1, 100*100+1)]
+
+  pmf_e = np.array(q_e_vec) / np.sum(q_e_vec)
+  pmf_i = np.array(q_i_vec) / np.sum(q_i_vec)
+
+  qE = crisp.Distribution(pmf_e.tolist())
+  qI = crisp.Distribution(pmf_i.tolist())
+
+  def gibbs_wrapped(
+      observations_list: np.ndarray,
+      contacts_list: np.ndarray,
+      num_updates: int,
+      num_time_steps: int,
+      start_belief: Optional[np.ndarray] = None,
+      users_stale: Optional[np.ndarray] = None,
+      diagnostic: Optional[Any] = None) -> Tuple[np.ndarray, np.ndarray]:
+    del diagnostic
+
+    if users_stale is not None:
+      raise ValueError('Not implemented stale users for Gibbs')
+    if start_belief is not None:
+      if start_belief[0][2] > 1E-3:
+        # Effectively check is start belief is defined
+        raise ValueError('Not implemented start belief for Gibbs')
+
+    num_burnin = min((num_updates, 10))
+
+    result = crisp.GibbsPIS(
+      num_users,
+      num_time_steps,
+      contacts_list.astype(np.int64),
+      observations_list.astype(np.int64),
+      qE, qI,
+      alpha, beta,
+      probab_0, probab_1,
+      False)
+    marginals = result.get_marginals(num_updates, burnin=num_burnin, skip=10)
+    return marginals[:, 1], marginals
+
+  return gibbs_wrapped
 
 
 def set_noisy_test_params(cfg: Dict[str, Any]) -> Dict[str, Any]:

@@ -111,6 +111,15 @@ def make_inference_func(
       clip_upper=clip_upper,
       quantization=quantization,
       trace_dir=trace_dir)
+  elif inference_method == "gibbs":
+    inference_func = util_experiments.wrap_gibbs_inference(
+      num_users=num_users,
+      g_param=g,
+      h_param=h,
+      alpha=alpha,
+      beta=beta,
+      probab_0=p0,
+      probab_1=p1)
   elif inference_method == "sib":
     # Belief Propagation
     sib_mult = cfg["model"]["sib_mult"]
@@ -137,7 +146,7 @@ def make_inference_func(
   else:
     raise ValueError((
       f"Not recognised inference method {inference_method}. Should be one of"
-      f"['random', 'fn', 'dummy', 'dct', 'dpct', 'bp', 'sib']"
+      f"['random', 'fn', 'dummy', 'dct', 'dpct', 'bp', 'sib', 'gibbs']"
     ))
   return inference_func, do_random_quarantine
 
@@ -539,7 +548,8 @@ if __name__ == "__main__":
     description='Compare statistics acrosss inference methods')
   parser.add_argument('--inference_method', type=str, default='fn',
                       choices=[
-                        'fn', 'dummy', 'random', 'bp', 'dct', 'dpct', 'sib'],
+                        'fn', 'dummy', 'random', 'bp', 'dct', 'dpct', 'sib',
+                        'gibbs'],
                       help='Name of the inference method')
   parser.add_argument('--experiment_setup', type=str, default='single',
                       choices=['single', 'prequential'],
