@@ -88,7 +88,7 @@ def wrap_dummy_inference(
     del diagnostic, start_belief, num_updates, contacts_list, observations_list
     del users_stale
 
-    predictions = np.random.randn(num_users, num_time_steps, 4)
+    predictions = np.random.rand(num_users, num_time_steps, 4)
     predictions /= np.sum(predictions, axis=-1, keepdims=True)
 
     return predictions[:, 1], predictions

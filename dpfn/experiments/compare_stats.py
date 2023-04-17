@@ -442,7 +442,9 @@ def compare_prequential_quarantine(
     logger.info(f"With {num_rounds} rounds, PIR {pir:5.2f}")
     runner.log({
       "time_spent": time_spent,
-      "pir_mean": pir})
+      "pir_mean": pir,
+      "recall": np.nanmean(recalls[10:]),
+      "precision": np.nanmean(precisions[10:])})
 
     # Overwrite every experiment, such that code could be pre-empted
     prequential.dump_results(
