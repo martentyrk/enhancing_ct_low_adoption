@@ -444,7 +444,8 @@ def wrap_gibbs_inference(
     num_users: int,
     g_param: float,
     h_param: float,
-    clip_param: float,
+    clip_lower: float,
+    epsilon_dp: float,
     alpha: float,
     beta: float,
     probab_0: float,
@@ -489,7 +490,7 @@ def wrap_gibbs_inference(
       qE, qI,
       alpha, beta,
       probab_0, probab_1,
-      clip_param, False)
+      clip_lower, epsilon_dp, False)
     marginals = result.get_marginals(num_updates, burnin=num_burnin, skip=10)
     return marginals[:, 1], marginals
 

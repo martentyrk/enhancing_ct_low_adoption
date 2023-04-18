@@ -115,12 +115,14 @@ def make_inference_func(
     if epsilon_dp > 0:
       assert a_rdp < 0
       assert delta_dp < 0
+      assert clip_lower > 0
 
     inference_func = util_experiments.wrap_gibbs_inference(
       num_users=num_users,
       g_param=g,
       h_param=h,
-      clip_param=epsilon_dp,
+      clip_lower=clip_lower,
+      epsilon_dp=epsilon_dp,
       alpha=alpha,
       beta=beta,
       probab_0=p0,
