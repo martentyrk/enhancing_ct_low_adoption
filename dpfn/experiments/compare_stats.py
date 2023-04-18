@@ -112,10 +112,15 @@ def make_inference_func(
       quantization=quantization,
       trace_dir=trace_dir)
   elif inference_method == "gibbs":
+    if epsilon_dp > 0:
+      assert a_rdp < 0
+      assert delta_dp < 0
+
     inference_func = util_experiments.wrap_gibbs_inference(
       num_users=num_users,
       g_param=g,
       h_param=h,
+      clip_param=epsilon_dp,
       alpha=alpha,
       beta=beta,
       probab_0=p0,
