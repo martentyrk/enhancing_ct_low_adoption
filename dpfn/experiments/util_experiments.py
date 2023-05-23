@@ -67,8 +67,10 @@ def wrap_fact_neigh_inference(
 
 
 def wrap_dummy_inference(
-    num_users: int,):
+    num_users: int,
+    trace_dir: Optional[str] = None,):
   """Wraps the inference function for dummy inference."""
+  del trace_dir
 
   def dummy_wrapped(
       observations_list: constants.ObservationList,

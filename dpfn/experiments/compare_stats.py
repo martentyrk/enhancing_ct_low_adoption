@@ -104,7 +104,8 @@ def make_inference_func(
     inference_func = None
     do_random_quarantine = True
   elif inference_method == "dummy":
-    inference_func = util_experiments.wrap_dummy_inference(num_users=num_users)
+    inference_func = util_experiments.wrap_dummy_inference(
+      num_users=num_users, trace_dir=trace_dir)
   elif inference_method == "dct":
     inference_func = util_experiments.wrap_dct_inference(
       num_users=num_users)

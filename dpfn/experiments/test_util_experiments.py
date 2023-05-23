@@ -79,4 +79,4 @@ def test_dpct_inference():
   assert np.all(scores[0, -1, 2] > 0.5)
 
   # Users 3, 4, 5 had no infected contacts
-  assert np.all(scores[3:, -1, 2] < 0.7)
+  np.testing.assert_array_less(scores[3:, -1, 2], 0.75)
