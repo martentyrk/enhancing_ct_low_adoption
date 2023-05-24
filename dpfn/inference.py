@@ -71,19 +71,16 @@ def fn_step_wrapped(
   p_infected_matrix = p_infected_matrix.astype(np.float32)
   if clip_upper < 1.0:
     # Apply clipping
-    p_infected_matrix = np.minimum(p_infected_matrix, clip_upper)
-    p_infected_matrix = p_infected_matrix.astype(np.float32)
+    p_infected_matrix = np.minimum(p_infected_matrix, np.float32(clip_upper))
 
-  p_infected_matrix = p_infected_matrix.astype(np.float32)
   if clip_lower > 0.0:
     # Apply clipping
-    p_infected_matrix = np.maximum(p_infected_matrix, clip_lower)
-    p_infected_matrix = p_infected_matrix.astype(np.float32)
+    p_infected_matrix = np.maximum(p_infected_matrix, np.float32(clip_lower))
 
   interval_num_users = user_interval[1] - user_interval[0]
 
   post_exps = np.zeros((interval_num_users, num_time_steps, 4))
-  num_days_s = np.sum(seq_array_hot[:, 0], axis=0).astype(np.int32)
+  num_days_s = np.sum(seq_array_hot[:, 0], axis=0)
 
   assert np.all(np.sum(seq_array_hot, axis=1) == 1), (
     "seq_array_hot is expected as one-hot array")
