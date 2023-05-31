@@ -105,13 +105,16 @@ def add_noise_per_message_logit(
     clip_lower: float,
     clip_upper: float):
   """Adds noise to the logit of the probability of being infected."""
-  assert 0 <= clip_lower <= 1
+  assert 0 < clip_lower < 1
+  assert 0 < clip_upper < 1
   assert epsilon_dp > 0
   assert delta_dp > 0
 
   # Calculate the sensitivity of the logit of the probability of being infected.
   sensitivity = logit(clip_upper) - logit(clip_lower)
-  assert sensitivity > 0
+  assert sensitivity > 0, (
+    f"Sensitivity {sensitivity:8.3f} should be larger than 0 \n"
+    f"Clip lower {clip_lower:8.3f} and clip upper {clip_upper:8.3f}")
 
   # Calculate the scale of the noise.
   c_factor = np.sqrt(2*np.log(1.25/delta_dp))
