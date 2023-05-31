@@ -481,6 +481,15 @@ def wrap_gibbs_inference(
         raise ValueError('Not implemented start belief for Gibbs')
 
     num_burnin = min((num_updates, 10))
+    skip = 10
+
+    if clip_lower > 0:
+      assert epsilon_dp > 0, "If clipping is enabled, then epsilon_dp must be"
+      # When doing private inference, the burnin steps are non-dp, and we need
+      # more steps to get to the stationary distribution, whereafter we sample
+      # using the DP mechanism.
+      num_burnin = num_updates
+      skip = 1
 
     result = crisp.GibbsPIS(
       num_users,
@@ -491,7 +500,7 @@ def wrap_gibbs_inference(
       alpha, beta,
       probab_0, probab_1,
       clip_lower, epsilon_dp, False)
-    marginals = result.get_marginals(num_updates, burnin=num_burnin, skip=10)
+    marginals = result.get_marginals(num_updates, burnin=num_burnin, skip=skip)
     return marginals[:, 1], marginals
 
   return gibbs_wrapped
