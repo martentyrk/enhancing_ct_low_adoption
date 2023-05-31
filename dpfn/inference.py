@@ -77,6 +77,11 @@ def fn_step_wrapped(
     # Apply clipping
     p_infected_matrix = np.maximum(p_infected_matrix, np.float32(clip_lower))
 
+  if dp_method == 6:
+    assert a_rdp < 0
+    p_infected_matrix = util_dp.add_noise_per_message_logit(
+      p_infected_matrix, epsilon_dp, delta_dp, clip_lower, clip_upper)
+
   interval_num_users = user_interval[1] - user_interval[0]
 
   post_exps = np.zeros((interval_num_users, num_time_steps, 4))

@@ -90,3 +90,34 @@ def noise_i_column_beta(data: np.ndarray, sigma: float) -> np.ndarray:
 
   data[:, 2] = stats.beta(a=a, b=b).rvs(size=(len(data), ))
   return data / np.sum(data, axis=-1, keepdims=True)
+
+
+@numba.njit
+def logit(x: np.ndarray) -> np.ndarray:
+  return np.log(x / (1 - x))
+
+
+@numba.njit
+def add_noise_per_message_logit(
+    p_infected_matrix: np.ndarray,
+    epsilon_dp: float,
+    delta_dp: float,
+    clip_lower: float,
+    clip_upper: float):
+  """Adds noise to the logit of the probability of being infected."""
+  assert 0 <= clip_lower <= 1
+  assert epsilon_dp > 0
+  assert delta_dp > 0
+
+  # Calculate the sensitivity of the logit of the probability of being infected.
+  sensitivity = logit(clip_upper) - logit(clip_lower)
+  assert sensitivity > 0
+
+  # Calculate the scale of the noise.
+  c_factor = np.sqrt(2*np.log(1.25/delta_dp))
+  sigma = np.float32(c_factor * sensitivity / epsilon_dp)
+
+  # Add noise to the logit of the probability of being infected.
+  logits = logit(p_infected_matrix)
+  logits += sigma*np.random.randn(*p_infected_matrix.shape)
+  return 1/(1+np.exp(-1*(logits)))

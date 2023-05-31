@@ -72,3 +72,44 @@ def test_noise_i_column_beta():
 
   data_noised = util_dp.noise_i_column_beta(data, sigma=2.)
   assert np.median(data_noised[:, 2]) > .1
+
+
+def test_logit_noise():
+
+  num_users = 100
+  num_time_steps = 10
+  messages = np.random.rand(num_users, num_time_steps).astype(np.float32)
+
+  messages = util_dp.add_noise_per_message_logit(
+    messages, epsilon_dp=10., delta_dp=0.01,
+    clip_lower=0.01, clip_upper=0.99)
+
+  assert messages.dtype == np.float32
+  np.testing.assert_array_equal(messages.shape, (num_users, num_time_steps))
+
+
+def test_logit_no_noise():
+
+  num_users = 100
+  num_time_steps = 10
+  messages = np.random.rand(num_users, num_time_steps).astype(np.float32)
+
+  messages_out = util_dp.add_noise_per_message_logit(
+    messages, epsilon_dp=1000000., delta_dp=0.01,
+    clip_lower=0.01, clip_upper=0.99)
+
+  np.testing.assert_array_almost_equal(messages, messages_out, decimal=3)
+
+
+def test_logit_lots_noise():
+
+  num_users = 100
+  num_time_steps = 10
+  messages = np.random.rand(num_users, num_time_steps).astype(np.float32)
+
+  messages_out = util_dp.add_noise_per_message_logit(
+    messages, epsilon_dp=0.1, delta_dp=0.001,
+    clip_lower=0.01, clip_upper=0.99)
+
+  diff = np.mean(np.abs(messages - messages_out))
+  assert diff > 0.1, "For small epsilon, the noise should be large."
