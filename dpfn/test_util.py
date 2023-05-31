@@ -488,7 +488,7 @@ def test_d_penalty_rdp_noisy():
     p1=0.3,
     clip_lower=-1,
     clip_upper=1000,
-    a_rdp=10.,
+    a_rdp=1.,
     epsilon_rdp=1,
     past_contacts=past_contacts[user],
     num_time_steps=num_time_steps)
@@ -499,7 +499,7 @@ def test_d_penalty_rdp_noisy():
     p1=0.3,
     clip_lower=-1,
     clip_upper=1000,
-    a_rdp=100.,
+    a_rdp=200.,
     epsilon_rdp=1,
     past_contacts=past_contacts[user],
     num_time_steps=num_time_steps)
