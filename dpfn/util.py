@@ -743,7 +743,10 @@ def maybe_make_dir(dirname: str):
     os.makedirs(dirname)
 
 
-@numba.vectorize('float32(float32, int64)')
+@numba.njit([
+  'float32[:](float32[:], int64)',
+  'float32[:, :](float32[:, :], int64)',
+  'float32[:, :, :](float32[:, :, :], int64)'])
 def quantize(message: np.ndarray, num_levels: int) -> np.ndarray:
   """Quantizes a message based on rounding.
 
@@ -754,12 +757,15 @@ def quantize(message: np.ndarray, num_levels: int) -> np.ndarray:
   if num_levels < 0:
     return message
 
-  message = np.minimum(message, 1.-1E-9)
+  message = np.minimum(message, np.float32(1.-1E-9))
   message_at_floor = np.floor(message * num_levels) / num_levels
-  return message_at_floor + (.5 / num_levels)
+  return message_at_floor + np.float32(.5 / num_levels)
 
 
-@numba.vectorize('float32(float32, int64)')
+@numba.njit([
+  'float32[:](float32[:], int64)',
+  'float32[:, :](float32[:, :], int64)',
+  'float32[:, :, :](float32[:, :, :], int64)'])
 def quantize_floor(message: np.ndarray, num_levels: int) -> np.ndarray:
   """Quantizes a message based on rounding.
 
