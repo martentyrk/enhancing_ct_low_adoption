@@ -18,7 +18,8 @@ def test_flip_message_send():
     [-1, -1, -1, -1],
     [-1, -1, -1, -1],
     [-1, -1, -1, -1]]], dtype=np.float32)
-  msg_list = np.concatenate((msg_list, -1 * np.ones((4, 6, 4))))
+  msg_list = np.concatenate(
+    (msg_list, -1 * np.ones((4, 6, 4), dtype=np.float32)))
   result = util_bp.flip_message_send(
     msg_list, 6, 5, do_bwd=False)
 

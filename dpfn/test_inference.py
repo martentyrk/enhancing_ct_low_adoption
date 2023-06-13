@@ -17,7 +17,7 @@ def test_factorised_neighbor_step():
     ]
   observations_all = np.array([
     (0, 2, 1)
-  ])
+  ], dtype=np.int32)
   num_users = 6
   num_time_steps = 5
 
@@ -134,7 +134,7 @@ def test_factorised_neighbor_step_clipping():
     ]
   observations_all = np.array([
     (0, 2, 1)
-  ])
+  ], dtype=np.int32)
   num_users = 6
   num_time_steps = 5
 
@@ -252,7 +252,7 @@ def test_factorised_neighbor_diff_private():
     ]
   observations_all = np.array([
     (0, 2, 1)
-  ])
+  ], dtype=np.int32)
   num_users = 6
   num_time_steps = 5
 

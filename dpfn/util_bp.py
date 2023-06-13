@@ -5,7 +5,7 @@ import numba
 import numpy as np
 
 
-@numba.njit
+@numba.njit('float32[:, :, :](float32[:, :, :], int64, int64, boolean)')
 def flip_message_send(
     message_list: np.ndarray,
     num_users: int,

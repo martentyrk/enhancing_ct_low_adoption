@@ -73,8 +73,8 @@ def test_fward_bward_user():
 
   start_belief_def = np.array([1.-p0, p0, 0., 0.], dtype=np.float32)
   obs_distro = {
-    0: np.array([1-beta, 1-beta, alpha, 1-beta]),
-    1: np.array([beta, beta, 1-alpha, beta]),
+    0: np.array([1-beta, 1-beta, alpha, 1-beta], dtype=np.float32),
+    1: np.array([beta, beta, 1-alpha, beta], dtype=np.float32),
   }
 
   obs_messages = np.ones((num_users, num_time_steps, 4), dtype=np.float32)
@@ -544,8 +544,8 @@ def test_fward_bward_user_rdp():
 
   start_belief_def = np.array([1.-p0, p0, 0., 0.], dtype=np.float32)
   obs_distro = {
-    0: np.array([1-beta, 1-beta, alpha, 1-beta]),
-    1: np.array([beta, beta, 1-alpha, beta]),
+    0: np.array([1-beta, 1-beta, alpha, 1-beta], dtype=np.float32),
+    1: np.array([beta, beta, 1-alpha, beta], dtype=np.float32),
   }
 
   obs_messages = np.ones((num_users, num_time_steps, 4), dtype=np.float32)

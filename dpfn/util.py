@@ -137,7 +137,8 @@ def get_past_contacts_fast(
   return pc_tensor, max_messages
 
 
-@numba.njit
+@numba.njit(
+  'Tuple((int32[:, :, :], int64))(UniTuple(int64, 2), int32[:, :], int64)')
 def get_past_contacts_static(
     user_interval: Tuple[int, int],
     contacts: np.ndarray,
@@ -221,7 +222,7 @@ def gather_infected_precontacts(
   return num_infected_preparents
 
 
-@numba.njit
+@numba.njit('float32[:, :](UniTuple(int64, 2), float32[:, :, :], int32[:, :])')
 def calc_c_z_u(
     user_interval: Tuple[int, int],
     obs_array: np.ndarray,
@@ -238,7 +239,8 @@ def calc_c_z_u(
   Notation follows the original CRISP paper.
   """
   interval_num_users = user_interval[1] - user_interval[0]
-  log_prob_obs = np.zeros((interval_num_users, obs_array.shape[1]))
+  log_prob_obs = np.zeros(
+    (interval_num_users, obs_array.shape[1]), dtype=np.float32)
 
   if observations.shape[1] > 1:
     # Only run if there are observations
@@ -391,7 +393,7 @@ def make_inf_obs_array(
     iter_sequences(time_total=num_time_steps, start_se=False)))
   time_seqs = state_seq_to_time_seq(pot_seqs, num_time_steps)
 
-  out_array = np.zeros((num_time_steps, len(pot_seqs), 2))
+  out_array = np.zeros((num_time_steps, len(pot_seqs), 2), dtype=np.float32)
   for t in range(num_time_steps):
     out_array[t, :, 0] = np.log(
       np.where(time_seqs[:, t] == 2, alpha, 1-beta))
@@ -500,7 +502,9 @@ def softmax(x):
   return np.exp(y)/np.sum(np.exp(y))
 
 
-@numba.njit
+@numba.njit((
+  'float32[:](float32[:], int64, float64, float64, float64, float64, '
+  'float64)'))
 def add_lognormal_noise_rdp(
     log_means: np.ndarray,
     num_contacts: int,
@@ -530,7 +534,9 @@ def add_lognormal_noise_rdp(
   return log_values.astype(np.float32)
 
 
-@numba.njit
+@numba.njit((
+  'UniTuple(float32[:], 2)(float32[:, :], float64, float64, int32[:, :], '
+  'int64)'))
 def precompute_d_penalty_terms_fn(
     q_marginal_infected: np.ndarray,
     p0: float,
@@ -543,8 +549,8 @@ def precompute_d_penalty_terms_fn(
   applied.
   """
   # Make num_time_steps+1 longs, such that penalties are 0 when t0==0
-  d_term = np.zeros((num_time_steps+1))
-  d_no_term = np.zeros((num_time_steps+1))
+  d_term = np.zeros((num_time_steps+1), dtype=np.float32)
+  d_no_term = np.zeros((num_time_steps+1), dtype=np.float32)
 
   if len(past_contacts) == 0:
     return d_term, d_no_term
@@ -583,7 +589,9 @@ def precompute_d_penalty_terms_fn(
   return d_term, d_no_term
 
 
-@numba.njit
+@numba.njit((
+  'UniTuple(float32[:], 2)(float32[:, :], float64, float64, int32[:, :], '
+  'int64)'))
 def precompute_d_penalty_terms_fn2(
     q_marginal_infected: np.ndarray,
     p0: float,
@@ -635,7 +643,9 @@ def precompute_d_penalty_terms_fn2(
   return d_term.astype(np.float32), d_no_term.astype(np.float32)
 
 
-@numba.njit
+@numba.njit((
+  'UniTuple(float32[:], 2)(float32[:, :], float64, float64, float64, float64,'
+  ' float64, float64, int32[:, :], int64)'))
 def precompute_d_penalty_terms_rdp(
     q_marginal_infected: np.ndarray,
     p0: float,
@@ -733,32 +743,24 @@ def maybe_make_dir(dirname: str):
     os.makedirs(dirname)
 
 
-@numba.njit
-def quantize(message: np.ndarray, num_levels: int
-             ) -> Union[np.ndarray, float]:
+@numba.vectorize('float32(float32, int64)')
+def quantize(message: np.ndarray, num_levels: int) -> np.ndarray:
   """Quantizes a message based on rounding.
 
   Numerical will be mid-bucket.
 
   TODO: implement quantization with coding scheme.
   """
-  dtype_in = message.dtype
   if num_levels < 0:
     return message
 
-  # if np.any(message > 1. + 1E-5):
-  #   logger.info(np.min(message))
-  #   logger.info(np.max(message))
-  #   logger.info(np.mean(message))
-  #   raise ValueError(f"Invalid message {message}")
   message = np.minimum(message, 1.-1E-9)
   message_at_floor = np.floor(message * num_levels) / num_levels
-  return (message_at_floor + (.5 / num_levels)).astype(dtype_in)
+  return message_at_floor + (.5 / num_levels)
 
 
-@numba.njit
-def quantize_floor(message: Union[np.ndarray, float], num_levels: int
-                   ) -> Union[np.ndarray, float]:
+@numba.vectorize('float32(float32, int64)')
+def quantize_floor(message: np.ndarray, num_levels: int) -> np.ndarray:
   """Quantizes a message based on rounding.
 
   Numerical will be at the floor of the bucket.
@@ -768,11 +770,6 @@ def quantize_floor(message: Union[np.ndarray, float], num_levels: int
   if num_levels < 0:
     return message
 
-  # if np.any(message > 1. + 1E-5):
-  #   logger.info(np.min(message))
-  #   logger.info(np.max(message))
-  #   logger.info(np.mean(message))
-  #   raise ValueError(f"Invalid message {message}")
   return np.floor(message * num_levels) / num_levels
 
 
@@ -784,7 +781,7 @@ def get_cpu_count() -> int:
   return int(os.cpu_count() // num_tasks)
 
 
-@numba.njit
+@numba.njit(['float32[:](float32[:])', 'float64[:](float64[:])'])
 def normalize(x: np.ndarray) -> np.ndarray:
   return x / np.sum(x)
 
@@ -940,18 +937,6 @@ def make_default_array(
     return -1 * np.ones((0, rowlength), dtype=dtype)
 
   return array
-
-
-@numba.njit
-def add_dp_noise(
-    dp_noise: float, log_joint: np.ndarray, seq_array_hot: np.ndarray):
-  noise_indices = np.logical_and(
-    seq_array_hot[0, 0] == 1,  # Starts Susceptible
-    seq_array_hot[-1, 2] == 1)  # Ends infected
-
-  num_sequences = log_joint.shape[0]
-  noise = dp_noise * np.random.randn(num_sequences).astype(np.float32)
-  return log_joint + noise * noise_indices
 
 
 def root_find_a_rdp(

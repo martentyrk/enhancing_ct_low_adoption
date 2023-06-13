@@ -45,7 +45,7 @@ def test_calculate_log_c_z():
   observations_all = np.array([
     (1, 2, 1),
     (2, 3, 0),
-    ])
+    ], dtype=np.int32)
 
   a, b = .1, .2
 
@@ -271,7 +271,7 @@ def test_d_penalty_term():
     [.1, .1, .1, .1, .1],
     [.1, .1, .1, .1, .1],
     [.1, .1, .1, .1, .1],
-  ])
+  ], dtype=np.float32)
 
   user = 1
   d_term, d_no_term = util.precompute_d_penalty_terms_fn(
@@ -296,7 +296,7 @@ def test_d_penalty_term():
     [.1, .1, .1, .1, .1],
     [.8, .8, .8, .8, .8],
     [.1, .1, .1, .1, .1],
-  ])
+  ], dtype=np.float32)
 
   user = 1
   d_term, d_no_term = util.precompute_d_penalty_terms_fn(
@@ -339,7 +339,7 @@ def test_d_penalty_term_numerical():
     [.8, .8, .8, .8, .8, .8, .8, .8],
     [.8, .8, .8, .8, .8, .8, .8, .8],
     [.1, .1, .1, .1, .1, .1, .1, .1],
-  ])
+  ], dtype=np.float32)
 
   past_contacts, _ = util.get_past_contacts_static(
     (0, num_users), contacts_all, num_msg=int(num_time_steps*100))
@@ -381,7 +381,7 @@ def test_d_penalty_term_regression():
     [.9, .9, .9, .9, .9, .9, .9, .9],
     [.8, .8, .8, .8, .8, .8, .8, .8],
     [.1, .1, .1, .1, .1, .1, .1, .1],
-  ])
+  ], dtype=np.float32)
 
   past_contacts, _ = util.get_past_contacts_static(
     (0, num_users), contacts_all, num_msg=int(num_time_steps*100))
@@ -477,7 +477,7 @@ def test_d_penalty_rdp_noisy():
     [.9, .9, .9, .9, .9, .9, .9, .9],
     [.8, .8, .8, .8, .8, .8, .8, .8],
     [.1, .1, .1, .1, .1, .1, .1, .1],
-  ])
+  ], dtype=np.float32)
 
   past_contacts, _ = util.get_past_contacts_static(
     (0, num_users), contacts_all, num_msg=int(num_time_steps*100))
@@ -509,7 +509,7 @@ def test_d_penalty_rdp_noisy():
 
 
 def test_add_lognormal_noise_rdp():
-  means = np.array([.1, .3, .6, .9, .99])
+  means = np.array([.1, .3, .6, .9, .99], dtype=np.float32)
 
   results = np.exp(util.add_lognormal_noise_rdp(
     np.log(means),
@@ -525,7 +525,7 @@ def test_add_lognormal_noise_rdp():
 
 
 def test_add_lognormal_noise_rdp_repeat():
-  means = np.array([.1, .3, .6, .9, .99])
+  means = np.array([.1, .3, .6, .9, .99], dtype=np.float32)
 
   num_repeats = 30
 
@@ -684,7 +684,7 @@ def test_past_contact_array_fast_copy_paste_static():
     (1, 2, 2, 1),
     (1, 2, 1, 1),
     (2, 1, 4, 1),
-    ])
+    ], dtype=np.int32)
 
   past_contacts_static, max_num_static = util.get_past_contacts_static(
     (0, 3), contacts_all, num_msg=num_msg)
@@ -789,29 +789,6 @@ def test_get_stale_users_binary():
   np.testing.assert_almost_equal(result[6], 1)
   np.testing.assert_almost_equal(result[7], 0)
   np.testing.assert_almost_equal(result[8], 1)
-
-
-def test_add_dp_noise():
-  num_time_steps = 4
-  seq_array = np.stack(list(
-    util.iter_sequences(time_total=num_time_steps, start_se=False)))
-  seq_array_hot = np.transpose(util.state_seq_to_hot_time_seq(
-    seq_array, time_total=num_time_steps), [1, 2, 0]).astype(np.int8)
-
-  num_sequences = seq_array_hot.shape[2]
-  log_joint = np.random.randn(num_sequences) - 12.
-
-  log_joint_noisy = util.add_dp_noise(
-    dp_noise=10.,
-    log_joint=log_joint,
-    seq_array_hot=seq_array_hot)
-
-  np.testing.assert_almost_equal(log_joint[:12], log_joint_noisy[:12])
-
-  # This is a stochastic test, but it should be true with very high probability
-  assert np.abs(log_joint_noisy[13] - log_joint[13]) > 1e-9
-  assert np.abs(log_joint_noisy[14] - log_joint[14]) > 1e-9
-  assert np.abs(log_joint_noisy[16] - log_joint[16]) > 1e-9
 
 
 def test_root_find_a_rdp_eps():

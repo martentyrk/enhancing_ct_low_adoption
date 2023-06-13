@@ -12,7 +12,7 @@ mpi_rank = comm_world.Get_rank()
 num_proc = comm_world.Get_size()
 
 
-@numba.njit
+@numba.njit(['float32[:](float32[:])', 'float64[:](float64[:])'])
 def softmax(x):
   y = x - np.max(x)
   return np.exp(y)/np.sum(np.exp(y))
@@ -66,7 +66,7 @@ def fn_step_wrapped(
   # Apply quantization
   if quantization > 0:
     p_infected_matrix = util.quantize_floor(
-      p_infected_matrix, num_levels=quantization)
+      p_infected_matrix, quantization)
 
   p_infected_matrix = p_infected_matrix.astype(np.float32)
   if clip_upper < 1.0:

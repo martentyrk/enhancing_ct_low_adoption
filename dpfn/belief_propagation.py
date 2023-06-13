@@ -4,7 +4,7 @@ from mpi4py import MPI  # pytype: disable=import-error
 from dpfn import constants, util, util_bp
 import numba
 import time
-from typing import Any, List, Optional, Tuple
+from typing import Optional, Tuple
 
 comm_world = MPI.COMM_WORLD
 mpi_rank = comm_world.Get_rank()
@@ -70,12 +70,12 @@ def forward_backward_user(
     forward_messages: np.ndarray,
     num_time_steps: int,
     obs_messages: np.ndarray,
-    start_belief: Optional[np.ndarray] = None,
+    start_belief: np.ndarray,
     clip_lower: float = -1.,
     clip_upper: float = 10000.,
     epsilon_dp: float = -1.,
     a_rdp: float = -1.,
-    ) -> Tuple[np.ndarray, List[Any], List[Any]]:
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
   """Does forward backward step for one user.
 
   Args:
@@ -310,20 +310,22 @@ def do_backward_forward_subset(
   Note, the messages are appended, and thus not updated between users!
   """
   num_users_interval = user_interval[1] - user_interval[0]
-  bp_beliefs_subset = np.zeros((num_users_interval, num_time_steps, 4))
+  bp_beliefs_subset = np.zeros(
+    (num_users_interval, num_time_steps, 4), dtype=np.float32)
 
   # Init ndarrays for all messages being sent by users in this subset
   messages_backward_subset = np.zeros(
-    (num_users_interval, num_time_steps*constants.CTC, 7))
+    (num_users_interval, num_time_steps*constants.CTC, 7), dtype=np.float32)
   messages_forward_subset = np.zeros(
-    (num_users_interval, num_time_steps*constants.CTC, 4))
+    (num_users_interval, num_time_steps*constants.CTC, 4), dtype=np.float32)
 
   # Default to start_belief as 1.-p0 in S and p0 in E
   start_belief_def = np.array([1.-p0, p0, 0., 0.], dtype=np.float32)
 
   for user_id in numba.prange(num_users_interval):  # pylint: disable=not-an-iterable
-    start_belief_user = (
-      start_beliefs[user_id] if start_beliefs is not None else start_belief_def)
+    start_belief_user = start_belief_def
+    if start_beliefs is not None:
+      start_belief_user = start_beliefs[user_id].astype(np.float32)
     (
       bp_beliefs_subset[user_id],
       messages_backward_subset[user_id],
@@ -388,7 +390,7 @@ def do_backward_forward_and_message(
   map_backward_message = util_bp.flip_message_send(
     msg_list_bwd, num_users, num_time_steps=num_time_steps, do_bwd=True)
   map_forward_message = util_bp.flip_message_send(
-    msg_list_fwd, num_users, num_time_steps=num_time_steps)
+    msg_list_fwd, num_users, num_time_steps=num_time_steps, do_bwd=False)
 
   # Do quantization
   map_backward_message[:, :, 3:] = util.quantize(
