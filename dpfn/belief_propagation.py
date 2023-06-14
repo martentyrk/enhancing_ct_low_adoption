@@ -11,7 +11,9 @@ mpi_rank = comm_world.Get_rank()
 num_proc = comm_world.Get_size()
 
 
-@numba.njit
+@numba.njit((
+  'float32[:, :, :](float32[:, :], float64, float32[:, :], '
+  'int64, float64, float64, float64, float64)'))
 def adjust_matrices_map(
     A_matrix: np.ndarray,
     p1: float,
@@ -23,7 +25,7 @@ def adjust_matrices_map(
     a_rdp: float) -> np.ndarray:
   """Adjusts dynamics matrices based in messages from incoming contacts."""
   A_adjusted = np.copy(A_matrix)
-  A_adjusted = np.ones((num_time_steps, 4, 4), dtype=np.single) * A_adjusted
+  A_adjusted = np.ones((num_time_steps, 4, 4), dtype=np.float32) * A_adjusted
 
   # First collate all incoming forward messages according to timestep
   log_probs = np.ones(
@@ -61,7 +63,11 @@ def adjust_matrices_map(
   return A_adjusted
 
 
-@numba.njit
+@numba.njit(
+  ('UniTuple(float32[:, :], 3)('
+   'float32[:, :], float64, int64, float32[:, :], float32[:, :], '
+   'int64, float32[:, :], float32[:], '
+   'float64, float64, float64, float64)'))
 def forward_backward_user(
     A_matrix: np.ndarray,
     p1: float,
@@ -71,11 +77,10 @@ def forward_backward_user(
     num_time_steps: int,
     obs_messages: np.ndarray,
     start_belief: np.ndarray,
-    clip_lower: float = -1.,
-    clip_upper: float = 10000.,
-    epsilon_dp: float = -1.,
-    a_rdp: float = -1.,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    clip_lower: float,
+    clip_upper: float,
+    epsilon_dp: float,
+    a_rdp: float) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
   """Does forward backward step for one user.
 
   Args:
@@ -152,7 +157,7 @@ def forward_backward_user(
 
   # Calculate messages backward
   max_num_messages = num_time_steps*constants.CTC
-  messages_send_back = -1 * np.ones((max_num_messages, 7), dtype=np.single)
+  messages_send_back = -1 * np.ones((max_num_messages, 7), dtype=np.float32)
   # TODO: unfreeze backward messages
   if a_rdp == -1:
     for num_row in numba.prange(max_num_messages):  # pylint: disable=not-an-iterable
@@ -191,7 +196,7 @@ def forward_backward_user(
       array_back = np.array(
         [user, user_backward, timestep_back,
          message_back[0], message_back[1], message_back[2], message_back[3]],
-        dtype=np.single)
+        dtype=np.float32)
       messages_send_back[num_row] = array_back
     messages_send_back = messages_send_back.astype(np.float32)
   else:
@@ -209,7 +214,7 @@ def forward_backward_user(
     messages_send_back = messages_send_back.astype(np.float32)
 
   # Calculate messages forward
-  messages_send_forward = -1 * np.ones((max_num_messages, 4), dtype=np.single)
+  messages_send_forward = -1 * np.ones((max_num_messages, 4), dtype=np.float32)
   if a_rdp == -1:
     # for row in backward_messages:
     for num_row in numba.prange(max_num_messages):  # pylint: disable=not-an-iterable
@@ -227,7 +232,7 @@ def forward_backward_user(
       message /= np.sum(message)
 
       array_fwd = np.array(
-        [user, user_forward, timestep, message[2]], dtype=np.single)
+        [user, user_forward, timestep, message[2]], dtype=np.float32)
       messages_send_forward[num_row] = array_fwd
   else:
     messages_send_forward[:, 0] = user * np.ones(
