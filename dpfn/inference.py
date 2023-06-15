@@ -336,6 +336,18 @@ def fact_neigh(
 
   belief_day1 = np.copy(post_exp_collect[:, 1])
 
+  if dp_method == 3:
+    covidscore = util_dp.fn_rdp_mean_noise(
+      q_marginal_infected,
+      user_interval=user_interval,
+      past_contacts=past_contacts,
+      p1=probab_1,
+      epsilon_dp=epsilon_dp,
+      delta_dp=delta_dp)
+    # Embed in post_exp_collect
+    post_final = np.zeros((num_users, num_time_steps, 4), dtype=np.float32)
+    post_final[:, -1, 2] = covidscore
+
   if dp_method >= 4:
 
     post_noised, _, _ = fn_step_wrapped(
@@ -371,4 +383,4 @@ def fact_neigh(
     post_final = pnoised_collect
   else:
     post_final = post_exp_collect
-  return belief_day1, post_final.astype(np.float32)
+  return belief_day1, post_final

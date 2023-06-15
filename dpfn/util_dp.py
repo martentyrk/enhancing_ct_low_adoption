@@ -122,3 +122,45 @@ def add_noise_per_message_logit(
   logits = logit(p_infected_matrix)
   logits += sigma*np.random.randn(*p_infected_matrix.shape)
   return 1/(1+np.exp(-1*(logits)))
+
+
+@numba.njit('f4[:](f4[:, :], UniTuple(i8, 2), i4[:, :, :], f8, f8, f8)')
+def fn_rdp_mean_noise(
+    p_infected: np.ndarray,
+    user_interval: np.ndarray,
+    past_contacts: np.ndarray,
+    p1: float,
+    epsilon_dp: float,
+    delta_dp: float):
+  """Computes the mean covid score for a given user, under DP guarantee."""
+  assert len(past_contacts.shape) == 3
+  assert epsilon_dp > 0
+  assert delta_dp > 0
+
+  interval_num_users = user_interval[1] - user_interval[0]
+  sumscore = np.zeros((interval_num_users), dtype=np.float32)
+  num_contacts = np.zeros((interval_num_users), dtype=np.int32)
+
+  for i in numba.prange(interval_num_users):  # pylint: disable=not-an-iterable
+
+    for row in past_contacts[i]:
+      time_inc = int(row[0])
+      if time_inc < 0:
+        # Array padded with -1, so break when contact time is negative
+        break
+
+      p_inf_inc = p_infected[int(row[1])][time_inc]
+
+      sumscore[i] += np.log(p_inf_inc*(1-p1) + (1-p_inf_inc))
+      num_contacts[i] += 1
+
+  # Add small constant to prevent 0./0., faster than np.nan_to_num
+  sumscore = sumscore / (num_contacts + 1E-12)
+
+  # Add noise for DP guarantee
+  sigma = np.sqrt(2 * np.log(1.25 / delta_dp)) * np.log(1 - p1) / epsilon_dp
+  sumscore = np.exp(sumscore + sigma*np.random.randn(*sumscore.shape))
+  covidscore = 1. - np.minimum(sumscore, 1.)
+
+  # Random normal noise is float64, so cast to float32
+  return covidscore.astype(np.float32)

@@ -1,6 +1,6 @@
 """Test functions for util_dp.py."""
 
-from dpfn import util_dp
+from dpfn import util, util_dp
 import numpy as np
 
 
@@ -113,3 +113,66 @@ def test_logit_lots_noise():
 
   diff = np.mean(np.abs(messages - messages_out))
   assert diff > 0.1, "For small epsilon, the noise should be large."
+
+
+def test_fn_geometric_mean_noise():
+  num_users = 100
+  num_time_steps = 10
+  probab1 = 0.1
+  p_infected = np.random.rand(num_users, num_time_steps).astype(np.float32)
+
+  contacts_all = np.array([
+    (0, 1, 2, 1),
+    (1, 0, 2, 1),
+    (3, 2, 2, 1),
+    (2, 3, 2, 1),
+    (4, 5, 2, 1),
+    (5, 4, 2, 1),
+    ], dtype=np.int32)
+
+  past_contacts, _ = util.get_past_contacts_static(
+    (0, num_users), contacts_all, num_msg=10*num_time_steps)
+
+  print(util_dp.fn_rdp_mean_noise.signatures)
+
+  outcome = util_dp.fn_rdp_mean_noise(
+    p_infected=p_infected,
+    user_interval=(0, num_users),
+    past_contacts=past_contacts,
+    p1=probab1,
+    epsilon_dp=1.,
+    delta_dp=1/2000)
+
+  assert np.all(outcome >= 0.)
+  assert np.all(outcome <= 1.)
+
+
+def test_fn_geometric_mean_noise_high_eps():
+  num_users = 100
+  num_time_steps = 10
+  probab1 = 0.1
+  p_infected = np.random.rand(num_users, num_time_steps).astype(np.float32)
+
+  contacts_all = np.array([
+    (0, 1, 2, 1),
+    (1, 0, 2, 1),
+    (3, 2, 2, 1),
+    (2, 3, 2, 1),
+    (4, 5, 2, 1),
+    (5, 4, 2, 1),
+    ], dtype=np.int32)
+
+  past_contacts, _ = util.get_past_contacts_static(
+    (0, num_users), contacts_all, num_msg=10*num_time_steps)
+
+  outcome = util_dp.fn_rdp_mean_noise(
+    p_infected=p_infected,
+    user_interval=(0, num_users),
+    past_contacts=past_contacts,
+    p1=probab1,
+    epsilon_dp=100.,
+    delta_dp=1/200)
+
+  # For a high value of epsilon, agents without a contact should have
+  # a low covidscore
+  assert np.all(outcome[7:] < 0.1)
