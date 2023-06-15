@@ -348,7 +348,7 @@ def fact_neigh(
     post_final = np.zeros((num_users, num_time_steps, 4), dtype=np.float32)
     post_final[:, -1, 2] = covidscore
 
-  if dp_method >= 4:
+  elif dp_method >= 4:
 
     post_noised, _, _ = fn_step_wrapped(
       user_interval,
