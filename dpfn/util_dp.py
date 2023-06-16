@@ -154,13 +154,16 @@ def fn_rdp_mean_noise(
       sumscore[i] += np.log(p_inf_inc*(1-p1) + (1-p_inf_inc))
       num_contacts[i] += 1
 
-  # Add small constant to prevent 0./0., faster than np.nan_to_num
-  sumscore = sumscore / (num_contacts + 1E-12)
-
   # Add noise for DP guarantee
-  sigma = np.sqrt(2 * np.log(1.25 / delta_dp)) * np.log(1 - p1) / epsilon_dp
-  sumscore = np.exp(sumscore + sigma*np.random.randn(*sumscore.shape))
-  covidscore = 1. - np.minimum(sumscore, 1.)
+  sigma = (
+    np.sqrt(2 * np.log(1.25 / delta_dp)) * np.abs(np.log(1 - p1)) / epsilon_dp)
+  sumscore += sigma*np.random.randn(*sumscore.shape)
+  # Add small constant to prevent 0./0., faster than np.nan_to_num
+  inv_covidscore = np.exp(sumscore / (num_contacts + 1E-12))
+  covidscore = 1. - np.minimum(inv_covidscore, 1.)
+
+  # Agents without contacts have covidscore 0.
+  covidscore[num_contacts == 0] = 0.
 
   # Random normal noise is float64, so cast to float32
   return covidscore.astype(np.float32)

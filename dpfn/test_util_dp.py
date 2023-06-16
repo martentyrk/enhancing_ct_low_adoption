@@ -153,6 +153,9 @@ def test_fn_geometric_mean_noise_high_eps():
   probab1 = 0.1
   p_infected = np.random.rand(num_users, num_time_steps).astype(np.float32)
 
+  ptest = 0.4
+  p_infected[0, 2] = ptest
+
   contacts_all = np.array([
     (0, 1, 2, 1),
     (1, 0, 2, 1),
@@ -170,9 +173,11 @@ def test_fn_geometric_mean_noise_high_eps():
     user_interval=(0, num_users),
     past_contacts=past_contacts,
     p1=probab1,
-    epsilon_dp=100.,
-    delta_dp=1/200)
+    epsilon_dp=1000.,
+    delta_dp=1/20)
 
-  # For a high value of epsilon, agents without a contact should have
-  # a low covidscore
-  assert np.all(outcome[7:] < 0.1)
+  # For a high value of epsilon, the noise should be small
+  np.testing.assert_almost_equal(1-outcome[1], 1-probab1*ptest, decimal=1)
+
+  # Users without contacts should have 0 score
+  assert np.all(outcome[7:] == 0)
