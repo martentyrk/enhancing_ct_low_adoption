@@ -38,6 +38,9 @@ class StoreSEIR(cv.Analyzer):
     self.precisions = np.zeros((num_days), dtype=np.float32)
     self.recalls = np.zeros((num_days), dtype=np.float32)
 
+    self.timestamps = np.zeros((num_days+1), dtype=np.float64)
+    self.timestamps[0] = time.time()
+
   def apply(self, sim):
     """Applies the analyser on the simulation object."""
     ppl = sim.people  # Shorthand
@@ -58,6 +61,7 @@ class StoreSEIR(cv.Analyzer):
 
     # Number of infected people in isolation over total number of infected
     self.recalls[day] = (true_positives+1E-9) / (np.sum(ppl.infectious) + 1E-9)
+    self.timestamps[day+1] = time.time() - self.timestamps[day]
 
     logger.info((
       f"On day {day:3} recall is {self.recalls[day]:.2f} "
