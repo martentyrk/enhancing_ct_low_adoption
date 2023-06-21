@@ -337,13 +337,22 @@ def fact_neigh(
   belief_day1 = np.copy(post_exp_collect[:, 1])
 
   if dp_method == 2:
-    covidscore_unnoised = post_exp[:, -1, 2]
+    assert epsilon_dp > 0.
+    assert delta_dp > 0.
+    assert clip_lower > 0.
+    covidscore = post_exp[:, -1, 2]
 
-    sigma_additive = (probab_1/epsilon_dp) * np.sqrt(2*np.log(5/(4*delta_dp)))
-    covidscore = covidscore_unnoised + sigma_additive*np.random.randn(num_users)
+    covidscore = np.clip(covidscore, clip_lower, 1.-clip_lower)
+    covidscore = util_dp.add_noise_per_message_logit(
+      covidscore,
+      epsilon_dp=epsilon_dp,
+      delta_dp=delta_dp,
+      clip_lower=clip_lower,
+      clip_upper=clip_lower + probab_1,
+    )
 
     post_final = np.zeros((num_users, num_time_steps, 4), dtype=np.float32)
-    post_final[:, -1, 2] = np.clip(covidscore, 0., 1.)
+    post_final[:, -1, 2] = covidscore
 
   elif dp_method == 3:
     covidscore = util_dp.fn_rdp_mean_noise(
