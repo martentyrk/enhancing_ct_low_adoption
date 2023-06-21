@@ -1,10 +1,11 @@
 """Test functions for util_bp.py."""
 
-from dpfn import util_bp
+from dpfn import constants, util_bp
 import numpy as np
 
 
 def test_flip_message_send():
+  num_time_steps = 5
   msg_list = np.array([[
     [0, 1, 0, 0.1],
     [0, 2, 0, 0.2],
@@ -21,9 +22,10 @@ def test_flip_message_send():
   msg_list = np.concatenate(
     (msg_list, -1 * np.ones((4, 6, 4), dtype=np.float32)))
   result = util_bp.flip_message_send(
-    msg_list, 6, 5, do_bwd=False)
+    msg_list, 6, num_time_steps=num_time_steps, do_bwd=False)
 
-  np.testing.assert_array_almost_equal(result.shape, (6, 500, 4))
+  np.testing.assert_array_almost_equal(
+    result.shape, (6, num_time_steps*constants.CTC, 4))
   np.testing.assert_array_almost_equal(result[0, 0, :], [1, 0, 0, 0.7])
   np.testing.assert_array_almost_equal(result[1, 0, :], [0, 1, 0, 0.1])
   np.testing.assert_array_almost_equal(result[2, 0, :], [0, 2, 0, 0.2])

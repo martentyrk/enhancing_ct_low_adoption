@@ -242,12 +242,15 @@ def calc_c_z_u(
   log_prob_obs = np.zeros(
     (interval_num_users, obs_array.shape[1]), dtype=np.float32)
 
+  num_days = obs_array.shape[0]
+
   if observations.shape[1] > 1:
     # Only run if there are observations
     for obs in observations:
       user_u = obs[0]
 
       if user_interval[0] <= user_u < user_interval[1]:
+        assert obs[1] < num_days
         log_prob_obs[user_u - user_interval[0]] += obs_array[obs[1], :, obs[2]]
 
   return log_prob_obs
