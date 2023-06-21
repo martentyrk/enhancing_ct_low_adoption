@@ -10,6 +10,7 @@ from dpfn import util
 from dpfn import util_wandb
 import numba
 import os
+import psutil
 import random
 import time
 import traceback
@@ -83,6 +84,8 @@ def compare_policy_covasim(
   num_rounds = cfg["model"]["num_rounds"]
 
   fraction_test = cfg["data"]["fraction_test"]
+
+  cv.set_seed(cfg.get("seed", 123))
 
   logger.info((
     f"Settings at experiment: {quantization:.0f} quant, at {fraction_test}%"))
@@ -224,11 +227,17 @@ def compare_policy_covasim(
     time_pir, pir = np.argmax(infection_rates), np.max(infection_rates)
     logger.info(f"At day {time_pir} peak infection rate is {pir:.5f}")
 
+    _, loadavg5, loadavg15 = os.getloadavg()
+    swap_use = psutil.swap_memory().used / (1024.0 ** 3)
+
     time_spent = time.time() - t0
     logger.info(f"With {num_rounds} rounds, PIR {pir:5.2f}")
     runner.log({
       "time_spent": time_spent,
       "pir_mean": pir,
+      "loadavg5": loadavg5,
+      "loadavg15": loadavg15,
+      "swaw_use": swap_use,
       "recall": np.nanmean(analysis.recalls),
       "precision": np.nanmean(analysis.precisions)})
 
