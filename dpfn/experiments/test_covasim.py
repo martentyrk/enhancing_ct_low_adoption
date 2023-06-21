@@ -71,11 +71,12 @@ def test_covasim_tests():
     subtarget=subtarget_func)
 
   # Create, run, and plot the simulations
+  analyzer = compare_covasim.StoreSEIR(
+    num_days=num_time_steps, label='analysis')
   sim = cv.Sim(
     pars,
     interventions=test_intervention,
-    analyzers=compare_covasim.StoreSEIR(
-      num_days=num_time_steps, label='analysis'))
+    analyzers=analyzer)
 
   # COVASIM run() runs the entire simulation, including the initialization
   sim.run()

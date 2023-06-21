@@ -59,7 +59,7 @@ class StoreSEIR(cv.Analyzer):
     # Number of infected people in isolation over total number of infected
     self.recalls[day] = (true_positives+1E-9) / (np.sum(ppl.infectious) + 1E-9)
 
-    print((
+    logger.info((
       f"On day {day:3} recall is {self.recalls[day]:.2f} "
       f"at IR {self.i_rate[day] + self.e_rate[day]:.4f}"))
 
@@ -77,18 +77,17 @@ def compare_policy_covasim(
 
   num_time_steps = cfg["data"]["num_time_steps"]
   num_users = cfg["data"]["num_users"]
+  fraction_test = cfg["data"]["fraction_test"]
 
   num_days_window = cfg["model"]["num_days_window"]
   quantization = cfg["model"]["quantization"]
-
   num_rounds = cfg["model"]["num_rounds"]
 
-  fraction_test = cfg["data"]["fraction_test"]
-
-  cv.set_seed(cfg.get("seed", 123))
+  seed = cfg.get("seed", 123)
 
   logger.info((
-    f"Settings at experiment: {quantization:.0f} quant, at {fraction_test}%"))
+    f"Settings at experiment: {quantization:.0f} quant, at {fraction_test}% "
+    f"seed {seed}"))
 
   inference_func, do_baseline = compare_stats.make_inference_func(
     inference_method, num_users, cfg, trace_dir=trace_dir)
@@ -218,7 +217,8 @@ def compare_policy_covasim(
     analyzers=StoreSEIR(num_days=num_time_steps, label='analysis'))
 
   # COVASIM run() runs the entire simulation, including the initialization
-  sim.run()
+  sim.set_seed(seed=seed)
+  sim.run(reset_seed=True)
 
   analysis = sim.get_analyzer('analysis')
   infection_rates = analysis.e_rate + analysis.i_rate
