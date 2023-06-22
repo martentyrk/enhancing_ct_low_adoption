@@ -96,12 +96,14 @@ def compare_policy_covasim(
   inference_func, do_baseline = compare_stats.make_inference_func(
     inference_method, num_users, cfg, trace_dir=trace_dir)
 
-  sensitivity = 1. - cfg["model"]["alpha"]
+  sensitivity = 1. - cfg["data"]["alpha"]
 
-  assert cfg["model"]["beta"] < 1E-4, "Covasim doesn't model false positives"
-  assert cfg["data"]["beta"] < 1E-4, "Covasim doesn't model false positives"
+  if cfg["model"]["beta"] == 0:
+    logger.warning("COVASIM does not model false positives yet, setting to 0")
+
+  cfg["model"]["beta"] = 0
+  cfg["data"]["beta"] = 0
   assert num_time_steps == 91, "hardcoded 91 days for now, TODO: fix this"
-  assert num_days_window == 14, "hardcoded 14 days for now, TODO: fix this"
 
   if quick:
     num_rounds = 2
