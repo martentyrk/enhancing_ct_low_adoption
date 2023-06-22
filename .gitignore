@@ -16,6 +16,7 @@ sweep/
 # Slurm files
 slurm*
 */slurm*
+sed*
 
 # Local scripts
 copy_jl.sh
