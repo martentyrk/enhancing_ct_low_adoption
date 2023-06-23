@@ -134,7 +134,7 @@ class DummySimulator(Simulator):
     """Initializes the simulator for day0."""
     self._contacts = []
     self.states = np.zeros(
-      (self.num_users, self.num_time_steps, 4), dtype=np.uint8)
+      (self.num_users, self.num_time_steps, 4), dtype=np.int32)
     self._observations_all = []
 
 

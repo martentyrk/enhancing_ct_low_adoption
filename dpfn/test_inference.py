@@ -30,7 +30,7 @@ def test_factorised_neighbor_step():
   seq_array = np.stack(list(
     util.iter_sequences(time_total=num_time_steps, start_se=False)))
   seq_array_hot = np.transpose(util.state_seq_to_hot_time_seq(
-    seq_array, time_total=num_time_steps), [1, 2, 0]).astype(np.int8)
+    seq_array, time_total=num_time_steps), [1, 2, 0]).astype(np.int32)
 
   prior = [1-p0, p0, 0., 0.]
 

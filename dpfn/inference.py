@@ -84,8 +84,9 @@ def fn_step_wrapped(
 
   interval_num_users = user_interval[1] - user_interval[0]
 
-  post_exps = np.zeros((interval_num_users, num_time_steps, 4))
-  num_days_s = np.sum(seq_array_hot[:, 0], axis=0)
+  post_exps = np.zeros(
+    (interval_num_users, num_time_steps, 4), dtype=np.float32)
+  num_days_s = np.sum(seq_array_hot[:, 0], axis=0).astype(np.int32)
 
   assert np.all(np.sum(seq_array_hot, axis=1) == 1), (
     "seq_array_hot is expected as one-hot array")
@@ -123,8 +124,11 @@ def fn_step_wrapped(
         num_time_steps=num_time_steps)
     d_noterm_cumsum = np.cumsum(d_no_term)
 
+    num_days_transit = num_days_s-1
+    num_days_transit[num_days_transit < 0] = 0
+
     d_penalties = (
-      np.take(d_noterm_cumsum, np.maximum(num_days_s-1, 0))
+      np.take(d_noterm_cumsum, num_days_transit)
       + np.take(d_term, num_days_s))
 
     # Calculate log_joint
@@ -229,7 +233,7 @@ def fact_neigh(
   seq_array = np.stack(list(
     util.iter_sequences(time_total=num_time_steps, start_se=False)))
   seq_array_hot = np.transpose(util.state_seq_to_hot_time_seq(
-    seq_array, time_total=num_time_steps), [1, 2, 0]).astype(np.int8)
+    seq_array, time_total=num_time_steps), [1, 2, 0]).astype(np.int32)
 
   # If 'start_belief' is provided, the prior will be applied per user, later
   if start_belief is None:

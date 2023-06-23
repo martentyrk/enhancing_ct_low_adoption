@@ -424,7 +424,7 @@ def enumerate_log_prior_values(
   reach_i = (sequences[:, 2] > 0)
   reach_r = (sequences[:, 0] + sequences[:, 1] + sequences[:, 2]) < time_total
 
-  log_q_z = np.zeros((len(sequences)))
+  log_q_z = np.zeros((len(sequences)), dtype=np.float32)
 
   # Terms due to start state
   log_q_z += start_s * np.log(params_start[0] + 1E-12)

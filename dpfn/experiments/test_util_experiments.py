@@ -75,8 +75,12 @@ def test_dpct_inference():
   assert np.all(scores[2, -1, :2] < 0.5)
   assert np.all(scores[2, -1, 2] > 0.5)
 
-  # User 0 had a positive test
-  assert np.all(scores[0, -1, 2] > 0.5)
+  # Rerun with epsilon very very high
+  dpct_func = util_experiments.wrap_dpct_inference(
+    num_users, epsilon_dp=10000., delta_dp=0.1)
+
+  _, scores = dpct_func(
+    observations_all, contacts_all, None, num_time_steps, None, None, None)
 
   # Users 3, 4, 5 had no infected contacts
   np.testing.assert_array_less(scores[3:, -1, 2], 0.75)

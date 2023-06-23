@@ -165,8 +165,8 @@ def wrap_dpct_inference(
       diagnostic: Optional[Any] = None) -> Tuple[np.ndarray, np.ndarray]:    # pylint: disable=unused-argument
     # del num_updates, start_belief, users_stale, diagnostic
 
-    score = 0.25 * np.ones((num_users, num_time_steps, 4))
-    score += 0.001 * np.random.rand(num_users, num_time_steps, 4)
+    # Break symmetry
+    score = 0.001 * np.random.rand(num_users, num_time_steps, 4)
     has_positive_test = np.zeros((num_users), dtype=np.float32)
     num_positive_neighbors = np.zeros((num_users), dtype=np.float32)
 
@@ -184,8 +184,9 @@ def wrap_dpct_inference(
       noise_sigma * np.random.randn(num_users)).astype(np.float32)
     num_positive_neighbors = np.maximum(num_positive_neighbors, 0.)
 
-    score[:, -1, 2] = 6*has_positive_test + 3 * num_positive_neighbors
+    score[:, -1, 2] = num_positive_neighbors
     score /= np.expand_dims(np.sum(score, axis=-1), axis=-1)
+    score = score.astype(np.float32)
     return score[:, 1], score
 
   return dpct_wrapped
