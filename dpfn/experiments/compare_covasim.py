@@ -302,7 +302,7 @@ if __name__ == "__main__":
   inf_method = args.inference_method
   # Set up locations to store results
 
-  experiment_name = "prequential_covasim"
+  experiment_name = "prequential"
   if args.quick:
     experiment_name += "_quick"
   results_dir_global = (
@@ -332,8 +332,10 @@ if __name__ == "__main__":
 
   # WandB tags
   tags = [
-    experiment_name, inf_method, f"cpu{util.get_cpu_count()}"]
+    experiment_name, inf_method, f"cpu{util.get_cpu_count()}",
+    configname_data, configname_model]
   tags.append("quick" if args.quick else "noquick")
+  tags.append("dump_traces" if args.dump_traces else "noquick")
   tags.append("local" if (os.getenv('SLURM_JOB_ID') is None) else "slurm")
 
   if mpi_rank == 0:

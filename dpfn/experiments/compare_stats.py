@@ -620,8 +620,11 @@ if __name__ == "__main__":
 
   # WandB tags
   tags = [
-    args.experiment_setup, inf_method, f"cpu{util.get_cpu_count()}"]
+    args.experiment_setup, inf_method, f"cpu{util.get_cpu_count()}",
+    configname_data, configname_model]
   tags.append("quick" if args.quick else "noquick")
+  tags.append("dump_traces" if args.dump_traces else "noquick")
+
   tags.append("local" if (os.getenv('SLURM_JOB_ID') is None) else "slurm")
 
   if mpi_rank == 0:
