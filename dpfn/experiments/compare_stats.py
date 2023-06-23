@@ -252,7 +252,7 @@ def compare_prequential_quarantine(
       sim_factory = simulator.ABMSimulator
       contacts = []
     else:
-      sim_factory = simulator.CRISPSimulator
+      assert False, "Stopped supporting the CRISP simulator"
 
     sim = sim_factory(
       num_time_steps, num_users, params_dynamics, positive_e_state, rng_seed)

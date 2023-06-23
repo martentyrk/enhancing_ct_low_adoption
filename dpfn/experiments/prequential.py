@@ -3,9 +3,8 @@ import datetime
 import json
 import numba
 import numpy as np
-from dpfn import constants, util
+from dpfn import constants
 import os
-import random
 from typing import Any, Dict, Iterable, List, Tuple, Union
 
 
@@ -60,42 +59,6 @@ def init_states_observations(
     states[user, 0] = 1
     observations_all.append((user, 2, 1))
   return states, observations_all
-
-
-def simulate_one_day(
-    states: np.ndarray, contacts_list: List[constants.Contact], timestep: int,
-    p0: float, p1: float, g: float, h: float) -> np.ndarray:
-  """Simulates the states for one day, given the contacts."""
-  # Sample states at t='timestep' given states up to and including 'timestep-1'
-
-  num_users = states.shape[0]
-
-  # Construct counter on every call, because contacts may change
-  infect_counter = util.InfectiousContactCount(
-    contacts=contacts_list,
-    samples=None,
-    num_users=num_users,
-    num_time_steps=timestep+1,
-  )
-  for user in range(num_users):
-    if states[user][timestep-1] == 0:
-      log_f_term = np.log(1-p0)
-      for _, user_u, _ in infect_counter.get_past_contacts_at_time(
-          user, timestep-1):
-        if states[user_u][timestep-1] == 2:
-          log_f_term += np.log(1-p1)
-      p_state_up = 1-np.exp(log_f_term)
-    elif states[user][timestep-1] == 1:
-      p_state_up = g
-    elif states[user][timestep-1] == 2:
-      p_state_up = h
-    elif states[user][timestep-1] == 3:
-      p_state_up = 0
-
-    # Increase state according to random sample
-    state_up = random.random() < p_state_up
-    states[user][timestep] = states[user][timestep-1] + state_up
-  return states
 
 
 @numba.njit

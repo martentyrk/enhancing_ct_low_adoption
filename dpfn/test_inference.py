@@ -7,14 +7,14 @@ import numpy as np
 def test_factorised_neighbor_step():
   """Tests Factorised Neighbors step."""
 
-  contacts_all = [
+  contacts_all = np.array([
     (0, 1, 2, 1),
     (1, 0, 2, 1),
     (3, 2, 2, 1),
     (2, 3, 2, 1),
     (4, 5, 2, 1),
     (5, 4, 2, 1),
-    ]
+    ], dtype=np.int32)
   observations_all = np.array([
     (0, 2, 1)
   ], dtype=np.int32)
@@ -47,14 +47,8 @@ def test_factorised_neighbor_step():
 
   q_marginal_infected = np.zeros((num_users, num_time_steps), dtype=np.float32)
 
-  infect_counter = util.InfectiousContactCount(
-    contacts=contacts_all,
-    samples=None,
-    num_users=num_users,
-    num_time_steps=num_time_steps,
-  )
-  past_contacts = infect_counter.get_past_contacts_slice(
-    list(range(user_interval[0], user_interval[1])))
+  past_contacts, _ = util.get_past_contacts_static(
+    (0, num_users), contacts_all, num_msg=num_time_steps*5)
 
   obs_diff = np.max(log_c_z_u) - np.min(log_c_z_u)
   assert obs_diff > 1.0, f"Observation difference is too small {obs_diff}"
@@ -124,14 +118,14 @@ def test_fact_neigh_with_start_belief():
 def test_factorised_neighbor_step_clipping():
   """Tests Factorised Neighbors step when clipping is applied."""
 
-  contacts_all = [
+  contacts_all = np.array([
     (0, 1, 2, 1),
     (1, 0, 2, 1),
     (3, 2, 2, 1),
     (2, 3, 2, 1),
     (4, 5, 2, 1),
     (5, 4, 2, 1),
-    ]
+    ], dtype=np.int32)
   observations_all = np.array([
     (0, 2, 1)
   ], dtype=np.int32)
@@ -165,14 +159,8 @@ def test_factorised_neighbor_step_clipping():
   q_marginal_infected = np.random.rand(
     num_users, num_time_steps).astype(np.float32)
 
-  infect_counter = util.InfectiousContactCount(
-    contacts=contacts_all,
-    samples=None,
-    num_users=num_users,
-    num_time_steps=num_time_steps,
-  )
-  past_contacts = infect_counter.get_past_contacts_slice(
-    list(range(user_interval[0], user_interval[1])))
+  past_contacts, _ = util.get_past_contacts_static(
+    (0, num_users), contacts_all, num_msg=num_time_steps*4)
 
   obs_diff = np.max(log_c_z_u) - np.min(log_c_z_u)
   assert obs_diff > 1.0, f"Observation difference is too small {obs_diff}"
@@ -242,14 +230,14 @@ def test_factorised_neighbor_step_clipping():
 def test_factorised_neighbor_diff_private():
   """Tests Factorised Neighbors step when differential privacy."""
 
-  contacts_all = [
+  contacts_all = np.array([
     (0, 1, 2, 1),
     (1, 0, 2, 1),
     (3, 2, 2, 1),
     (2, 3, 2, 1),
     (4, 5, 2, 1),
     (5, 4, 2, 1),
-    ]
+    ], dtype=np.int32)
   observations_all = np.array([
     (0, 2, 1)
   ], dtype=np.int32)
@@ -283,14 +271,8 @@ def test_factorised_neighbor_diff_private():
   q_marginal_infected = np.random.rand(
     num_users, num_time_steps).astype(np.float32)
 
-  infect_counter = util.InfectiousContactCount(
-    contacts=contacts_all,
-    samples=None,
-    num_users=num_users,
-    num_time_steps=num_time_steps,
-  )
-  past_contacts = infect_counter.get_past_contacts_slice(
-    list(range(user_interval[0], user_interval[1])))
+  past_contacts, _ = util.get_past_contacts_static(
+    (0, num_users), contacts_all, num_msg=num_time_steps*4)
 
   obs_diff = np.max(log_c_z_u) - np.min(log_c_z_u)
   assert obs_diff > 1.0, f"Observation difference is too small {obs_diff}"

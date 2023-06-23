@@ -147,104 +147,6 @@ def test_enumerate_log_prior_values_full_sums_1():
   np.testing.assert_almost_equal(np.sum(np.exp(log_p)), 1.0, decimal=3)
 
 
-def test_infect_contact_count():
-  contacts_all = [
-    (0, 1, 6, 1),
-    (1, 0, 6, 1),
-    (0, 2, 5, 1),
-    (2, 0, 5, 1),
-    (2, 3, 5, 1),
-    (3, 2, 5, 1),
-    (2, 4, 6, 1),
-    (4, 2, 6, 1),
-    (5, 0, 6, 1),
-    ]
-
-  samples_current = {
-    # Being: t0, de, di
-    0: [1, 1, 9],
-    1: [1, 1, 9],
-    2: [1, 1, 9],
-    3: [1, 1, 9],
-    4: [1, 1, 9],
-    5: [1, 1, 9],
-    }
-
-  counter = util.InfectiousContactCount(
-    contacts=contacts_all,
-    samples=samples_current,
-    num_users=6,
-    num_time_steps=12)
-  result = [counter.num_inf_contacts(2, t) for t in range(4, 8)]
-  np.testing.assert_array_almost_equal(result, [0, 0, 2, 1])
-
-  counter.update_infect_count(3, [1, 1, 9], remove=True)
-  result = [counter.num_inf_contacts(2, t) for t in range(4, 8)]
-  np.testing.assert_array_almost_equal(result, [0, 0, 1, 1])
-
-  counter.update_infect_count(3, [1, 2, 9], remove=False)
-  result = [counter.num_inf_contacts(2, t) for t in range(4, 8)]
-  np.testing.assert_array_almost_equal(result, [0, 0, 2, 1])
-
-  expected_future_contacts = [(5, 2, 1), (6, 1, 1)]
-  result = list(counter.get_future_contacts(0))
-  assert expected_future_contacts == result, "Future contacts don't match."
-
-  expected_past_contacts = [(5, 2, 1), (6, 1, 1), (6, 5, 1)]
-  result = list(counter.get_past_contacts(0))
-  assert expected_past_contacts == result, "Past contacts don't match."
-
-
-def test_gather_infected_precontacts():
-  num_time_steps = 8
-  contacts_all = [
-    (0, 1, 6, 1),
-    (1, 0, 6, 1),
-    (0, 2, 5, 1),
-    (2, 0, 5, 1),
-    (2, 3, 5, 1),
-    (3, 2, 5, 1),
-    (2, 4, 6, 1),
-    (4, 2, 6, 1),
-    (5, 0, 6, 1),
-    ]
-
-  samples_current = {
-    # Being: t0, de, di
-    0: [1, 1, 9],
-    1: [1, 1, 9],
-    2: [1, 1, 9],
-    3: [1, 1, 9],
-    4: [1, 1, 9],
-    5: [1, 1, 9],
-    }
-
-  counter = util.InfectiousContactCount(
-    contacts=contacts_all,
-    samples=samples_current,
-    num_users=6,
-    num_time_steps=num_time_steps)
-
-  result = util.gather_infected_precontacts(
-    num_time_steps=num_time_steps,
-    samples_current=samples_current,
-    past_contacts=counter.get_past_contacts(user=0))
-
-  expected = np.array([0, 0, 0, 0, 0, 1, 2, 0])
-  np.testing.assert_array_almost_equal(result, expected)
-
-  # Change state of contact by 1 to time different time step
-  samples_current[1] = [11, 0, 0]
-
-  result = util.gather_infected_precontacts(
-    num_time_steps=num_time_steps,
-    samples_current=samples_current,
-    past_contacts=counter.get_past_contacts(user=0))
-
-  expected = np.array([0, 0, 0, 0, 0, 1, 1, 0])
-  np.testing.assert_array_almost_equal(result, expected)
-
-
 def test_d_penalty_term():
   contacts_all = np.array([
     (0, 1, 2, 1),
@@ -257,12 +159,8 @@ def test_d_penalty_term():
   num_users = 6
   num_time_steps = 5
 
-  infect_counter = util.InfectiousContactCount(
-    contacts=contacts_all,
-    samples=None,
-    num_users=num_users,
-    num_time_steps=num_time_steps,
-  )
+  past_contacts, _ = util.get_past_contacts_static(
+    (0, num_users), contacts_all, num_msg=num_time_steps*4)
 
   q_marginal_infected = np.array([
     [.8, .8, .8, .8, .8],
@@ -278,7 +176,7 @@ def test_d_penalty_term():
     q_marginal_infected,
     p0=0.01,
     p1=.3,
-    past_contacts=infect_counter.get_past_contacts_slice([user])[0],
+    past_contacts=past_contacts[user],
     num_time_steps=num_time_steps)
 
   # Contact with user 0, which is infected with .8, so penalty for term should
@@ -303,7 +201,7 @@ def test_d_penalty_term():
     q_marginal_infected,
     p0=0.01,
     p1=1E-5,
-    past_contacts=infect_counter.get_past_contacts_slice([user])[0],
+    past_contacts=past_contacts[user],
     num_time_steps=num_time_steps)
 
   # With small p1, penalty for termination should be small (low number)
@@ -584,25 +482,6 @@ def test_it_num_infected_probs():
     list(result_probs_total), list(expected_probs_total))
 
 
-def test_past_contact_array():
-  contacts_all = [
-    (1, 2, 4, 1),
-    (2, 1, 4, 1),
-    (0, 1, 4, 1)
-    ]
-
-  counter = util.InfectiousContactCount(
-    contacts_all, None, num_users=6, num_time_steps=7)
-  past_contacts = counter.get_past_contacts_slice([0, 1, 2])
-
-  np.testing.assert_array_almost_equal(past_contacts.shape, [3, 2+1, 3])
-  np.testing.assert_array_almost_equal(past_contacts[0], -1)
-  np.testing.assert_array_almost_equal(past_contacts[2][1], -1)
-  np.testing.assert_array_almost_equal(past_contacts[2][0], [4, 1, 1])
-
-  np.testing.assert_equal(past_contacts.dtype, np.int32)
-
-
 def test_past_contact_array_fast():
   contacts_all = np.array([
     (1, 2, 4, 1),
@@ -639,41 +518,6 @@ def test_past_contact_array_static():
 
   np.testing.assert_equal(past_contacts.dtype, np.int32)
   np.testing.assert_almost_equal(max_num_c, 2)
-
-
-def test_past_contact_array_fast_copy_paste():
-  contacts_all = np.array([
-    (1, 2, 4, 1),
-    (1, 2, 3, 1),
-    (1, 2, 2, 1),
-    (1, 2, 1, 1),
-    (2, 1, 4, 1),
-    ])
-
-  counter = util.InfectiousContactCount(
-    contacts_all, None, num_users=6, num_time_steps=7)
-  past_contacts_slow = counter.get_past_contacts_slice([0, 1, 2])
-
-  past_contacts_fast, max_num_c = util.get_past_contacts_fast(
-    (0, 3), contacts_all)
-  np.testing.assert_almost_equal(max_num_c, 4)
-
-  # Check that the shapes match
-  np.testing.assert_array_almost_equal(
-    past_contacts_slow.shape, past_contacts_fast.shape
-  )
-
-  # Check that the values match
-  np.testing.assert_array_almost_equal(
-    past_contacts_slow[0], past_contacts_fast[0]
-  )
-  np.testing.assert_array_almost_equal(
-    past_contacts_slow[1], past_contacts_fast[1]
-  )
-  np.testing.assert_array_almost_equal(
-    # Silly to test mean, but contacts could occur in any order ofcourse
-    np.sum(past_contacts_slow[2]), np.sum(past_contacts_fast[2])
-  )
 
 
 def test_past_contact_array_fast_copy_paste_static():
@@ -728,25 +572,6 @@ def test_enumerate_start_belief():
   np.testing.assert_array_almost_equal(A_start_belief, expected)
 
 
-def test_update_beliefs():
-  matrix = np.ones((3, 4))
-  beliefs = np.zeros((2, 4))
-
-  result = util.update_beliefs(
-    matrix,
-    beliefs,
-    user_slice=np.array([0, 2], dtype=np.int32))
-  expected = np.tile(np.array([0, 1, 0]), [4, 1]).T
-  np.testing.assert_array_almost_equal(result, expected)
-
-  result = util.update_beliefs(
-    matrix,
-    beliefs,
-    user_slice=np.array([0, 2], dtype=np.int32),
-    users_stale=[2])
-  expected = np.tile(np.array([0, 1, 1]), [4, 1]).T
-
-
 def test_spread_buckets():
   num_sample_array = util.spread_buckets(100, 10)
   expected = 10 * np.ones((10))
@@ -775,20 +600,6 @@ def test_quantize():
 
   x_quantized = util.quantize(x, -1)
   assert x_quantized.dtype == np.float32
-
-
-def test_get_stale_users_binary():
-  stales = np.array([7, 9, 13], dtype=np.int32)
-
-  num_users = 18
-  result = util.get_stale_users_binary(stales, num_users=num_users)
-
-  np.testing.assert_array_almost_equal(result.shape, [num_users, 1])
-  assert result.dtype == np.bool
-
-  np.testing.assert_almost_equal(result[6], 1)
-  np.testing.assert_almost_equal(result[7], 0)
-  np.testing.assert_almost_equal(result[8], 1)
 
 
 def test_root_find_a_rdp_eps():

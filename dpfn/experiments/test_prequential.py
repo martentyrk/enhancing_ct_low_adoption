@@ -4,27 +4,6 @@ from dpfn.config import config
 from dpfn.experiments import prequential
 
 
-def test_simulate_one_day():
-  contacts_all = [
-    (0, 1, 2, 1),
-  ]
-  states = np.array([
-    [2, 2, 2, 2, 2],
-    [0, 0, 0, 0, 0]
-  ])
-
-  states_new = prequential.simulate_one_day(
-    states=states,
-    contacts_list=contacts_all,
-    timestep=3,
-    p0=0.001,
-    p1=1.,
-    g=1/3,
-    h=1/3)
-
-  np.testing.assert_almost_equal(states_new[1][3], 1.)
-
-
 def test_get_observations_one_day():
 
   p_inf = np.array([0., 1.])

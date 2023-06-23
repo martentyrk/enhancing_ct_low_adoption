@@ -138,55 +138,6 @@ class DummySimulator(Simulator):
     self._observations_all = []
 
 
-class CRISPSimulator(Simulator):
-  """Simulator based on generative code with CRISP paper."""
-
-  def init_day0(self, contacts: List[constants.Contact]):
-    """Initializes the simulator for day0."""
-    self._contacts = contacts
-    states, obs_list_current = prequential.init_states_observations(
-      self.num_users, self.num_time_steps)
-
-    self.states = states  # np.ndarray in size [num_users, num_timesteps]
-    self._observations_all = np.array(obs_list_current, dtype=np.int32)
-
-  def get_states_today(self) -> np.ndarray:
-    """Returns the states an np.ndarray in size [num_users].
-
-    Each element in [0, 1, 2, 3].
-    """
-    return self.states[:, self._day_current]
-
-  def step(self, num_steps: int = 1):
-    """Advances the simulator by num_steps days."""
-    self._day_current += num_steps
-
-    # Set contact days as simulate_one_day works with absolute times.
-    contacts = list(
-      prequential.delay_contacts(self._contacts, self._day_start_window))
-    self.states = prequential.simulate_one_day(
-      self.states, contacts, self._day_current,
-      self.params["p0"], self.params["p1"], self.params["g"], self.params["h"])
-
-    assert np.sum(self.states[:, self._day_current+1:]) == 0
-
-  def quarantine_users(
-      self,
-      users_to_quarantine: Union[np.ndarray, List[int]],
-      num_days: int):
-    """Quarantines the defined users.
-
-    This function will remove the contacts that happen TODAY (and which may
-    spread the virus and cause people to shift to E-state tomorrow).
-    """
-    # Make quarantines relative to window
-    start_quarantine = self.get_current_day() + 1 - self._day_start_window
-
-    self._contacts = prequential.remove_quarantine_users(
-      self._contacts, users_to_quarantine, start_quarantine,
-      t_delta=num_days)
-
-
 class ABMSimulator(Simulator):
   """Simulator based on Oxford ABM."""
 
