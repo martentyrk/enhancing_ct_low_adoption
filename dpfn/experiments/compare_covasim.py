@@ -4,7 +4,7 @@ import covasim as cv
 from mpi4py import MPI  # pytype: disable=import-error
 import numpy as np
 from dpfn.config import config
-from dpfn.experiments import compare_stats, util_experiments
+from dpfn.experiments import compare_stats, prequential, util_experiments
 from dpfn import LOGGER_FILENAME, logger
 from dpfn import util
 from dpfn import util_wandb
@@ -35,6 +35,8 @@ class StoreSEIR(cv.Analyzer):
     self.i_rate = np.zeros((num_days), dtype=np.float32)
     self.r_rate = np.zeros((num_days), dtype=np.float32)
 
+    self.isolation_rate = np.zeros((num_days), dtype=np.float32)
+
     self.precisions = np.zeros((num_days), dtype=np.float32)
     self.recalls = np.zeros((num_days), dtype=np.float32)
 
@@ -55,6 +57,8 @@ class StoreSEIR(cv.Analyzer):
 
     isolated = np.logical_or(ppl.isolated, ppl.quarantined)
     true_positives = np.sum(np.logical_and(isolated, ppl.infectious))
+
+    self.isolation_rate[day] = np.sum(isolated) / num_people
 
     # precision should be 1 when there are no false positives
     self.precisions[day] = (true_positives+1E-9) / (np.sum(isolated) + 1E-9)
@@ -77,7 +81,7 @@ def compare_policy_covasim(
     quick: bool = False,
     do_diagnosis: bool = False):
   """Compares different inference algorithms on the supplied contact graph."""
-  del results_dir, do_diagnosis
+  del do_diagnosis
 
   num_time_steps = cfg["data"]["num_time_steps"]
   num_users = cfg["data"]["num_users"]
@@ -228,6 +232,20 @@ def compare_policy_covasim(
 
   analysis = sim.get_analyzer('analysis')
   infection_rates = analysis.e_rate + analysis.i_rate
+
+  prequential.dump_results_json(
+    datadir=results_dir,
+    cfg=cfg,
+    precisions=analysis.precisions.tolist(),
+    recalls=analysis.recalls.tolist(),
+    exposed_rates=analysis.e_rate.tolist(),
+    infection_rates=infection_rates.tolist(),
+    num_quarantined=analysis.isolation_rate.tolist(),
+    inference_method=inference_method,
+    name=runner.name,
+    pir=float(np.max(infection_rates)),
+    quantization=quantization,
+    seed=cfg.get("seed", -1))
 
   if mpi_rank == 0:
     time_pir, pir = np.argmax(infection_rates), np.max(infection_rates)

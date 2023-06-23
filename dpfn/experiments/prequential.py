@@ -36,10 +36,10 @@ def dump_results_json(
     "fraction_test", "fraction_stale"]
 
   for key in model_keys:
-    kwargs[f"model.{key}"] = cfg["model"][key]
+    kwargs[f"model.{key}"] = cfg["model"].get(key, -1.)
 
   for key in data_keys:
-    kwargs[f"data.{key}"] = cfg["data"][key]
+    kwargs[f"data.{key}"] = cfg["data"].get(key, -1.)
 
   fname = os.path.join(datadir, "results.jl")
   with open(fname, 'a') as fp:
