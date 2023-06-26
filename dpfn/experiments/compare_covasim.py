@@ -12,6 +12,7 @@ import numba
 import os
 import psutil
 import random
+import threading
 import time
 import traceback
 from typing import Any, Dict, Optional
@@ -263,9 +264,22 @@ def compare_policy_covasim(
       "pir_mean": pir,
       "loadavg5": loadavg5,
       "loadavg15": loadavg15,
-      "swaw_use": swap_use,
+      "swap_use": swap_use,
       "recall": np.nanmean(analysis.recalls),
       "precision": np.nanmean(analysis.precisions)})
+
+
+def log_to_wandb(wandb_runner):
+  """Logs system statistics to wandb every minute."""
+  while True:
+    loadavg1, loadavg5, _ = os.getloadavg()
+    swap_use = psutil.swap_memory().used / (1024.0 ** 3)
+
+    wandb_runner.log({
+      "loadavg1": loadavg1,
+      "loadavg5": loadavg5,
+      "swap_use": swap_use})
+    time.sleep(60)
 
 
 if __name__ == "__main__":
@@ -291,7 +305,8 @@ if __name__ == "__main__":
                             'the code quickly, usually for debugging purpose'))
 
   # TODO make a better heuristic for this:
-  numba.set_num_threads(util.get_cpu_count())
+  logger.info(f"SLURM env N_TASKS: {os.getenv('SLURM_NTASKS')}")
+  numba.set_num_threads(max((util.get_cpu_count()-1, 1)))
 
   args = parser.parse_args()
 
@@ -381,6 +396,10 @@ if __name__ == "__main__":
   arg_rng = np.random.default_rng(seed=seed_value)
 
   try:
+    daemon_wandb = threading.Thread(
+      target=log_to_wandb, args=(runner_global,), daemon=True)
+    daemon_wandb.start()
+
     compare_policy_covasim(
       inf_method,
       cfg=config_wandb,
