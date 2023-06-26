@@ -41,7 +41,7 @@ class StoreSEIR(cv.Analyzer):
     self.recalls = np.zeros((num_days), dtype=np.float32)
 
     self.timestamps = np.zeros((num_days+1), dtype=np.float64)
-    self.timestamps[0] = time.time()
+    self._time_prev = time.time()
 
   def apply(self, sim):
     """Applies the analyser on the simulation object."""
@@ -65,11 +65,13 @@ class StoreSEIR(cv.Analyzer):
 
     # Number of infected people in isolation over total number of infected
     self.recalls[day] = (true_positives+1E-9) / (np.sum(ppl.infectious) + 1E-9)
-    self.timestamps[day+1] = time.time() - self.timestamps[day]
+    self.timestamps[day] = time.time() - self._time_prev
+    self._time_prev = time.time()
 
     logger.info((
       f"On day {day:3} recall is {self.recalls[day]:.2f} "
-      f"at IR {self.i_rate[day] + self.e_rate[day]:.4f}"))
+      f"at IR {self.i_rate[day] + self.e_rate[day]:.4f} "
+      f"timediff {self.timestamps[day]:8.1f}"))
 
 
 def compare_policy_covasim(
