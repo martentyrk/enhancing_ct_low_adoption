@@ -66,8 +66,14 @@ def make_inference_func(
     # In this clause, we optimize for a_rdp analytically
     # For any other value of a_rdp, we use the value provided
     eps_orig = copy.copy(epsilon_dp)
-    a_rdp, epsilon_dp = util.root_find_a_rdp(eps=epsilon_dp, delta=delta_dp)
-    assert a_rdp / epsilon_dp > 0.0
+
+    d_term = np.log(1/delta_dp)
+    a_rdp = 1 + (
+      d_term + np.sqrt(d_term) * np.sqrt(d_term+4*epsilon_dp)) / (2*epsilon_dp)
+    epsilon_dp = eps_orig - d_term / (a_rdp - 1)
+
+    assert epsilon_dp > 0.
+    assert a_rdp / epsilon_dp > 0.
 
     logger.info((
       f"Optimize a_rdp manually at (e, d) ({eps_orig:.2e}, {delta_dp:.2e})\n"
