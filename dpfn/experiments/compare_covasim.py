@@ -88,7 +88,10 @@ def compare_policy_covasim(
 
   num_time_steps = cfg["data"]["num_time_steps"]
   num_users = cfg["data"]["num_users"]
+  # Daily fraction of the population that gets a test
   fraction_test = cfg["data"]["fraction_test"]
+  # Probability of the person being lost-to-follow-up after a test
+  loss_prob = cfg["data"]["loss_prob"]
 
   num_days_window = cfg["model"]["num_days_window"]
   quantization = cfg["model"]["quantization"]
@@ -220,7 +223,8 @@ def compare_policy_covasim(
   test_intervention = cv.test_num(
     daily_tests=int(fraction_test*num_users),
     do_plot=False,
-    sensitivity=sensitivity,
+    sensitivity=sensitivity,  # 1 - false_negative_rate
+    loss_prob=loss_prob,  # probability of the person being lost-to-follow-up
     subtarget=subtarget_func)
 
   # Create, run, and plot the simulations
