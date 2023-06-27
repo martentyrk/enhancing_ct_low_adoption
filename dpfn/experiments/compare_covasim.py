@@ -196,6 +196,11 @@ def compare_policy_covasim(
       contacts_rel[:, 2] = contacts_rel[:, 2] - sim.t + num_days - 1
       obs_rel[:, 1] = obs_rel[:, 1] - sim.t + num_days - 1
 
+      # TODO remove this line. Follow up with github issue
+      # https://github.com/InstituteforDiseaseModeling/covasim/issues/400
+      is_not_double = np.logical_not(contacts_rel[:, 0] == contacts_rel[:, 1])
+      contacts_rel = contacts_rel[is_not_double]
+
       # assert 0 <= contacts_rel[:, 2].min() <= sim.t, (
       #   f"Earliest contact {contacts_rel[:, 2].min()} is before {sim.t}")
       # assert 0 <= obs_rel[:, 1].min() <= sim.t, (
@@ -207,7 +212,7 @@ def compare_policy_covasim(
         contacts_list=contacts_rel,
         num_updates=num_rounds,
         num_time_steps=num_days + 1)
-      rank_score = pred[:, -1, 1] + pred[:, -1, 1]
+      rank_score = pred[:, -1, 1] + pred[:, -1, 2]
     else:
       # For the first few days of a simulation, just test randomly
       rank_score = np.ones(num_users) + np.random.rand(num_users)
