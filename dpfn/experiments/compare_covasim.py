@@ -213,6 +213,17 @@ def compare_policy_covasim(
         num_updates=num_rounds,
         num_time_steps=num_days + 1)
       rank_score = pred[:, -1, 1] + pred[:, -1, 2]
+
+      # Track some metrics here:
+      states_today = 3*np.ones(num_users, dtype=np.int32)
+      states_today[sim.people.exposed] = 2
+      states_today[sim.people.infectious] = 1
+      states_today[sim.people.susceptible] = 0
+
+      p_at_state = pred[range(num_users), -1, states_today]
+      history['likelihoods_state'][sim.t] = np.mean(np.log(p_at_state+1E-9))
+      history['ave_prob_inf_at_inf'][sim.t] = np.mean(
+        p_at_state[states_today == 2])
     else:
       # For the first few days of a simulation, just test randomly
       rank_score = np.ones(num_users) + np.random.rand(num_users)
@@ -253,6 +264,10 @@ def compare_policy_covasim(
     exposed_rates=analysis.e_rate.tolist(),
     infection_rates=infection_rates.tolist(),
     num_quarantined=analysis.isolation_rate.tolist(),
+    likelihoods_state=(
+      test_intervention.history['likelihoods_state'].tolist()),
+    ave_prob_inf_at_inf=(
+      test_intervention.history['ave_prob_inf_at_inf'].tolist()),
     inference_method=inference_method,
     name=runner.name,
     pir=float(np.max(infection_rates)),
