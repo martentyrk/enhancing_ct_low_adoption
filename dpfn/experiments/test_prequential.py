@@ -133,8 +133,8 @@ def test_get_observations_one_day_slice_rng_seed():
 
 def test_calc_prec_recall():
   states = np.array([0, 0, 1, 1, 2, 2, 3, 4, 3])
-  users_to_quarantine = np.array([1, 2, 3, 5, 7])
-  precision, recall = prequential.calc_prec_recall(states, users_to_quarantine)
+  users_quarantine = np.array([0, 1, 1, 1, 0, 1, 0, 1, 0])
+  precision, recall = prequential.calc_prec_recall(states, users_quarantine)
 
   np.testing.assert_almost_equal(precision, 0.6)
   np.testing.assert_almost_equal(recall, 0.75)
@@ -142,8 +142,8 @@ def test_calc_prec_recall():
 
 def test_calc_prec_recall_nan():
   states = np.array([4, 4, 4, 4, 4, 4, 4, 4, 4])
-  users_to_quarantine = np.array([1, 2, 3, 5, 7])
-  precision, recall = prequential.calc_prec_recall(states, users_to_quarantine)
+  users_quarantine = np.array([0, 1, 1, 1, 0, 1, 0, 1, 0])
+  precision, recall = prequential.calc_prec_recall(states, users_quarantine)
 
   # When no users are infected, precision should be 0 and recall should be 1
   np.testing.assert_almost_equal(precision, 0.0)

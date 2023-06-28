@@ -381,7 +381,7 @@ def compare_prequential_quarantine(
       states_today = sim.get_states_today()
 
       precision, recall = prequential.calc_prec_recall(
-        states_today, users_to_quarantine)
+        states_today, user_quarantine_ends > t_now)
       infection_rate = np.mean(states_today == 2)
       exposed_rate = np.mean(
         np.logical_or(states_today == 1, states_today == 2))

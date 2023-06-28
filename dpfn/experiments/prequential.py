@@ -116,7 +116,7 @@ def get_observations_one_day(
 
 
 def calc_prec_recall(
-    states: np.ndarray, users_to_quarantine: np.ndarray) -> Tuple[float, float]:
+    states: np.ndarray, users_quarantine: np.ndarray) -> Tuple[float, float]:
   """Calculates precision and recall for quarantine assignments.
 
   Note that when no users are in state E or I, the recall is 1.0 (achieved by
@@ -125,17 +125,15 @@ def calc_prec_recall(
   assert len(states.shape) == 1
   eps = 1E-9  # Small number to avoid division by zero
 
-  users_quarantine_array = np.zeros_like(states)
-  users_quarantine_array[users_to_quarantine] = 1.
   states_e_i = np.logical_or(
     states == 1,
     states == 2,
   )
 
   true_positives = np.sum(
-    np.logical_and(states_e_i, users_quarantine_array)) + eps
+    np.logical_and(states_e_i, users_quarantine)) + eps
 
-  precision = true_positives / (np.sum(users_quarantine_array) + eps)
+  precision = true_positives / (np.sum(users_quarantine) + eps)
   recall = true_positives / (np.sum(states_e_i) + eps)
   return precision, recall
 
