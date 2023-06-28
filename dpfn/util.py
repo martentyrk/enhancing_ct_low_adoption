@@ -89,13 +89,12 @@ def state_at_time(days_array, timestamp):
     days_array = np.expand_dims(days_array, axis=0)
 
   days_cumsum = np.cumsum(days_array, axis=1)
-  days_binary = (days_cumsum <= timestamp).astype(np.int)
+  days_binary = days_cumsum <= timestamp
 
   # Append vector of 1's such that argmax defaults to 3
   days_binary = np.concatenate(
     (days_binary, np.zeros((len(days_binary), 1))), axis=1)
-  state = np.argmin(days_binary, axis=1)
-  return state
+  return np.argmin(days_binary, axis=1).astype(np.int32)
 
 
 # @functools.lru_cache()  # Using cache gives no observable speed up for now
