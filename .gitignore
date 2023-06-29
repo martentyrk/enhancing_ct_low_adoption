@@ -22,3 +22,4 @@ sed*
 copy_jl.sh
 *license.pdf
 scripts/test.sh
+scripts/regression_dp.sh
