@@ -241,7 +241,8 @@ def compare_policy_covasim(
     do_plot=False,
     sensitivity=sensitivity,  # 1 - false_negative_rate
     loss_prob=loss_prob,  # probability of the person being lost-to-follow-up
-    subtarget=subtarget_func)
+    subtarget=subtarget_func,
+    label='intervention_history')
 
   # Create, run, and plot the simulations
   sim = cv.Sim(
@@ -254,6 +255,7 @@ def compare_policy_covasim(
   sim.run(reset_seed=True)
 
   analysis = sim.get_analyzer('analysis')
+  history_intv = sim.get_intervention('intervention_history').history
   infection_rates = analysis.e_rate + analysis.i_rate
 
   prequential.dump_results_json(
@@ -264,10 +266,8 @@ def compare_policy_covasim(
     exposed_rates=analysis.e_rate.tolist(),
     infection_rates=infection_rates.tolist(),
     num_quarantined=analysis.isolation_rate.tolist(),
-    likelihoods_state=(
-      test_intervention.history['likelihoods_state'].tolist()),
-    ave_prob_inf_at_inf=(
-      test_intervention.history['ave_prob_inf_at_inf'].tolist()),
+    likelihoods_state=history_intv['likelihoods_state'].tolist(),
+    ave_prob_inf_at_inf=history_intv['ave_prob_inf_at_inf'].tolist(),
     inference_method=inference_method,
     name=runner.name,
     pir=float(np.max(infection_rates)),
