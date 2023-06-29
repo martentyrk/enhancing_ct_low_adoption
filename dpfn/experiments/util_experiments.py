@@ -486,11 +486,10 @@ def wrap_gibbs_inference(
 
     if clip_lower > 0:
       assert epsilon_dp > 0, "If clipping is enabled, then epsilon_dp must be"
-      # When doing private inference, the burnin steps are non-dp, and we need
-      # more steps to get to the stationary distribution, whereafter we sample
-      # using the DP mechanism.
-      num_burnin = num_updates
-      skip = 1
+      # When doing private inference, do a lot of skip steps, because each
+      # released sample incurs an (epsilon, delta)-DP cost.
+      skip = 10
+      num_burnin = skip*num_updates
 
     result = crisp.GibbsPIS(
       num_users,
