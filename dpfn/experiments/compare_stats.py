@@ -59,7 +59,13 @@ def make_inference_func(
   a_rdp = cfg["model"]["a_rdp"]
   clip_lower = cfg["model"]["clip_lower"]
   clip_upper = cfg["model"]["clip_upper"]
+
   dp_method = cfg["model"]["dp_method"]
+  # DP=2, uses the global sensitivity
+  # DP=3, uses the private geometric mean of the FN scores after equilibration
+  # DP=4, uses the sensitivity of the mechanism (but doesn't work well)
+  # DP=5, corresponds to using log-normal on user for a day
+  # DP=6, corresponds to DP on message only, Gaussian Mechanism
 
   # TODO: put a flag here to use the analytic solution for a_rdp
   if int(a_rdp) == -42:
