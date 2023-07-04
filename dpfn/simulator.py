@@ -8,7 +8,7 @@ from dpfn import constants, logger, util
 from dpfn.experiments import prequential
 import numpy as np
 import os
-from typing import Any, Dict, List, Union
+from typing import Any, List, Union
 
 
 def _embed_contact(contact_tuple) -> constants.Contact:
@@ -25,12 +25,10 @@ class Simulator(ABC):
       self,
       num_time_steps: int,
       num_users: int,
-      params: Dict[str, Any],
       positive_e_state: bool = False,
       rng_seed: int = 123) -> None:
     self.num_time_steps = num_time_steps
     self.num_users = num_users
-    self.params = params
     self.rng_seed = rng_seed
 
     self._day_current = 0
@@ -145,12 +143,11 @@ class ABMSimulator(Simulator):
       self,
       num_time_steps: int,
       num_users: int,
-      params: Dict[str, Any],
       positive_e_state: bool = False,
       rng_seed: int = 123,
       ) -> None:
     super().__init__(
-      num_time_steps, num_users, params, positive_e_state=positive_e_state,
+      num_time_steps, num_users, positive_e_state=positive_e_state,
       rng_seed=rng_seed)
 
     filename = "baseline_parameters.csv"

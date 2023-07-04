@@ -66,14 +66,7 @@ def advance_simulator(
   p_obs_not_infected = np.array(
     [1-float(cfg["model"]["beta"]), cfg["model"]["beta"]], dtype=np.float32)
 
-  params_dynamics = {
-    "p0": cfg.get_value("p0"),
-    "p1": cfg.get_value("p1"),
-    "g": cfg.get_value("prob_g"),
-    "h": cfg.get_value("prob_h"),
-  }
-
-  sim = simulator.ABMSimulator(num_time_steps, num_users, params_dynamics)
+  sim = simulator.ABMSimulator(num_time_steps, num_users)
   sim.init_day0(contacts=[])
 
   states = np.zeros((num_users, num_time_steps), dtype=np.int32)

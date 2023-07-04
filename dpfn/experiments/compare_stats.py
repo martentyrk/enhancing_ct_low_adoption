@@ -205,12 +205,6 @@ def compare_prequential_quarantine(
   t_start_quarantine = cfg["data"]["t_start_quarantine"]
 
   probab_0 = cfg["model"]["p0"]
-  params_dynamics = {
-    "p0": cfg["data"]["p0"],
-    "p1": cfg["data"]["p1"],
-    "g": cfg["data"]["prob_g"],
-    "h": cfg["data"]["prob_h"],
-  }
 
   logger.info((
     f"Settings at experiment: {quantization:.0f} quant, at {fraction_test}%"))
@@ -267,13 +261,13 @@ def compare_prequential_quarantine(
       assert False, "Stopped supporting the CRISP simulator"
 
     sim = sim_factory(
-      num_time_steps, num_users, params_dynamics, positive_e_state, rng_seed)
+      num_time_steps, num_users, positive_e_state, rng_seed)
     sim.init_day0(copy.deepcopy(contacts))
 
     logger.info((
       f"Start simulation with {num_rounds} updates"))
   else:
-    sim = simulator.DummySimulator(num_time_steps, num_users, params_dynamics)
+    sim = simulator.DummySimulator(num_time_steps, num_users)
 
   for t_now in tqdm.trange(1, num_time_steps):
     t_start_loop = time.time()
