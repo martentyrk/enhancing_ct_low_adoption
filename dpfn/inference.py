@@ -101,14 +101,15 @@ def fn_step_wrapped(
 
   for i in numba.prange(interval_num_users):  # pylint: disable=not-an-iterable
 
-    d_term, d_no_term = util.precompute_d_penalty_terms_fn2(
-      p_infected_matrix,
-      p0=probab0,
-      p1=probab1,
-      past_contacts=past_contacts_array[i],
-      num_time_steps=num_time_steps)
+    if (dp_method <= 4) or (dp_method == 6):
+      d_term, d_no_term = util.precompute_d_penalty_terms_fn2(
+        p_infected_matrix,
+        p0=probab0,
+        p1=probab1,
+        past_contacts=past_contacts_array[i],
+        num_time_steps=num_time_steps)
 
-    if dp_method == 5:
+    elif dp_method == 5:
       assert delta_dp < 0
       assert epsilon_dp > 0
       assert a_rdp > 0
@@ -122,6 +123,20 @@ def fn_step_wrapped(
         epsilon_rdp=epsilon_dp,
         past_contacts=past_contacts_array[i],
         num_time_steps=num_time_steps)
+
+    elif dp_method == 7:
+      assert a_rdp < 0
+      d_term, d_no_term = util.precompute_d_penalty_terms_dp_gaussian(
+        p_infected_matrix,
+        p0=probab0,
+        p1=probab1,
+        epsilon_dp=epsilon_dp,
+        delta_dp=delta_dp,
+        past_contacts=past_contacts_array[i],
+        num_time_steps=num_time_steps)
+
+    else:
+      raise ValueError("Unknown DP method")
     d_noterm_cumsum = np.cumsum(d_no_term)
 
     num_days_transit = num_days_s-1

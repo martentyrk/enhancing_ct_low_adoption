@@ -409,6 +409,7 @@ def add_lognormal_noise_rdp(
   assert np.abs(sensitivity) > 1E-5, "Sensitivity must be defined for now"
   assert len(log_means.shape) == 1, "Only implemented for arrays"
 
+  # For 0 contacts the d_no_term will be 0 anyway
   num_contacts = np.maximum(num_contacts, 1)
 
   sigma_squared_lognormal = a_rdp / (2 * num_contacts * epsilon_dp)
@@ -583,6 +584,86 @@ def precompute_d_penalty_terms_rdp(
     log_expectations_noised = add_lognormal_noise_rdp(
       log_expectations, num_contacts, a_rdp, epsilon_rdp, np.log(1 - p1),
       clip_lower, clip_upper)
+
+    # Everything hereafter is post-processing
+    # Clip to [0, 1], equals clip to [\infty, 0] in logdomain
+    log_expectations = np.minimum(
+      log_expectations_noised, 0.)
+
+    log_expectations = np.maximum(
+      log_expectations, num_contacts * np.log(1 - p1)).astype(np.float32)
+
+  # Additional penalty term for not terminating, negative by definition
+  d_no_term = log_expectations
+  # Additional penalty term for not terminating, usually positive
+  d_term = (np.log(1 - (1-p0)*np.exp(log_expectations)) - np.log(p0))
+
+  # Prevent numerical imprecision error
+  d_term *= happened
+  d_no_term *= happened
+
+  # No termination (when t0 == num_time_steps) should not incur penalty
+  # because the prior doesn't contribute the p0 factor either
+  d_term[num_time_steps] = 0.
+  return d_term.astype(np.float32), d_no_term.astype(np.float32)
+
+
+@numba.njit((
+  'UniTuple(float32[:], 2)(float32[:, :], float64, float64,'
+  ' float64, float64, int32[:, :], int64)'))
+def precompute_d_penalty_terms_dp_gaussian(
+    q_marginal_infected: np.ndarray,
+    p0: float,
+    p1: float,
+    epsilon_dp: float,
+    delta_dp: float,
+    past_contacts: np.ndarray,
+    num_time_steps: int) -> Tuple[np.ndarray, np.ndarray]:
+  """Precompute penalty terms for inference with Factorised Neighbors.
+
+  This method is similar to precompute_d_penalty_terms_rdp, but does not apply
+  bias correction and thus uses straightforward (e,d)-DP
+  """
+  # Make num_time_steps+1 longs, such that penalties are 0 when t0==0
+  d_term = np.zeros((num_time_steps+1), dtype=np.float32)
+  d_no_term = np.zeros((num_time_steps+1), dtype=np.float32)
+
+  if len(past_contacts) == 0:
+    return d_term, d_no_term
+
+  # past_contacts is padded with -1, so break when contact time is negative
+  assert past_contacts[-1][0] < 0
+
+  # Scales with O(T)
+  log_expectations = np.zeros((num_time_steps+1), dtype=np.float32)
+  num_contacts = np.zeros((num_time_steps+1), dtype=np.int32)
+  happened = np.zeros((num_time_steps+1), dtype=np.float32)
+
+  # t_contact = past_contacts[0][0]
+  # contacts = [np.int32(x) for x in range(0)]
+  for row in past_contacts:
+    time_inc = int(row[0])
+    if time_inc < 0:
+      # past_contacts is padded with -1, so break when contact time is negative
+      break
+
+    happened[time_inc+1] = 1
+    p_inf_inc = q_marginal_infected[int(row[1])][time_inc]
+    log_expectations[time_inc+1] += np.log(p_inf_inc*(1-p1) + (1-p_inf_inc))
+
+    num_contacts[time_inc+1] += 1
+
+  if epsilon_dp > 0:
+    assert delta_dp > 0
+
+    sensitivity = (np.log(1-p1))**2
+    sigma = sensitivity / epsilon_dp * np.sqrt(2 * np.log(1.25 / delta_dp))
+
+    # For 0 contacts the d_no_term will be 0 anyway
+    num_contacts = np.maximum(num_contacts, 1)
+
+    log_expectations_noised = (
+      log_expectations+(sigma/num_contacts)*np.random.randn(num_time_steps+1))
 
     # Everything hereafter is post-processing
     # Clip to [0, 1], equals clip to [\infty, 0] in logdomain

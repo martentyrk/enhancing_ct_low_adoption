@@ -406,6 +406,51 @@ def test_d_penalty_rdp_noisy():
   assert np.max(np.abs(d_no_term1 - d_no_term2)) > 1E-2
 
 
+def test_d_penalty_term_against_dp_gaussian():
+  contacts_all = np.array([
+    (4, 1, 1, 1),
+    (3, 1, 4, 1),
+    ], dtype=np.int32)
+  num_users = 6
+  num_time_steps = 8
+
+  # Second test case
+  user = 1
+  q_marginal_infected = np.array([
+    [.1, .1, .1, .1, .1, .1, .1, .1],
+    [.1, .1, .1, .8, .8, .8, .8, .8],
+    [.1, .1, .1, .1, .1, .1, .1, .1],
+    [.9, .9, .9, .9, .9, .9, .9, .9],
+    [.8, .8, .8, .8, .8, .8, .8, .8],
+    [.1, .1, .1, .1, .1, .1, .1, .1],
+  ], dtype=np.float32)
+
+  past_contacts, _ = util.get_past_contacts_static(
+    (0, num_users), contacts_all, num_msg=int(num_time_steps*100))
+
+  d_term, d_no_term = util.precompute_d_penalty_terms_fn2(
+    q_marginal_infected,
+    p0=0.001,
+    p1=0.1,
+    past_contacts=past_contacts[user],
+    num_time_steps=num_time_steps)
+
+  assert d_no_term.dtype == np.float32
+  assert d_term.dtype == np.float32
+
+  d_term_dp, d_no_term_dp = util.precompute_d_penalty_terms_dp_gaussian(
+    q_marginal_infected,
+    p0=0.001,
+    p1=0.1,
+    epsilon_dp=10000,  # For high epsilon, results should be close to non-dp
+    delta_dp=0.1,  # For high delta, results should be close to non-dp
+    past_contacts=past_contacts[user],
+    num_time_steps=num_time_steps)
+
+  np.testing.assert_array_almost_equal(d_term, d_term_dp, decimal=2)
+  np.testing.assert_array_almost_equal(d_no_term, d_no_term_dp, decimal=2)
+
+
 def test_add_lognormal_noise_rdp():
   means = np.array([.1, .3, .6, .9, .99], dtype=np.float32)
 
