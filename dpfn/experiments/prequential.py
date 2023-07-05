@@ -92,7 +92,7 @@ def simulate_one_day(
       p_state_up = 0
 
     # Increase state according to random sample
-    state_up = (random.random() < p_state_up)
+    state_up = random.random() < p_state_up
     states[user][timestep] = states[user][timestep-1] + state_up
   return states
 
@@ -135,7 +135,7 @@ def get_observations_one_day(
   assert np.abs(p_obs_not_infected[0] + p_obs_not_infected[1] - 1.) < 0.001
 
   states_user = states[users_to_observe]
-  positive = (states_user == 2)
+  positive = states_user == 2
 
   if positive_e_state:
     positive = np.logical_or(positive, states_user == 1)

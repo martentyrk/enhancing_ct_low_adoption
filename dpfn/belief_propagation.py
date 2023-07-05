@@ -181,7 +181,7 @@ def forward_backward_user(
     # Calculate forward message
     message_backslash = util.normalize(msg_back + 1E-12)
     # TODO: do in logspace
-    message = (betas[timestep] / message_backslash)
+    message = betas[timestep] / message_backslash
     message /= np.sum(message)
 
     array_fwd = np.array(

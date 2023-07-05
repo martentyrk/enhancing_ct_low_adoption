@@ -168,7 +168,7 @@ def compare_prequential_quarantine(
   users_stale = None
   if fraction_stale > 0:
     users_stale = np.random.choice(
-      num_users, replace=False, size=(int(fraction_stale*num_users)))
+      num_users, replace=False, size=int(fraction_stale*num_users))
 
   diagnostic = runner if do_diagnosis else None
 
@@ -313,7 +313,7 @@ def compare_prequential_quarantine(
     else:
       z_states_inferred = np.zeros((num_users, num_days, 4))
       users_to_quarantine = np.random.choice(
-        num_users, size=(int(0.05*num_users))).tolist()
+        num_users, size=int(0.05*num_users)).tolist()
 
     logger.info("Conditional quarantine")
     users_to_quarantine = obs_today[np.where(obs_today[:, 2] > 0)[0], 0]
@@ -450,7 +450,7 @@ def compare_inference_algorithms(
   users_stale = None
   if fraction_stale > 0:
     users_stale = np.random.choice(
-      num_users, replace=False, size=(int(fraction_stale*num_users)))
+      num_users, replace=False, size=int(fraction_stale*num_users))
 
   inference_func, _ = make_inference_func(
     inference_method, num_users, cfg, trace_dir)

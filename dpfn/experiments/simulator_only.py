@@ -74,7 +74,7 @@ def main(cfg, runner):
 
     if do_collect >= 2:
       users_to_quarantine = np.random.choice(
-        int(.9*num_users), replace=False, size=(int(.1*num_users)))
+        int(.9*num_users), replace=False, size=int(.1*num_users))
       status = covid19.intervention_quarantine_list(
         model.model.c_model,
         list(users_to_quarantine),

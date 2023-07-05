@@ -36,7 +36,7 @@ def get_sensitivity_log(
 
   M = (1 - probab0)*np.power(1 - alpha*probab1, num_contacts)
   numer = (1 - (beta*(1 - probab1) + (1 - beta))*M)
-  denom = (1 - M)
+  denom = 1 - M
 
   R2_value = np.abs(np.log(1 / (1-beta*probab1)))
   R3_value = np.abs(np.log(numer/denom))
