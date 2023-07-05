@@ -407,9 +407,10 @@ def compare_prequential_quarantine(
       ave_prob_inf[t_now] = np.mean(z_states_inferred[:, num_days-1, 2])
 
       if infection_rate > 0:
+        positive = np.logical_or(states_today == 1, states_today == 2)
+        rank_score = z_states_inferred[:, num_days-1, 1:3].sum(axis=1)
         ave_precision[t_now] = metrics.average_precision_score(
-          y_true=(states_today == 2),
-          y_score=z_states_inferred[:, num_days-1, 2])
+          y_true=positive, y_score=rank_score)
       else:
         ave_precision[t_now] = 0.
 
