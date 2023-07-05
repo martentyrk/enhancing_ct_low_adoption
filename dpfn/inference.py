@@ -1,15 +1,10 @@
 """Inference methods for contact-graphs."""
 from dpfn import constants, logger, util, util_dp
-from mpi4py import MPI  # pytype: disable=import-error
 import numba
 import numpy as np
 import os  # pylint: disable=unused-import
 import time
 from typing import Any, Optional, Tuple
-
-comm_world = MPI.COMM_WORLD
-mpi_rank = comm_world.Get_rank()
-num_proc = comm_world.Get_size()
 
 
 @numba.njit(['float32[:](float32[:])', 'float64[:](float64[:])'])
@@ -240,11 +235,6 @@ def fact_neigh(
     raise NotImplementedError("Stale users not implemented")
   t_start_preamble = time.time()
 
-  user_ids_bucket = util.spread_buckets_interval(num_users, num_proc)
-  user_interval = (
-    int(user_ids_bucket[mpi_rank]), int(user_ids_bucket[mpi_rank+1]))
-  num_users_interval = user_interval[1] - user_interval[0]
-
   seq_array = np.stack(list(
     util.iter_sequences(time_total=num_time_steps, start_se=False)))
   seq_array_hot = np.transpose(util.state_seq_to_hot_time_seq(
@@ -263,7 +253,7 @@ def fact_neigh(
   obs_array = util.make_inf_obs_array(int(num_time_steps), alpha, beta)
   # Precompute log(C) terms, relating to observations
   log_c_z_u = util.calc_c_z_u(
-    user_interval,
+    (0, num_users),
     obs_array,
     observations_all)
 
@@ -275,7 +265,7 @@ def fact_neigh(
 
   num_max_msg = int(constants.CTC*max((num_time_steps, 14)))
   past_contacts, max_num_contacts = util.get_past_contacts_static(
-    user_interval, contacts_all, num_msg=num_max_msg)
+    (0, num_users), contacts_all, num_msg=num_max_msg)
 
   if max_num_contacts >= num_max_msg:
     logger.warning(
@@ -283,29 +273,27 @@ def fact_neigh(
 
   if trace_dir:
     pass
-    # fname = os.path.join(trace_dir, f"fact_neigh_{mpi_rank}.txt")
+    # fname = os.path.join(trace_dir, f"fact_neigh_.txt")
     # with open(fname, 'a') as fp:
     #   fp.write(f"{max_num_contacts:.0f}\n")
 
-  start_belief_matrix = np.ones((num_users_interval, 4), dtype=np.single)
+  start_belief_matrix = np.ones((num_users, 4), dtype=np.single)
   if start_belief is not None:
     assert len(start_belief) == num_users
-    start_belief_matrix = start_belief[user_interval[0]:user_interval[1]]
+    start_belief_matrix = start_belief
 
-  if mpi_rank == 0:
-    t_preamble2 = time.time() - t_start_preamble
-    logger.info(
-      f"Time spent on preamble1/preamble2 {t_preamble1:.1f}/{t_preamble2:.1f}")
+  t_preamble2 = time.time() - t_start_preamble
+  logger.info(
+    f"Time spent on preamble1/preamble2 {t_preamble1:.1f}/{t_preamble2:.1f}")
 
   for num_update in range(num_updates):
     if verbose:
-      if mpi_rank == 0:
-        logger.info(f"Num update {num_update}")
+      logger.info(f"Num update {num_update}")
 
     post_exp, tstart, t_end = fn_step_wrapped(
-      user_interval,
+      (0, num_users),
       seq_array_hot,
-      log_c_z_u,  # already depends in mpi_rank
+      log_c_z_u,
       log_A_start,
       q_marginal_infected,
       num_time_steps,
@@ -329,29 +317,10 @@ def fact_neigh(
     #   logger.info(f"At users {repr(users_nan)}")
 
     if verbose:
-      if mpi_rank == 0:
-        logger.info(f"Time for fn_step: {t_end - tstart:.1f} seconds")
+      logger.info(f"Time for fn_step: {t_end - tstart:.1f} seconds")
+    q_marginal_infected = post_exp[:, :, 2]
 
-    # Prepare buffer for Allgatherv
-    memory_bucket = user_ids_bucket*num_time_steps
-    offsets = memory_bucket[:-1].tolist()
-    sizes_memory = (memory_bucket[1:] - memory_bucket[:-1]).tolist()
-
-    q_send = np.ascontiguousarray(post_exp[:, :, 2], dtype=np.single)
-    comm_world.Allgatherv(
-      q_send,
-      recvbuf=[q_marginal_infected, sizes_memory, offsets, MPI.FLOAT])
-
-  # Prepare buffer for Allgatherv
-  post_exp_collect = np.empty((num_users, num_time_steps, 4), dtype=np.single)
-
-  memory_bucket = user_ids_bucket*num_time_steps*4
-  offsets = memory_bucket[:-1].tolist()
-  sizes_memory = (memory_bucket[1:] - memory_bucket[:-1]).tolist()
-
-  comm_world.Gatherv(
-    post_exp.astype(np.single),
-    recvbuf=[post_exp_collect, sizes_memory, offsets, MPI.FLOAT])
+  post_exp_collect = post_exp
 
   belief_day1 = np.copy(post_exp_collect[:, 1])
 
@@ -376,7 +345,7 @@ def fact_neigh(
   elif dp_method == 3:
     covidscore = util_dp.fn_rdp_mean_noise(
       q_marginal_infected,
-      user_interval=user_interval,
+      user_interval=(0, num_users),
       past_contacts=past_contacts,
       p1=probab_1,
       epsilon_dp=epsilon_dp,
@@ -388,9 +357,9 @@ def fact_neigh(
   elif dp_method >= 4:
 
     post_noised, _, _ = fn_step_wrapped(
-      user_interval,
+      (0, num_users),
       seq_array_hot,
-      log_c_z_u,  # already depends in mpi_rank
+      log_c_z_u,
       log_A_start,
       q_marginal_infected,
       num_time_steps,
@@ -406,18 +375,7 @@ def fact_neigh(
       a_rdp=a_rdp,
       quantization=quantization)
 
-    # Prepare buffer for Allgatherv
-    pnoised_collect = np.empty((num_users, num_time_steps, 4), dtype=np.single)
-
-    memory_bucket = user_ids_bucket*num_time_steps*4
-    offsets = memory_bucket[:-1].tolist()
-    sizes_memory = (memory_bucket[1:] - memory_bucket[:-1]).tolist()
-
-    comm_world.Gatherv(
-      post_noised.astype(np.single),
-      recvbuf=[pnoised_collect, sizes_memory, offsets, MPI.FLOAT])
-
-    post_final = pnoised_collect
+    post_final = post_noised
   else:
     post_final = post_exp_collect
   return belief_day1, post_final

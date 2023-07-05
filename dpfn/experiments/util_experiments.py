@@ -2,17 +2,9 @@
 import crisp
 import numba
 import numpy as np
-from mpi4py import MPI  # pytype: disable=import-error
-from dpfn import constants, inference, logger, belief_propagation, util, util_bp
-from dpfn.experiments import util_sib
-import sib
+from dpfn import constants, inference, logger, belief_propagation
 import subprocess
-import time
 from typing import Any, Dict, Optional, Tuple
-
-comm_world = MPI.COMM_WORLD
-mpi_rank = comm_world.Get_rank()
-num_proc = comm_world.Get_size()
 
 
 def wrap_fact_neigh_inference(
@@ -233,13 +225,6 @@ def wrap_belief_propagation(
       diagnostic: Optional[Any] = None) -> Tuple[np.ndarray, np.ndarray]:
     del users_stale, diagnostic
 
-    # Set up MPI constants
-    user_ids_bucket = util.spread_buckets_interval(num_users, num_proc)
-    user_interval = (
-      int(user_ids_bucket[mpi_rank]), int(user_ids_bucket[mpi_rank+1]))
-    num_users_interval = user_interval[1] - user_interval[0]
-    max_num_contacts = num_time_steps * constants.CTC
-
     # Contacts on last day are not of influence
     def filter_fn(contact):
       return (contact[2] + 1) < num_time_steps
@@ -251,15 +236,9 @@ def wrap_belief_propagation(
       if obs[1] < num_time_steps:
         obs_messages[obs[0]][obs[1]] *= obs_distro[obs[2]]
 
-    # Slice up obs_messages and start_belief
-    # TODO make this slice within a function for obs_messages
-    obs_messages = obs_messages[user_interval[0]:user_interval[1]]
-    if start_belief is not None:
-      start_belief = start_belief[user_interval[0]:user_interval[1]]
-
     map_forward_message, map_backward_message = (
       belief_propagation.init_message_maps(
-        contacts_list, user_interval, num_time_steps))
+        contacts_list, (0, num_users), num_time_steps))
 
     t_inference, t_quant, t_comm = 0., 0., 0.
     for _ in range(num_updates):
@@ -267,7 +246,7 @@ def wrap_belief_propagation(
       (bp_beliefs, map_backward_message, map_forward_message, timing) = (
         belief_propagation.do_backward_forward_and_message(
           A_matrix, p0, p1, num_time_steps, obs_messages, num_users,
-          map_backward_message, map_forward_message, user_interval,
+          map_backward_message, map_forward_message, (0, num_users),
           clip_lower, clip_upper, epsilon_dp, a_rdp, start_belief=start_belief,
           quantization=quantization))
 
@@ -293,152 +272,15 @@ def wrap_belief_propagation(
       t_inference += timing[1] - timing[0]
       t_quant += timing[2] - timing[1]
 
-      t_start = time.time()
-      if num_proc > 1:
-        messages_fwd_received = -10 * np.ones(
-          (num_proc, num_users_interval, max_num_contacts, 4), dtype=np.single)
-        messages_bwd_received = -10 * np.ones(
-          (num_proc, num_users_interval, max_num_contacts, 7), dtype=np.single)
-        for i in range(num_proc):
-          # Forward messages
-          memory = user_ids_bucket*max_num_contacts*4
-          offsets = memory[:-1].astype(np.int32).tolist()
-          sizes_memory = (memory[1:] - memory[:-1]).astype(np.int32).tolist()
-          comm_world.Scatterv(
-            [map_forward_message.astype(np.single), sizes_memory, offsets,
-             MPI.FLOAT],
-            [messages_fwd_received[i], MPI.FLOAT], root=i)
-
-          # Backward messages
-          memory = user_ids_bucket*max_num_contacts*7
-          offsets = memory[:-1].astype(np.int32).tolist()
-          sizes_memory = (memory[1:] - memory[:-1]).astype(np.int32).tolist()
-          comm_world.Scatterv(
-            [map_backward_message.astype(np.single), sizes_memory, offsets,
-             MPI.FLOAT],
-            [messages_bwd_received[i], MPI.FLOAT], root=i)
-
-        # Some assertions, uncomment for debugging
-        # assert np.all(messages_fwd_received > -2)
-        # assert np.all(messages_bwd_received > -2)
-        # if num_time_steps > 5:
-        #   # Only check after a few burnin days
-        #   assert np.max(messages_fwd_received[:, :, -1, :]) < 0
-        #   assert np.max(messages_bwd_received[:, :, -1, :]) < 0
-
-        map_forward_message = util_bp.collapse_null_messages(
-          messages_fwd_received, num_proc, num_users_interval,
-          max_num_contacts, 4)
-
-        map_backward_message = util_bp.collapse_null_messages(
-          messages_bwd_received, num_proc, num_users_interval,
-          max_num_contacts, 7)
-      t_comm += time.time() - t_start
-
     logger.info((
       f"Time for {num_updates} bp passes: {t_inference:.2f}s, "
       f"{t_quant:.2f}s, {t_comm:.2f}s"))
 
     # Collect beliefs
-    bp_collect = np.empty((num_users, num_time_steps, 4), dtype=np.single)
-
-    memory_bucket = user_ids_bucket*num_time_steps*4
-    offsets = memory_bucket[:-1].tolist()
-    sizes_memory = (memory_bucket[1:] - memory_bucket[:-1]).tolist()
-
-    comm_world.Gatherv(
-      bp_beliefs.astype(np.single),
-      recvbuf=[bp_collect, sizes_memory, offsets, MPI.FLOAT])
-
+    bp_collect = bp_beliefs
     bp_collect /= np.sum(bp_collect, axis=-1, keepdims=True)
     return bp_collect[:, 1], bp_collect
   return bp_wrapped
-
-
-def wrap_sib(
-    num_users: int,
-    recovery_days: float,
-    p0: float,
-    p1: float,
-    damping: float):
-  """Wraps the inference function for the SIB library.
-
-  https://github.com/sibyl-team/sib
-  """
-  sib.set_num_threads(util.get_cpu_count())
-
-  def sib_wrapped(
-      observations_list: constants.ObservationList,
-      contacts_list: constants.ContactList,
-      num_updates: int,
-      num_time_steps: int,
-      start_belief: Optional[np.ndarray] = None,
-      users_stale: Optional[np.ndarray] = None,
-      diagnostic: Optional[Any] = None) -> Tuple[np.ndarray, np.ndarray]:
-    del start_belief
-
-    if users_stale is not None:
-      raise ValueError('Not implemented stale users for SIB')
-
-    # Prepare contacts
-    contacts_sib = []
-    for contact in contacts_list:
-      if contact[0] < 0:
-        break
-
-      ctc = (int(contact[0]), int(contact[1]), int(contact[2]), p1)
-      contacts_sib.append(ctc)
-
-    # Prepare observations
-    obs_sib = []
-    for obs in observations_list:
-      if obs[0] < 0:
-        break
-
-      if obs[2] == 1:
-        test = sib.Test(0, 1, 0)
-      else:
-        test = sib.Test(.5, 0, .5)
-      obs_sib.append((obs[0], test, obs[1]))
-    # Add dummy observations to query marginals later
-    obs_sib += [(i, sib.Test(1, 1, 1), timestep)
-                for i in range(num_users) for timestep in range(num_time_steps)]
-
-    # Sort observations and contacts (required for SIB library)
-    obs_sib = list(sorted(obs_sib, key=lambda x: x[2]))
-    contacts_sib = list(sorted(contacts_sib, key=lambda x: x[2]))
-
-    sib_params = util_sib.make_sib_params(num_time_steps, p0, recovery_days)
-
-    # Run inference
-    f = sib.FactorGraph(
-      params=sib_params,
-      contacts=contacts_sib,
-      tests=obs_sib)
-
-    if diagnostic:
-      diagnostic.log({"damping": damping}, commit=False)
-    sib.iterate(f, maxit=num_updates, damping=damping)
-
-    nodes_all = {node.index: node for node in f.nodes}
-
-    # Collect marginals
-    marginals_sib = np.zeros((num_users, num_time_steps, 3))
-    for user in range(num_users):
-      for timestep in range(num_time_steps):
-        message = sib.marginal_t(nodes_all[user], timestep)
-        marginals_sib[user, timestep] = np.array(list(message))
-
-    logger.info(f"Marginals SIB contain NaN {np.any(np.isnan(marginals_sib))}")
-
-    # Insert a slice with all zeros for E state (SIB does only SIR)
-    marginals_sib = np.concatenate(
-      (marginals_sib[:, :, :1],
-       np.zeros((num_users, num_time_steps, 1)),
-       marginals_sib[:, :, 1:]),
-      axis=-1)
-    return marginals_sib[:, 1], marginals_sib
-  return sib_wrapped
 
 
 def wrap_gibbs_inference(

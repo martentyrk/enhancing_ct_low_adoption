@@ -1,7 +1,6 @@
 """Compare inference methods on likelihood and AUROC, and run prequentially."""
 import argparse
 import copy
-from mpi4py import MPI  # pytype: disable=import-error
 import numpy as np
 from dpfn.config import config
 from dpfn.data import data_load
@@ -22,12 +21,6 @@ import tqdm
 import traceback
 from typing import Any, Dict, List, Optional
 import wandb
-
-
-comm_world = MPI.COMM_WORLD
-mpi_rank = comm_world.Get_rank()
-num_proc = comm_world.Get_size()
-print(f"num_proc {num_proc} mpi_rank {mpi_rank}")
 
 
 def make_inference_func(
@@ -139,17 +132,6 @@ def make_inference_func(
       beta=beta,
       probab_0=p0,
       probab_1=p1)
-  elif inference_method == "sib":
-    # Belief Propagation
-    sib_mult = cfg["model"]["sib_mult"]
-    recovery_days = 1/h + sib_mult*1/g
-
-    inference_func = util_experiments.wrap_sib(
-      num_users=num_users,
-      recovery_days=recovery_days,
-      p0=p0,
-      p1=p1,
-      damping=0.0)
   elif inference_method == "random":
     inference_func = None
     do_random_quarantine = True
@@ -165,7 +147,7 @@ def make_inference_func(
   else:
     raise ValueError((
       f"Not recognised inference method {inference_method}. Should be one of"
-      f"['random', 'fn', 'dummy', 'dct', 'dpct', 'bp', 'sib', 'gibbs']"
+      f"['random', 'fn', 'dummy', 'dct', 'dpct', 'bp', 'gibbs']"
     ))
   return inference_func, do_random_quarantine
 
@@ -253,7 +235,8 @@ def compare_prequential_quarantine(
   logger.info(f"Do random quarantine? {do_random_quarantine}")
   t0 = time.time()
 
-  if mpi_rank == 0:
+  do_sim = True
+  if do_sim:
     if use_abm_simulator:
       sim_factory = simulator.ABMSimulator
       contacts = []
@@ -288,20 +271,16 @@ def compare_prequential_quarantine(
     # Do not test when user in quarantine
     rank_score *= (user_quarantine_ends < t_now)
 
-    if mpi_rank == 0:
-      # Grab tests on the main process
-      users_to_test = prequential.decide_tests(
-        scores_infect=rank_score,
-        num_tests=int(fraction_test * num_users))
+    # Grab tests on the main process
+    users_to_test = prequential.decide_tests(
+      scores_infect=rank_score,
+      num_tests=int(fraction_test * num_users))
 
-      obs_today = sim.get_observations_today(
-        users_to_test.astype(np.int32),
-        p_obs_infected,
-        p_obs_not_infected,
-        arg_rng)
-    else:
-      users_to_test = []
-      obs_today = []
+    obs_today = sim.get_observations_today(
+      users_to_test.astype(np.int32),
+      p_obs_infected,
+      p_obs_not_infected,
+      arg_rng)
 
     sim.set_window(days_offset)
 
@@ -312,11 +291,9 @@ def compare_prequential_quarantine(
       start_belief = start_belief_global
       # if num_days <= t_now:
       #   # This condition is true when num_days_window > t_now
-      #   if mpi_rank == 0:
-      #     logger.info("Use window!")
+      #   logger.info("Use window!")
       #   start_belief = start_belief_inferred
       # start_belief = np.ascontiguousarray(start_belief, dtype=np.single)
-      # comm_world.Bcast([start_belief, MPI.FLOAT], root=0)
 
       contacts_now = util.make_default_array(
         sim.get_contacts(), dtype=np.int32, rowlength=4)
@@ -326,22 +303,7 @@ def compare_prequential_quarantine(
       num_contacts = np.array(contacts_now.shape[0], dtype=np.int32)
       num_obs = np.array(observations_now.shape[0], dtype=np.int32)
 
-      comm_world.Bcast([num_contacts, MPI.INT32_T], root=0)
-      comm_world.Bcast([num_obs, MPI.INT32_T], root=0)
-
-      if mpi_rank == 0:
-        logger.info(f"Day {t_now}: {num_contacts} contacts, {num_obs} obs")
-
-      if mpi_rank > 0:
-        # Make receiving buffers on all but head process
-        contacts_now = np.zeros((num_contacts, 4), dtype=np.int32)
-        observations_now = np.zeros((num_obs, 3), dtype=np.int32)
-
-      contacts_now = np.ascontiguousarray(contacts_now, dtype=np.int32)
-      observations_now = np.ascontiguousarray(observations_now, dtype=np.int32)
-
-      comm_world.Bcast([contacts_now, MPI.INT32_T], root=0)
-      comm_world.Bcast([observations_now, MPI.INT32_T], root=0)
+      logger.info(f"Day {t_now}: {num_contacts} contacts, {num_obs} obs")
 
       _, z_states_inferred = inference_func(
         observations_now,
@@ -354,8 +316,7 @@ def compare_prequential_quarantine(
 
       np.testing.assert_array_almost_equal(
         z_states_inferred.shape, [num_users, num_days, 4])
-      if mpi_rank == 0:
-        logger.info(f"Time spent on inference_func {time.time() - t_start:.0f}")
+      logger.info(f"Time spent on inference_func {time.time() - t_start:.0f}")
 
     else:
       z_states_inferred = np.zeros((num_users, num_days, 4))
@@ -375,95 +336,93 @@ def compare_prequential_quarantine(
     sim.quarantine_users(users_to_quarantine, num_days_quarantine)
     assert sim.get_current_day() == t_now
 
-    if mpi_rank == 0:
-      # NOTE: fpr is only defined as long as num_users_quarantine is fixed.
-      # else switch to precision and recall
-      states_today = sim.get_states_today()
+    # NOTE: fpr is only defined as long as num_users_quarantine is fixed.
+    # else switch to precision and recall
+    states_today = sim.get_states_today()
 
-      precision, recall = prequential.calc_prec_recall(
-        states_today, user_quarantine_ends > t_now)
-      infection_rate = np.mean(states_today == 2)
-      exposed_rate = np.mean(
-        np.logical_or(states_today == 1, states_today == 2))
-      pir_running = max((pir_running, infection_rate))
-      logger.info((f"precision: {precision:5.2f}, recall: {recall: 5.2f}, "
-                   f"infection rate: {infection_rate:5.3f}({pir_running:5.3f}),"
-                   f"{exposed_rate:5.3f}, tests: {len(users_to_test):5.0f} "
-                   f"Qs: {len(users_to_quarantine):5.0f}"))
+    precision, recall = prequential.calc_prec_recall(
+      states_today, user_quarantine_ends > t_now)
+    infection_rate = np.mean(states_today == 2)
+    exposed_rate = np.mean(
+      np.logical_or(states_today == 1, states_today == 2))
+    pir_running = max((pir_running, infection_rate))
+    logger.info((f"precision: {precision:5.2f}, recall: {recall: 5.2f}, "
+                 f"infection rate: {infection_rate:5.3f}({pir_running:5.3f}),"
+                 f"{exposed_rate:5.3f}, tests: {len(users_to_test):5.0f} "
+                 f"Qs: {len(users_to_quarantine):5.0f}"))
 
-      precisions[t_now] = precision
-      recalls[t_now] = recall
-      infection_rates[t_now] = infection_rate
-      exposed_rates[t_now] = np.mean(
-        np.logical_or(states_today == 1, states_today == 2))
-      num_quarantined[t_now] = len(users_to_quarantine)
-      num_tested[t_now] = len(users_to_test)
+    precisions[t_now] = precision
+    recalls[t_now] = recall
+    infection_rates[t_now] = infection_rate
+    exposed_rates[t_now] = np.mean(
+      np.logical_or(states_today == 1, states_today == 2))
+    num_quarantined[t_now] = len(users_to_quarantine)
+    num_tested[t_now] = len(users_to_test)
 
-      # Inspect using sampled states
-      p_at_state = z_states_inferred[range(num_users), num_days-1, states_today]
-      likelihoods_state[t_now] = np.mean(np.log(p_at_state + 1E-9))
-      ave_prob_inf_at_inf[t_now] = np.mean(
-        p_at_state[states_today == 2])
-      ave_prob_inf[t_now] = np.mean(z_states_inferred[:, num_days-1, 2])
+    # Inspect using sampled states
+    p_at_state = z_states_inferred[range(num_users), num_days-1, states_today]
+    likelihoods_state[t_now] = np.mean(np.log(p_at_state + 1E-9))
+    ave_prob_inf_at_inf[t_now] = np.mean(
+      p_at_state[states_today == 2])
+    ave_prob_inf[t_now] = np.mean(z_states_inferred[:, num_days-1, 2])
 
-      if infection_rate > 0:
-        positive = np.logical_or(states_today == 1, states_today == 2)
-        rank_score = z_states_inferred[:, num_days-1, 1:3].sum(axis=1)
-        ave_precision[t_now] = metrics.average_precision_score(
-          y_true=positive, y_score=rank_score)
-      else:
-        ave_precision[t_now] = 0.
+    if infection_rate > 0:
+      positive = np.logical_or(states_today == 1, states_today == 2)
+      rank_score = z_states_inferred[:, num_days-1, 1:3].sum(axis=1)
+      ave_precision[t_now] = metrics.average_precision_score(
+        y_true=positive, y_score=rank_score)
+    else:
+      ave_precision[t_now] = 0.
 
-      time_full_loop = time.time() - t_start_loop
-      logger.info(f"Time spent on full_loop {time_full_loop:.0f}")
+    time_full_loop = time.time() - t_start_loop
+    logger.info(f"Time spent on full_loop {time_full_loop:.0f}")
 
-      loadavg1, loadavg5, _ = os.getloadavg()
-      swap_use = psutil.swap_memory().used / (1024.0 ** 3)
-      runner.log({
-        "time_step": time_full_loop,
-        "infection_rate": infection_rate,
-        "load1": loadavg1,
-        "load5": loadavg5,
-        "swap_use": swap_use,
-        "recall": recall,
-        })
-
-  if mpi_rank == 0:
-    time_pir, pir = np.argmax(infection_rates), np.max(infection_rates)
-    logger.info(f"At day {time_pir} peak infection rate is {pir}")
-
-    prequential.dump_results_json(
-      datadir=results_dir,
-      cfg=cfg,
-      ave_prob_inf=ave_prob_inf.tolist(),
-      ave_prob_inf_at_inf=ave_prob_inf_at_inf.tolist(),
-      ave_precision=ave_precision.tolist(),
-      exposed_rates=exposed_rates.tolist(),
-      inference_method=inference_method,
-      infection_rates=infection_rates.tolist(),
-      likelihoods_state=likelihoods_state.tolist(),
-      name=runner.name,
-      num_quarantined=num_quarantined.tolist(),
-      num_tested=num_tested.tolist(),
-      pir=float(pir),
-      precisions=precisions.tolist(),
-      quantization=quantization,
-      recalls=recalls.tolist(),
-      seed=cfg.get("seed", -1),
-    )
-
-    time_spent = time.time() - t0
-    logger.info(f"With {num_rounds} rounds, PIR {pir:5.2f}")
+    loadavg1, loadavg5, _ = os.getloadavg()
+    swap_use = psutil.swap_memory().used / (1024.0 ** 3)
     runner.log({
-      "time_spent": time_spent,
-      "pir_mean": pir,
-      "recall": np.nanmean(recalls[10:]),
-      "precision": np.nanmean(precisions[10:])})
+      "time_step": time_full_loop,
+      "infection_rate": infection_rate,
+      "load1": loadavg1,
+      "load5": loadavg5,
+      "swap_use": swap_use,
+      "recall": recall,
+      })
 
-    # Overwrite every experiment, such that code could be pre-empted
-    prequential.dump_results(
-      results_dir, precisions=precisions, recalls=recalls,
-      infection_rates=infection_rates)
+  time_pir, pir = np.argmax(infection_rates), np.max(infection_rates)
+  logger.info(f"At day {time_pir} peak infection rate is {pir}")
+
+  prequential.dump_results_json(
+    datadir=results_dir,
+    cfg=cfg,
+    ave_prob_inf=ave_prob_inf.tolist(),
+    ave_prob_inf_at_inf=ave_prob_inf_at_inf.tolist(),
+    ave_precision=ave_precision.tolist(),
+    exposed_rates=exposed_rates.tolist(),
+    inference_method=inference_method,
+    infection_rates=infection_rates.tolist(),
+    likelihoods_state=likelihoods_state.tolist(),
+    name=runner.name,
+    num_quarantined=num_quarantined.tolist(),
+    num_tested=num_tested.tolist(),
+    pir=float(pir),
+    precisions=precisions.tolist(),
+    quantization=quantization,
+    recalls=recalls.tolist(),
+    seed=cfg.get("seed", -1),
+  )
+
+  time_spent = time.time() - t0
+  logger.info(f"With {num_rounds} rounds, PIR {pir:5.2f}")
+  runner.log({
+    "time_spent": time_spent,
+    "pir_mean": pir,
+    "recall": np.nanmean(recalls[10:]),
+    "precision": np.nanmean(precisions[10:])})
+
+  # Overwrite every experiment, such that code could be pre-empted
+  prequential.dump_results(
+    results_dir, precisions=precisions, recalls=recalls,
+    infection_rates=infection_rates)
 
 
 def compare_inference_algorithms(
@@ -510,8 +469,7 @@ def compare_inference_algorithms(
 
   diagnostic = runner if do_diagnosis else None
 
-  if mpi_rank == 0:
-    logger.info(f"Start inference method {inference_method}")
+  logger.info(f"Start inference method {inference_method}")
 
   time_start = time.time()
   _, z_states_inferred = inference_func(
@@ -542,11 +500,10 @@ def compare_inference_algorithms(
   log_like_obs = prequential.get_evidence_obs(
     observations, z_states_inferred, alpha, beta)
 
-  if mpi_rank == 0:
-    logger.info((
-      f"{num_rounds:5} rounds for {num_users:10} users in {time_spent:10.2f} "
-      f"seconds with log-like {log_like:10.2f}/{log_like_obs:10.2f} nats "
-      f"and AUROC {auroc:5.3f} and AP {av_precision:5.3f}"))
+  logger.info((
+    f"{num_rounds:5} rounds for {num_users:10} users in {time_spent:10.2f} "
+    f"seconds with log-like {log_like:10.2f}/{log_like_obs:10.2f} nats "
+    f"and AUROC {auroc:5.3f} and AP {av_precision:5.3f}"))
   sys.stdout.flush()
 
   runner.log({
@@ -564,7 +521,7 @@ if __name__ == "__main__":
     description='Compare statistics acrosss inference methods')
   parser.add_argument('--inference_method', type=str, default='fn',
                       choices=[
-                        'fn', 'dummy', 'random', 'bp', 'dct', 'dpct', 'sib',
+                        'fn', 'dummy', 'random', 'bp', 'dct', 'dpct',
                         'gibbs'],
                       help='Name of the inference method')
   parser.add_argument('--experiment_setup', type=str, default='single',
@@ -603,8 +560,7 @@ if __name__ == "__main__":
   results_dir_global = (
     f'results/{experiment_name}/{configname_data}__{configname_model}/')
 
-  if mpi_rank == 0:
-    util.maybe_make_dir(results_dir_global)
+  util.maybe_make_dir(results_dir_global)
   if args.dump_traces:
     trace_dir_global = (
       f'results/trace_{experiment_name}/{configname_data}__{configname_model}/')
@@ -634,7 +590,8 @@ if __name__ == "__main__":
 
   tags.append("local" if (os.getenv('SLURM_JOB_ID') is None) else "slurm")
 
-  if mpi_rank == 0:
+  do_wandb = True
+  if do_wandb:
     runner_global = wandb.init(
       project="dpfn",
       notes=" ",
@@ -652,11 +609,6 @@ if __name__ == "__main__":
     # config_wandb = {
     #   "data": config_data.to_dict(), "model": config_model.to_dict()}
 
-  config_wandb = comm_world.bcast(config_wandb, root=0)
-  logger.info((
-    f"Process {mpi_rank} has data_fraction_test "
-    f"{config_wandb['data']['fraction_test']}"))
-
   logger.info(f"Logger filename {LOGGER_FILENAME}")
   logger.info(f"Saving to results_dir_global {results_dir_global}")
   logger.info(f"sweep_id: {os.getenv('SWEEPID')}")
@@ -664,8 +616,7 @@ if __name__ == "__main__":
   logger.info(f"slurm_name: {os.getenv('SLURM_JOB_NAME')}")
   logger.info(f"slurm_ntasks: {os.getenv('SLURM_NTASKS')}")
 
-  if mpi_rank == 0:
-    util_experiments.make_git_log()
+  util_experiments.make_git_log()
 
   # Set random seed
   seed_value = config_wandb.get("seed", None)

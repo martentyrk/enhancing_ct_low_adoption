@@ -1,7 +1,6 @@
 """Compare inference methods on likelihood and AUROC, and run prequentially."""
 import argparse
 import covasim as cv
-from mpi4py import MPI  # pytype: disable=import-error
 import numpy as np
 from dpfn.config import config
 from dpfn.experiments import compare_stats, prequential, util_experiments
@@ -17,12 +16,6 @@ import time
 import traceback
 from typing import Any, Dict, Optional
 import wandb
-
-
-comm_world = MPI.COMM_WORLD
-mpi_rank = comm_world.Get_rank()
-num_proc = comm_world.Get_size()
-print(f"num_proc {num_proc} mpi_rank {mpi_rank}")
 
 
 class StoreSEIR(cv.Analyzer):
@@ -274,23 +267,22 @@ def compare_policy_covasim(
     quantization=quantization,
     seed=cfg.get("seed", -1))
 
-  if mpi_rank == 0:
-    time_pir, pir = np.argmax(infection_rates), np.max(infection_rates)
-    logger.info(f"At day {time_pir} peak infection rate is {pir:.5f}")
+  time_pir, pir = np.argmax(infection_rates), np.max(infection_rates)
+  logger.info(f"At day {time_pir} peak infection rate is {pir:.5f}")
 
-    _, loadavg5, loadavg15 = os.getloadavg()
-    swap_use = psutil.swap_memory().used / (1024.0 ** 3)
+  _, loadavg5, loadavg15 = os.getloadavg()
+  swap_use = psutil.swap_memory().used / (1024.0 ** 3)
 
-    time_spent = time.time() - t0
-    logger.info(f"With {num_rounds} rounds, PIR {pir:5.2f}")
-    runner.log({
-      "time_spent": time_spent,
-      "pir_mean": pir,
-      "loadavg5": loadavg5,
-      "loadavg15": loadavg15,
-      "swap_use": swap_use,
-      "recall": np.nanmean(analysis.recalls),
-      "precision": np.nanmean(analysis.precisions)})
+  time_spent = time.time() - t0
+  logger.info(f"With {num_rounds} rounds, PIR {pir:5.2f}")
+  runner.log({
+    "time_spent": time_spent,
+    "pir_mean": pir,
+    "loadavg5": loadavg5,
+    "loadavg15": loadavg15,
+    "swap_use": swap_use,
+    "recall": np.nanmean(analysis.recalls),
+    "precision": np.nanmean(analysis.precisions)})
 
 
 def log_to_wandb(wandb_runner):
@@ -312,7 +304,7 @@ if __name__ == "__main__":
     description='Compare statistics acrosss inference methods')
   parser.add_argument('--inference_method', type=str, default='fn',
                       choices=[
-                        'fn', 'dummy', 'random', 'bp', 'dct', 'dpct', 'sib',
+                        'fn', 'dummy', 'random', 'bp', 'dct', 'dpct',
                         'gibbs'],
                       help='Name of the inference method')
   parser.add_argument('--config_data', type=str, default='large_graph_02',
@@ -349,8 +341,7 @@ if __name__ == "__main__":
   results_dir_global = (
     f'results/{experiment_name}/{configname_data}__{configname_model}/')
 
-  if mpi_rank == 0:
-    util.maybe_make_dir(results_dir_global)
+  util.maybe_make_dir(results_dir_global)
   if args.dump_traces:
     trace_dir_global = (
       f'results/trace_{experiment_name}/{configname_data}__{configname_model}/')
@@ -379,7 +370,8 @@ if __name__ == "__main__":
   tags.append("dump_traces" if args.dump_traces else "noquick")
   tags.append("local" if (os.getenv('SLURM_JOB_ID') is None) else "slurm")
 
-  if mpi_rank == 0:
+  do_wandb = True
+  if do_wandb:
     runner_global = wandb.init(
       project="dpfn",
       notes=" ",
@@ -397,11 +389,6 @@ if __name__ == "__main__":
     # config_wandb = {
     #   "data": config_data.to_dict(), "model": config_model.to_dict()}
 
-  config_wandb = comm_world.bcast(config_wandb, root=0)
-  logger.info((
-    f"Process {mpi_rank} has data_fraction_test "
-    f"{config_wandb['data']['fraction_test']}"))
-
   logger.info(f"Logger filename {LOGGER_FILENAME}")
   logger.info(f"Saving to results_dir_global {results_dir_global}")
   logger.info(f"sweep_id: {os.getenv('SWEEPID')}")
@@ -409,8 +396,7 @@ if __name__ == "__main__":
   logger.info(f"slurm_name: {os.getenv('SLURM_JOB_NAME')}")
   logger.info(f"slurm_ntasks: {os.getenv('SLURM_NTASKS')}")
 
-  if mpi_rank == 0:
-    util_experiments.make_git_log()
+  util_experiments.make_git_log()
 
   # Set random seed
   seed_value = config_wandb.get("seed", None)

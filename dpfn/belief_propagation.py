@@ -1,14 +1,9 @@
 """Belief propagation for CRISP-like models."""
 import numpy as np
-from mpi4py import MPI  # pytype: disable=import-error
 from dpfn import constants, util, util_bp
 import numba
 import time
 from typing import Optional, Tuple
-
-comm_world = MPI.COMM_WORLD
-mpi_rank = comm_world.Get_rank()
-num_proc = comm_world.Get_size()
 
 
 @numba.njit((
