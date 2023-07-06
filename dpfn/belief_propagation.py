@@ -146,7 +146,7 @@ def forward_backward_user(
   # Collect marginal beliefs
   betas = np.exp(
     np.log(mu_f2v_forward) + np.log(mu_f2v_backward) + np.log(obs_messages)
-    + np.log(mu_back_contact))
+    + np.log(mu_back_contact)) + np.float32(1E-12)
   # TODO: normalize in log domain
   betas /= np.expand_dims(np.sum(betas, axis=1), axis=1)
 
