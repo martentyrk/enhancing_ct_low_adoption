@@ -656,7 +656,7 @@ def precompute_d_penalty_terms_dp_gaussian(
   if epsilon_dp > 0:
     assert delta_dp > 0
 
-    sensitivity = (np.log(1-p1))**2
+    sensitivity = np.log(1-p1)
     sigma = sensitivity / epsilon_dp * np.sqrt(2 * np.log(1.25 / delta_dp))
 
     # For 0 contacts the d_no_term will be 0 anyway
