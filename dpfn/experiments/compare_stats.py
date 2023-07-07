@@ -537,7 +537,8 @@ if __name__ == "__main__":
                             'the code quickly, usually for debugging purpose'))
 
   # TODO make a better heuristic for this:
-  numba.set_num_threads(util.get_cpu_count())
+  logger.info(f"SLURM env N_TASKS: {os.getenv('SLURM_NTASKS')}")
+  numba.set_num_threads(max((util.get_cpu_count()-1, 1)))
 
   args = parser.parse_args()
 
