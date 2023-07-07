@@ -140,8 +140,7 @@ def compare_policy_covasim(
     inds = sim.people.uid
     vals = np.ones(len(sim.people))  # Create the array
     vals[exposed] = 100  # Probability for testing
-    output = dict(inds=inds, vals=vals)
-    return output, history
+    return {'inds': inds, 'vals': vals}, history
 
   def subtarget_func_inference(sim, history):
     """Subtarget function for testing.
@@ -221,8 +220,7 @@ def compare_policy_covasim(
       # For the first few days of a simulation, just test randomly
       rank_score = np.ones(num_users) + np.random.rand(num_users)
 
-    inds = sim.people.uid  # Everyone in the population
-    output = dict(inds=inds, vals=rank_score)
+    output = {'inds': sim.people.uid, 'vals': rank_score}
     return output, history
 
   # TODO: fix this to new keyword

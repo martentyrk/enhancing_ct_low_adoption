@@ -61,7 +61,8 @@ def test_covasim_tests():
           f"{len(inds_neg):4} negative tests, at IR {np.mean(infected):8.3f}"))
 
     inds = sim.people.uid  # Everyone in the population
-    output = dict(inds=inds, vals=np.ones_like(inds)+np.random.rand(len(inds)))
+    output = {
+      'inds': inds, 'vals': np.ones_like(inds)+np.random.rand(len(inds))}
     return output, history
 
   test_intervention = cv.test_num(

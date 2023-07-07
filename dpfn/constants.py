@@ -3,6 +3,25 @@
 import numpy as np
 from typing import List, Tuple, Union
 
+# Definition of dp_method:
+#
+# Throughout the code, the variable 'dp_method' is used to determine which
+# method is used to make the covidscore differentially private.
+#
+# The specified options are:
+#
+# DP=-1, no DP applied;
+# DP=2, uses the global sensitivity;
+# DP=3, uses the private geometric mean of the FN scores after equilibration
+#         (doesn't work well);
+# DP=4, uses the multiplicative sensitivity per row of FN
+#         (but doesn't work well);
+# DP=5, corresponds to using log-normal on user for a day;
+# DP=6, corresponds to DP on message only, Gaussian Mechanism
+#         in the logit domain;
+# DP=7, corresponds to using the Gaussian mechanism in log-domain when doing FN
+#         (note that this method introduces a bias in the covidscore);
+
 CTC = 120  # Contact tracing capacity per day
 
 colors = ['b', 'm', 'r', 'k']

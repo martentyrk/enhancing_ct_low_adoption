@@ -49,7 +49,8 @@ def fn_step_wrapped(
     past_contacts_array: iterator with elements (timestep, user_u, features)
     start_belief: matrix in [num_users_int, 4], i-th row is assumed to be the
       start_belief of user user_slice[i]
-    dp_method: DP method to use, as integer
+    dp_method: DP method to use, explanation in constants.py, value of -1 means
+      no differential privacy applied
     epsilon_dp: epsilon for DP
     delta_dp: delta for DP
     a_rdp: alpha parameter for Renyi Differential Privacy
@@ -220,7 +221,8 @@ def fact_neigh(
     quantization: number of levels for quantization. Negative number indicates
       no use of quantization.
     num_updates: Number of rounds to update using Factorised Neighbor algorithm
-    dp_method: Differential privacy method to use. -1 indicates no DP.
+    dp_method: DP method to use, explanation in constants.py, value of -1 means
+      no differential privacy applied
     epsilon_dp: Epsilon for differential privacy
     delta_dp: Delta for differential privacy
     a_rdp: alpha parameter for Renyi Differential Privacy
