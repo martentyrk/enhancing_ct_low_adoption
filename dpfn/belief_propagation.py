@@ -130,22 +130,24 @@ def forward_backward_user(
 
   betas = np.zeros((num_time_steps, 4))
   # Move all messages forward
-  mu_f2v_forward[0] = start_belief
+  mu_f2v_forward[0] = start_belief + np.float32(1E-12)
   for t_now in range(1, num_time_steps):
     mu_f2v_forward[t_now] = A_user[t_now-1].T.dot(
       mu_f2v_forward[t_now-1] * obs_messages[t_now-1]
-      * mu_back_contact[t_now-1])
+      * mu_back_contact[t_now-1]) + np.float32(1E-12)
 
   # Move all messages backward
   mu_f2v_backward[num_time_steps-1] = np.ones((4))
   for t_now in range(num_time_steps-2, -1, -1):
     mu_f2v_backward[t_now] = A_user[t_now].dot(
       mu_f2v_backward[t_now+1] * obs_messages[t_now+1]
-      * mu_back_contact[t_now+1])
+      * mu_back_contact[t_now+1]) + np.float32(1E-12)
 
   # Collect marginal beliefs
   betas = np.exp(
-    np.log(mu_f2v_forward) + np.log(mu_f2v_backward) + np.log(obs_messages)
+    np.log(mu_f2v_forward)
+    + np.log(mu_f2v_backward)
+    + np.log(obs_messages)
     + np.log(mu_back_contact)) + np.float32(1E-12)
   # TODO: normalize in log domain
   betas /= np.expand_dims(np.sum(betas, axis=1), axis=1)
