@@ -571,3 +571,32 @@ def test_fward_bward_user_rdp():
 
   diff = np.sum(np.abs(bp_beliefs_user - bp_noised))
   assert diff > 1E-3
+
+
+def test_fward_bward_user_strong_dp():
+  (p0, p1, alpha, beta, A_matrix, observations_all, contacts_all, num_users,
+   num_time_steps) = construct_test_problem()
+
+  start_belief_def = np.array([1.-p0, p0, 0., 0.], dtype=np.float32)
+  obs_distro = {
+    0: np.array([1-beta, 1-beta, alpha, 1-beta], dtype=np.float32),
+    1: np.array([beta, beta, 1-alpha, beta], dtype=np.float32),
+  }
+
+  obs_messages = np.ones((num_users, num_time_steps, 4), dtype=np.float32)
+  for obs in observations_all:
+    obs_messages[obs[0]][obs[1]] *= obs_distro[obs[2]]
+
+  map_forward_message, map_backward_message = (
+    belief_propagation.init_message_maps(
+      contacts_all, (0, num_users), num_time_steps))
+
+  user_test = 0
+  bp_beliefs_user, _, _ = (
+    belief_propagation.forward_backward_user(
+      A_matrix, p1, user_test, map_backward_message[user_test],
+      map_forward_message[user_test], num_time_steps, obs_messages[user_test],
+      start_belief_def, -1., 10000., 0.001, 5.))
+
+  assert not np.any(np.isinf(bp_beliefs_user))
+  assert not np.any(np.isnan(bp_beliefs_user))

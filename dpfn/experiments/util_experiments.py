@@ -250,6 +250,12 @@ def wrap_belief_propagation(
           clip_lower, clip_upper, epsilon_dp, a_rdp, start_belief=start_belief,
           quantization=quantization))
 
+      if np.any(np.isnan(bp_beliefs)):
+        logger.info(f"Max message fwd {np.max(map_forward_message)}")
+        logger.info(f"Min message fwd {np.min(map_forward_message)}")
+        logger.info(f"Max message bwd {np.max(map_backward_message)}")
+        logger.info(f"Min message bwd {np.min(map_backward_message)}")
+        raise ValueError('bp_beliefs is NaN')
       if np.any(np.isnan(map_forward_message)):
         raise ValueError('Forward message is NaN')
       if np.any(np.isinf(map_forward_message)):
@@ -266,8 +272,6 @@ def wrap_belief_propagation(
         raise ValueError('bp_beliefs is negative ??')
       if np.any(bp_beliefs > 1):
         raise ValueError('bp_beliefs is bigger than 1 ??')
-      if np.any(np.isnan(bp_beliefs)):
-        raise ValueError('bp_beliefs is NaN')
 
       t_inference += timing[1] - timing[0]
       t_quant += timing[2] - timing[1]
