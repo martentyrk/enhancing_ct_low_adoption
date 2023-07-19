@@ -122,8 +122,8 @@ def forward_backward_user(
   mu_back_contact = np.minimum(
     0.9999, np.maximum(mu_back_contact, 0.0001)).astype(np.float32)
 
-  mu_f2v_forward = np.zeros((num_time_steps, 4), dtype=np.float32)
-  mu_f2v_backward = np.zeros((num_time_steps, 4), dtype=np.float32)
+  mu_f2v_forward = -1 * np.ones((num_time_steps, 4), dtype=np.float32)
+  mu_f2v_backward = -1 * np.ones((num_time_steps, 4), dtype=np.float32)
 
   # Forward messages can be interpreted as modifying the dynamics matrix.
   # Therefore, we precompute these matrices using the incoming forward messages
@@ -140,7 +140,7 @@ def forward_backward_user(
       * mu_back_contact[t_now-1]) + np.float32(1E-12)
 
   # Move all messages backward
-  mu_f2v_backward[num_time_steps-1] = np.ones((4))
+  mu_f2v_backward[num_time_steps-1] = np.ones((4), dtype=np.float32)
   for t_now in range(num_time_steps-2, -1, -1):
     mu_f2v_backward[t_now] = A_user[t_now].dot(
       mu_f2v_backward[t_now+1] * obs_messages[t_now+1]
@@ -315,17 +315,18 @@ def do_backward_forward_subset(
   Note, the messages are appended, and thus not updated between users!
   """
   num_users_interval = user_interval[1] - user_interval[0]
-  bp_beliefs_subset = np.zeros(
+  bp_beliefs_subset = -1 * np.ones(
     (num_users_interval, num_time_steps, 4), dtype=np.float32)
 
   # Init ndarrays for all messages being sent by users in this subset
-  messages_backward_subset = np.zeros(
+  messages_backward_subset = -1 * np.ones(
     (num_users_interval, num_time_steps*constants.CTC, 7), dtype=np.float32)
-  messages_forward_subset = np.zeros(
+  messages_forward_subset = -1 * np.ones(
     (num_users_interval, num_time_steps*constants.CTC, 4), dtype=np.float32)
 
   # Default to start_belief as 1.-p0 in S and p0 in E
-  start_belief_def = np.array([1.-p0, p0, 0., 0.], dtype=np.float32)
+  start_belief_def = np.array([1.-p0, p0, 1E-12, 1E-12], dtype=np.float32)
+  start_belief_def /= np.sum(start_belief_def)
 
   for user_id in numba.prange(num_users_interval):  # pylint: disable=not-an-iterable
     start_belief_user = start_belief_def
