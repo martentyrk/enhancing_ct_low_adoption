@@ -33,7 +33,10 @@ def adjust_matrices_map(
     # assert user_me == user, f"User {user_me} is not {user}"
 
     # Calculation
-    add_term = np.log(p_inf_message * (1-p1) + (1-p_inf_message))
+    if epsilon_dp > 0:
+      # Add for numerical stability, otherwise BP belief could be NaN
+      p_inf_message = np.minimum(np.maximum(p_inf_message, 0.01), 0.99)
+    add_term = np.log(1 - p1*p_inf_message)
     log_probs[timestep] += add_term
 
   if a_rdp > 0:
