@@ -93,7 +93,7 @@ if __name__ == "__main__":
 
   parser = argparse.ArgumentParser(
     description='Run only the ABM simulator')
-  parser.add_argument('--config_data', type=str, default='large_graph_02',
+  parser.add_argument('--config_data', type=str, default='small_graph',
                       help='Name of the config file for the data')
   parser.add_argument('--config_model', type=str, default='model_02',
                       help='Name of the config file for the model')

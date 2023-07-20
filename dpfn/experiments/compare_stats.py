@@ -523,7 +523,7 @@ if __name__ == "__main__":
   parser.add_argument('--experiment_setup', type=str, default='single',
                       choices=['single', 'prequential'],
                       help='Name of the experiment_setup')
-  parser.add_argument('--config_data', type=str, default='large_graph_02',
+  parser.add_argument('--config_data', type=str, default='small_graph',
                       help='Name of the config file for the data')
   parser.add_argument('--config_model', type=str, default='model_02',
                       help='Name of the config file for the model')
