@@ -251,10 +251,10 @@ def wrap_belief_propagation(
           quantization=quantization))
 
       if np.any(np.isnan(bp_beliefs)):
-        logger.info(f"Max message fwd {np.max(map_forward_message)}")
-        logger.info(f"Min message fwd {np.min(map_forward_message)}")
-        logger.info(f"Max message bwd {np.max(map_backward_message)}")
-        logger.info(f"Min message bwd {np.min(map_backward_message)}")
+        logger.info(f"Max message fwd {np.max(map_forward_message[:, :, 3])}")
+        logger.info(f"Min message fwd {np.min(map_forward_message[:, :, 3])}")
+        logger.info(f"Max message bwd {np.max(map_backward_message[:, :, 3:])}")
+        logger.info(f"Min message bwd {np.min(map_backward_message[:, :, 3:])}")
         raise ValueError('bp_beliefs is NaN')
       if np.any(np.isnan(map_forward_message)):
         raise ValueError('Forward message is NaN')

@@ -55,6 +55,10 @@ def adjust_matrices_map(
 
   transition_prob = np.exp(log_probs)
 
+  if epsilon_dp > 0:
+    transition_prob = np.minimum(
+      np.maximum(transition_prob, np.float32(0.00001)), np.float32(0.99999))
+
   A_adjusted[:, 0, 0] = transition_prob
   A_adjusted[:, 0, 1] = 1. - transition_prob
 
@@ -105,22 +109,24 @@ def forward_backward_user(
     backward messages that this user sends out.
   """
   # assert start_belief.shape == (4,), f"Shape {start_belief.shape} is not [4] "
+  mu_back_contact = (
+    np.ones((num_time_steps, 4), dtype=np.float32) * np.float32(.25))
+  if epsilon_dp < 0:  # Only calculate backward messages in non-DP setting
+    # Collate backward messages
+    mu_back_contact_log = np.zeros((num_time_steps, 4), dtype=np.float32)
+    for row in backward_messages:
+      if row[1] < 0:
+        break
+      # assert user == row[1], f"User {user} is not {row[1]}"
+      _, timestep, message = int(row[0]), int(row[2]), row[3:]
+      mu_back_contact_log[timestep] += np.log(message + 1E-12)
+    mu_back_contact_log -= np.max(mu_back_contact_log)
+    mu_back_contact = np.exp(mu_back_contact_log)
+    mu_back_contact /= np.expand_dims(np.sum(mu_back_contact, axis=1), axis=1)
 
-  # Collate backward messages
-  mu_back_contact_log = np.zeros((num_time_steps, 4), dtype=np.float32)
-  for row in backward_messages:
-    if row[1] < 0:
-      break
-    # assert user == row[1], f"User {user} is not {row[1]}"
-    _, timestep, message = int(row[0]), int(row[2]), row[3:]
-    mu_back_contact_log[timestep] += np.log(message + 1E-12)
-  mu_back_contact_log -= np.max(mu_back_contact_log)
-  mu_back_contact = np.exp(mu_back_contact_log)
-  mu_back_contact /= np.expand_dims(np.sum(mu_back_contact, axis=1), axis=1)
-
-  # Clip messages in case of quantization
-  mu_back_contact = np.minimum(
-    0.9999, np.maximum(mu_back_contact, 0.0001)).astype(np.float32)
+    # Clip messages in case of quantization
+    mu_back_contact = np.minimum(
+      0.9999, np.maximum(mu_back_contact, 0.0001)).astype(np.float32)
 
   mu_f2v_forward = -1 * np.ones((num_time_steps, 4), dtype=np.float32)
   mu_f2v_backward = -1 * np.ones((num_time_steps, 4), dtype=np.float32)
@@ -155,7 +161,7 @@ def forward_backward_user(
   max_num_messages = num_time_steps*constants.CTC
   messages_send_back = -1 * np.ones((max_num_messages, 7), dtype=np.float32)
   # TODO: unfreeze backward messages
-  if a_rdp == -1:
+  if epsilon_dp < 0:   # Only calculate bwd messages when non-DP
     for num_row in numba.prange(max_num_messages):  # pylint: disable=not-an-iterable
       user_backward = int(forward_messages[num_row][0])
       if user_backward < 0:
@@ -211,7 +217,7 @@ def forward_backward_user(
 
   # Calculate messages forward
   messages_send_forward = -1 * np.ones((max_num_messages, 4), dtype=np.float32)
-  if a_rdp == -1:
+  if epsilon_dp < 0:  # Only take out bwd messages when non-DP
     # for row in backward_messages:
     for num_row in numba.prange(max_num_messages):  # pylint: disable=not-an-iterable
       user_forward = int(backward_messages[num_row][0])
@@ -389,8 +395,10 @@ def do_backward_forward_and_message(
     t1 = time.time()
 
   # Sort by receiving user
+  # Array in [num_users, max_num_messages, num_elements]
   map_backward_message = util_bp.flip_message_send(
     msg_list_bwd, num_users, num_time_steps=num_time_steps, do_bwd=True)
+  # Array in [num_users, max_num_messages, num_elements]
   map_forward_message = util_bp.flip_message_send(
     msg_list_fwd, num_users, num_time_steps=num_time_steps, do_bwd=False)
 
