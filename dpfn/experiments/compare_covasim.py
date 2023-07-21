@@ -96,7 +96,7 @@ def compare_policy_covasim(
     f"Settings at experiment: {quantization:.0f} quant, at {fraction_test}% "
     f"seed {seed}"))
 
-  inference_func, do_baseline = compare_stats.make_inference_func(
+  inference_func, do_random = compare_stats.make_inference_func(
     inference_method, num_users, cfg, trace_dir=trace_dir)
 
   sensitivity = 1. - cfg["data"]["alpha"]
@@ -128,18 +128,19 @@ def compare_policy_covasim(
     "end_day": '2020-05-01',
   }
 
-  def subtarget_func_baseline(sim, history):
-    """Subtarget function for testing.
+  def subtarget_func_random(sim, history):
+    """Subtarget function for random testing.
 
     This function is run every day after the contacts are sampled and before
     the tests are run. It returns a dictionary with the keys 'inds' and 'vals'.
     """
-    # cv.true() returns indices of people matching this condition
-    exposed = cv.true(sim.people.exposed)
-    # Everyone in the population -- equivalent to np.arange(len(sim.people))
     inds = sim.people.uid
-    vals = np.ones(len(sim.people))  # Create the array
-    vals[exposed] = 100  # Probability for testing
+    vals = np.random.rand(len(sim.people))  # Create the array
+
+    # Uncomment these lines to deterministically test people that are exposed
+    # vals = np.ones(len(sim.people))  # Create the array
+    # exposed = cv.true(sim.people.exposed)
+    # vals[exposed] = 100  # Probability for testing
     return {'inds': inds, 'vals': vals}, history
 
   def subtarget_func_inference(sim, history):
@@ -225,7 +226,7 @@ def compare_policy_covasim(
 
   # TODO: fix this to new keyword
   subtarget_func = (
-    subtarget_func_baseline if do_baseline else subtarget_func_inference)
+    subtarget_func_random if do_random else subtarget_func_inference)
 
   test_intervention = cv.test_num(
     daily_tests=int(fraction_test*num_users),
