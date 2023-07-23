@@ -536,10 +536,10 @@ def test_past_contact_array_fast():
 
   past_contacts, max_num_c = util.get_past_contacts_fast((0, 3), contacts_all)
 
-  np.testing.assert_array_almost_equal(past_contacts.shape, [3, 2+1, 3])
+  np.testing.assert_array_almost_equal(past_contacts.shape, [3, 2+1, 2])
   np.testing.assert_array_almost_equal(past_contacts[0], -1)
   np.testing.assert_array_almost_equal(past_contacts[2][1], -1)
-  np.testing.assert_array_almost_equal(past_contacts[2][0], [4, 1, 1])
+  np.testing.assert_array_almost_equal(past_contacts[2][0], [4, 1])
 
   np.testing.assert_equal(past_contacts.dtype, np.int32)
   np.testing.assert_almost_equal(max_num_c, 2)
@@ -556,10 +556,10 @@ def test_past_contact_array_static():
   past_contacts, max_num_c = util.get_past_contacts_static(
     (0, 3), contacts_all, num_msg=num_msg)
 
-  np.testing.assert_array_almost_equal(past_contacts.shape, [3, num_msg, 3])
+  np.testing.assert_array_almost_equal(past_contacts.shape, [3, num_msg, 2])
   np.testing.assert_array_almost_equal(past_contacts[0], -1)
   np.testing.assert_array_almost_equal(past_contacts[2][1], -1)
-  np.testing.assert_array_almost_equal(past_contacts[2][0], [4, 1, 1])
+  np.testing.assert_array_almost_equal(past_contacts[2][0], [4, 1])
 
   np.testing.assert_equal(past_contacts.dtype, np.int32)
   np.testing.assert_almost_equal(max_num_c, 2)

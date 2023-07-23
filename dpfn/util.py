@@ -20,22 +20,22 @@ def get_past_contacts_fast(
   num_users_int = user_interval[1] - user_interval[0]
 
   if len(contacts) == 0:
-    return -1 * np.ones((num_users_int, 1, 3), dtype=np.int32), 0
+    return -1 * np.ones((num_users_int, 1, 2), dtype=np.int32), 0
   if contacts.shape[1] == 0:
-    return -1 * np.ones((num_users_int, 1, 3), dtype=np.int32), 0
+    return -1 * np.ones((num_users_int, 1, 2), dtype=np.int32), 0
 
-  contacts_past = [[(-1, -1, -1)] for _ in range(num_users_int)]
+  contacts_past = [[(-1, -1)] for _ in range(num_users_int)]
 
   # First find all contacts that are in the interval
   for contact in contacts:
     user_v = contact[1]
     if user_interval[0] <= user_v < user_interval[1]:
-      datum = (contact[2], contact[0], contact[3])
+      datum = (contact[2], contact[0])
       contacts_past[user_v - user_interval[0]].append(datum)
 
   # Then construct Numpy array
   max_messages = max(map(len, contacts_past)) - 1  # Subtract 1 to make clear!
-  pc_tensor = -1 * np.ones((num_users_int, max_messages + 1, 3), dtype=np.int32)
+  pc_tensor = -1 * np.ones((num_users_int, max_messages + 1, 2), dtype=np.int32)
   for i in range(num_users_int):
     num_contacts = len(contacts_past[i])
     if num_contacts > 1:
@@ -55,11 +55,11 @@ def get_past_contacts_static(
   num_users_int = user_interval[1] - user_interval[0]
 
   if len(contacts) == 0:
-    return (-1 * np.ones((num_users_int, 1, 3))).astype(np.int32), 0
+    return (-1 * np.ones((num_users_int, 1, 2))).astype(np.int32), 0
   if contacts.shape[1] == 0:
-    return (-1 * np.ones((num_users_int, 1, 3))).astype(np.int32), 0
+    return (-1 * np.ones((num_users_int, 1, 2))).astype(np.int32), 0
 
-  contacts_past = -1 * np.ones((num_users_int, num_msg, 3), dtype=np.int32)
+  contacts_past = -1 * np.ones((num_users_int, num_msg, 2), dtype=np.int32)
 
   contacts_counts = np.zeros(num_users_int, dtype=np.int32)
 
@@ -70,7 +70,7 @@ def get_past_contacts_static(
       contact_rel = user_v - user_interval[0]
       contact_count = contacts_counts[contact_rel] % (num_msg - 1)
       contacts_past[contact_rel, contact_count] = np.array(
-        (contact[2], contact[0], contact[3]), dtype=np.int32)
+        (contact[2], contact[0]), dtype=np.int32)
 
       contacts_counts[contact_rel] += 1
 
