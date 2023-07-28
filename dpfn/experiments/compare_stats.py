@@ -293,10 +293,9 @@ def compare_prequential_quarantine(
       observations_now = util.make_default_array(
         sim.get_observations_all(), dtype=np.int32, rowlength=3)
 
-      num_contacts = np.array(contacts_now.shape[0], dtype=np.int32)
-      num_obs = np.array(observations_now.shape[0], dtype=np.int32)
-
-      logger.info(f"Day {t_now}: {num_contacts} contacts, {num_obs} obs")
+      logger.info((
+        f"Day {t_now}: {contacts_now.shape[0]} contacts, "
+        f"{observations_now.shape[0]} obs"))
 
       _, z_states_inferred = inference_func(
         observations_now,
@@ -361,7 +360,7 @@ def compare_prequential_quarantine(
 
     if infection_rate > 0:
       positive = np.logical_or(states_today == 1, states_today == 2)
-      rank_score = z_states_inferred[:, num_days-1, 1:3].sum(axis=1)
+      rank_score = z_states_inferred[:, -1, 1:3].sum(axis=1)
       ave_precision[t_now] = metrics.average_precision_score(
         y_true=positive, y_score=rank_score)
     else:
