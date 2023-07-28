@@ -303,7 +303,7 @@ if __name__ == "__main__":
     description='Compare statistics acrosss inference methods')
   parser.add_argument('--inference_method', type=str, default='fn',
                       choices=[
-                        'fn', 'dummy', 'random', 'bp', 'dct', 'dpct',
+                        'fn', 'dummy', 'random', 'bp', 'dpct',
                         'gibbs'],
                       help='Name of the inference method')
   parser.add_argument('--config_data', type=str, default='small_graph',

@@ -134,16 +134,13 @@ def make_inference_func(
   elif inference_method == "dummy":
     inference_func = util_experiments.wrap_dummy_inference(
       num_users=num_users, trace_dir=trace_dir)
-  elif inference_method == "dct":
-    inference_func = util_experiments.wrap_dct_inference(
-      num_users=num_users)
   elif inference_method == "dpct":
     inference_func = util_experiments.wrap_dpct_inference(
       num_users=num_users, epsilon_dp=epsilon_dp, delta_dp=delta_dp)
   else:
     raise ValueError((
       f"Not recognised inference method {inference_method}. Should be one of"
-      f"['random', 'fn', 'dummy', 'dct', 'dpct', 'bp', 'gibbs']"
+      f"['random', 'fn', 'dummy', 'dpct', 'bp', 'gibbs']"
     ))
   return inference_func, do_random_quarantine
 
@@ -517,7 +514,7 @@ if __name__ == "__main__":
     description='Compare statistics acrosss inference methods')
   parser.add_argument('--inference_method', type=str, default='fn',
                       choices=[
-                        'fn', 'dummy', 'random', 'bp', 'dct', 'dpct',
+                        'fn', 'dummy', 'random', 'bp', 'dpct',
                         'gibbs'],
                       help='Name of the inference method')
   parser.add_argument('--experiment_setup', type=str, default='single',

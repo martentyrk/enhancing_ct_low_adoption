@@ -11,7 +11,6 @@ COLOR_MAP_PARETO = {
   'no_quarant': 'g',
   'global': 'g',
   'gibbs': 'r',
-  'dct': 'y',
   'trad': 'y',
   'dpct': 'y',
 }

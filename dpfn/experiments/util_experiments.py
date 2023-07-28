@@ -88,55 +88,17 @@ def wrap_dummy_inference(
   return dummy_wrapped
 
 
-def wrap_dct_inference(
-    num_users: int,):
-  """Wraps the DCT function for dummy inference.
-
-  Mimicked after
-  https://github.com/...
-    sibyl-team/epidemic_mitigation/blob/master/src/rankers/dct_rank.py#L24
-  """
-
-  @numba.njit
-  def dct_wrapped(
-      observations_list: constants.ObservationList,
-      contacts_list: constants.ContactList,
-      num_updates: int,  # pylint: disable=unused-argument
-      num_time_steps: int,
-      start_belief: Optional[np.ndarray] = None,    # pylint: disable=unused-argument
-      users_stale: Optional[np.ndarray] = None,    # pylint: disable=unused-argument
-      diagnostic: Optional[Any] = None) -> Tuple[np.ndarray, np.ndarray]:    # pylint: disable=unused-argument
-    # del num_updates, start_belief, users_stale, diagnostic
-
-    score = 0.25 * np.ones((num_users, num_time_steps, 4))
-    score += 0.001 * np.random.rand(num_users, num_time_steps, 4)
-    positive_tests = np.zeros((num_users))
-
-    for row in observations_list:
-      if row[2] > 0:
-        user_u = int(row[0])
-        positive_tests[user_u] += 1
-
-    for row in contacts_list:
-      user_u = int(row[0])
-      user_v = int(row[1])
-      if positive_tests[user_u] > 0:
-        score[user_v, :, 2] = 5.0  # 20x bigger than noise floor
-        score[user_u, :, 2] = 10.0  # 40x bigger than noise floor
-
-    score /= np.expand_dims(np.sum(score, axis=-1), axis=-1)
-    return score[:, 1], score
-
-  return dct_wrapped
-
-
 def wrap_dpct_inference(
     num_users: int,
     epsilon_dp: float,
     delta_dp: float = 1 / constants.CTC):
   """Wraps the DPCT function for dummy inference.
 
-  Differentially Private version of DCT.
+  Differentially Private version of Traditional contact tracing.
+
+  The methods checks for the number of contacts that tested positively. This
+  method has global sensitivity of 1, according to which Gaussian noise is added
+  following the Gaussian mechanism.
 
   Args:
     num_users: Number of users.
@@ -156,9 +118,10 @@ def wrap_dpct_inference(
       users_stale: Optional[np.ndarray] = None,    # pylint: disable=unused-argument
       diagnostic: Optional[Any] = None) -> Tuple[np.ndarray, np.ndarray]:    # pylint: disable=unused-argument
     # del num_updates, start_belief, users_stale, diagnostic
+    score_small = 0.0001  # Small number to prevent division by zero
 
     # Break symmetry
-    score = 0.001 * np.random.rand(num_users, num_time_steps, 4)
+    score = score_small * np.random.rand(num_users, num_time_steps, 4)
     has_positive_test = np.zeros((num_users), dtype=np.float32)
     num_positive_neighbors = np.zeros((num_users), dtype=np.float32)
 
@@ -172,9 +135,10 @@ def wrap_dpct_inference(
       user_v = int(row[1])
       num_positive_neighbors[user_v] += has_positive_test[user_u]
 
-    num_positive_neighbors += (
-      noise_sigma * np.random.randn(num_users)).astype(np.float32)
-    num_positive_neighbors = np.maximum(num_positive_neighbors, 0.)
+    if epsilon_dp > 0:
+      num_positive_neighbors += (
+        noise_sigma * np.random.randn(num_users)).astype(np.float32)
+      num_positive_neighbors = np.maximum(num_positive_neighbors, score_small)
 
     score[:, -1, 2] = num_positive_neighbors
     score /= np.expand_dims(np.sum(score, axis=-1), axis=-1)

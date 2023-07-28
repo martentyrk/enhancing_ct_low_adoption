@@ -89,13 +89,10 @@ def make_inference_func(
     do_random_quarantine = True
   elif inference_method == "dummy":
     inference_func = util_experiments.wrap_dummy_inference(num_users=num_users)
-  elif inference_method == "dct":
-    inference_func = util_experiments.wrap_dct_inference(
-      num_users=num_users)
   else:
     raise ValueError((
       f"Not recognised inference method {inference_method}. Should be one of"
-      f"['random', 'fn', 'dummy', 'dct', 'bp']"
+      f"['random', 'fn', 'dummy', 'bp']"
     ))
   return inference_func, do_random_quarantine
 
@@ -216,7 +213,7 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser(
     description='Compare statistics acrosss inference methods')
   parser.add_argument('--inference_method', type=str, default='fn',
-                      choices=['fn', 'dummy', 'random', 'bp', 'dct'],
+                      choices=['fn', 'dummy', 'random', 'bp'],
                       help='Name of the inference method')
   parser.add_argument('--config_data', type=str, default='small_graph',
                       help='Name of the config file for the data')
