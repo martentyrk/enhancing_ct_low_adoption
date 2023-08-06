@@ -135,6 +135,8 @@ def make_inference_func(
     inference_func = util_experiments.wrap_dummy_inference(
       num_users=num_users, trace_dir=trace_dir)
   elif inference_method == "dpct":
+    assert a_rdp < 0
+    assert delta_dp > 0
     inference_func = util_experiments.wrap_dpct_inference(
       num_users=num_users, epsilon_dp=epsilon_dp, delta_dp=delta_dp)
   else:
