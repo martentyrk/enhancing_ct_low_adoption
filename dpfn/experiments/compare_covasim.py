@@ -120,7 +120,7 @@ def compare_policy_covasim(
   if num_users >= 100000:
     pop_infected = 50
   if num_users > 500000:
-    pop_infected = 200
+    pop_infected = 100
 
   pars = {
     "pop_type": 'hybrid',
