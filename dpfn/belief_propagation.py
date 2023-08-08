@@ -40,10 +40,13 @@ def adjust_matrices_map(
     log_probs[timestep] += add_term
 
   if a_rdp > 0:
+    clip_upper = np.minimum(clip_upper, 0.99999)
+    clip_lower = np.maximum(clip_lower, 0.00001)
+    sensitivity = np.abs(np.log(1-clip_upper*p1) - np.log(1-clip_lower*p1))
+
     num_contacts = np.sum(forward_messages[:, 0] > 0)
     log_probs = util.add_lognormal_noise_rdp(
-      log_probs, num_contacts, a_rdp, epsilon_dp,
-      np.log(1-p1), clip_lower=clip_lower, clip_upper=clip_upper)
+      log_probs, num_contacts, a_rdp, epsilon_dp, sensitivity)
 
     # Everything hereafter is post-processing
     # Clip to [0, 1], equals clip to [\infty, 0] in logdomain

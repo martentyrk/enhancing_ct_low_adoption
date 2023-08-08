@@ -237,6 +237,9 @@ def fact_neigh(
     raise NotImplementedError("Stale users not implemented")
   t_start_preamble = time.time()
 
+  assert clip_lower < 1
+  assert clip_upper > 0
+
   seq_array = np.stack(list(
     util.iter_sequences(time_total=num_time_steps, start_se=False)))
   seq_array_hot = np.transpose(util.state_seq_to_hot_time_seq(

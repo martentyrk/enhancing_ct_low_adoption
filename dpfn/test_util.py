@@ -460,8 +460,6 @@ def test_add_lognormal_noise_rdp():
     epsilon_dp=10000,
     a_rdp=5,
     sensitivity=np.log(0.9),
-    clip_lower=-1,
-    clip_upper=1000,
   ))
 
   np.testing.assert_array_almost_equal(results, means, decimal=2)
@@ -477,9 +475,7 @@ def test_add_lognormal_noise_rdp_repeat():
     num_contacts=5,
     epsilon_dp=5,
     a_rdp=5,
-    sensitivity=np.log(0.9),
-    clip_lower=-1,
-    clip_upper=1000)) for _ in range(num_repeats)], axis=0)
+    sensitivity=np.log(0.9))) for _ in range(num_repeats)], axis=0)
 
   np.testing.assert_array_almost_equal(results, means, decimal=2, err_msg=(
     "Stochastic test, but should be very unlikely to fail."))

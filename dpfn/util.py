@@ -392,21 +392,16 @@ def softmax(x):
 
 
 @numba.njit((
-  'float32[:](float32[:], int64, float64, float64, float64, float64, '
-  'float64)'))
+  'float32[:](float32[:], int64, float64, float64, float64)'))
 def add_lognormal_noise_rdp(
     log_means: np.ndarray,
     num_contacts: int,
     a_rdp: float,
     epsilon_dp: float,
-    sensitivity: float,
-    clip_lower: float,
-    clip_upper: float,) -> np.ndarray:
+    sensitivity: float) -> np.ndarray:
   """Adds noise to log_means using RDP."""
   # Add RDP noise
-  assert clip_lower < 0., "No clipping implemented yet"
-  assert clip_upper > 1., "No clipping implemented yet"
-  assert np.abs(sensitivity) > 1E-5, "Sensitivity must be defined for now"
+  assert np.abs(sensitivity) > 1E-5, "Sensitivity must be defined"
   assert len(log_means.shape) == 1, "Only implemented for arrays"
 
   # For 0 contacts the d_no_term will be 0 anyway
@@ -581,9 +576,12 @@ def precompute_d_penalty_terms_rdp(
     num_contacts += 1
 
   if a_rdp > 0:
+    clip_upper = np.minimum(clip_upper, 0.99999)
+    clip_lower = np.maximum(clip_lower, 0.00001)
+    sensitivity = np.abs(np.log(1-clip_upper*p1) - np.log(1-clip_lower*p1))
+
     log_expectations_noised = add_lognormal_noise_rdp(
-      log_expectations, num_contacts, a_rdp, epsilon_rdp, np.log(1 - p1),
-      clip_lower, clip_upper)
+      log_expectations, num_contacts, a_rdp, epsilon_rdp, sensitivity)
 
     # Everything hereafter is post-processing
     # Clip to [0, 1], equals clip to [\infty, 0] in logdomain
