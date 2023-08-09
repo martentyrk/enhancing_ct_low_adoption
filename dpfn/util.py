@@ -576,6 +576,7 @@ def precompute_d_penalty_terms_rdp(
     num_contacts += 1
 
   if a_rdp > 0:
+    # Set clip values to [0, 1], because default values are [-1, 10000]
     clip_upper = np.minimum(clip_upper, 0.99999)
     clip_lower = np.maximum(clip_lower, 0.00001)
     sensitivity = np.abs(np.log(1-clip_upper*p1) - np.log(1-clip_lower*p1))
@@ -588,8 +589,10 @@ def precompute_d_penalty_terms_rdp(
     log_expectations = np.minimum(
       log_expectations_noised, 0.)
 
+    # Public knowledge: No expectation can be lower than (1-\gamma*p_1)**num_c
     log_expectations = np.maximum(
-      log_expectations, num_contacts * np.log(1 - p1)).astype(np.float32)
+      log_expectations,
+      num_contacts * np.log(1 - clip_upper*p1)).astype(np.float32)
 
   # Additional penalty term for not terminating, negative by definition
   d_no_term = log_expectations
