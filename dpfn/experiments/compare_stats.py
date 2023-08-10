@@ -284,6 +284,7 @@ def compare_prequential_quarantine(
 
       # Make inference over SEIR states
       start_belief = start_belief_global
+      # Start_belief is not used with differential privacy, as that would leak
       # if num_days <= t_now:
       #   # This condition is true when num_days_window > t_now
       #   logger.info("Use window!")
@@ -314,12 +315,11 @@ def compare_prequential_quarantine(
 
     else:
       z_states_inferred = np.zeros((num_users, num_days, 4))
-      users_to_quarantine = np.random.choice(
-        num_users, size=int(0.05*num_users)).tolist()
 
-    logger.info("Conditional quarantine")
+    # Users that test positive go into quarantine
     users_to_quarantine = obs_today[np.where(obs_today[:, 2] > 0)[0], 0]
 
+    # Only run quarantines after a warmup period
     if t_now < t_start_quarantine:
       users_to_quarantine = np.array([], dtype=np.int32)
 
@@ -433,7 +433,7 @@ def compare_inference_algorithms(
     quick: bool = False,
     do_diagnosis: bool = False,
     use_abm_simulator: bool = False):
-  """Compares different inference algorithms on the supplied contact graph."""
+  """Compares different inference algorithms on a fixed contact graph."""
   del results_dir, use_abm_simulator
 
   # Contacts on last day are not of influence

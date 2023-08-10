@@ -48,7 +48,8 @@ def fn_step_wrapped(
     clip_upper: upper margin for clipping in preparation for DP calculations
     past_contacts_array: iterator with elements (timestep, user_u, features)
     start_belief: matrix in [num_users_int, 4], i-th row is assumed to be the
-      start_belief of user user_slice[i]
+      start_belief of user user_slice[i]. start_belief is not used with
+      differential privacy as this would leak privacy.
     dp_method: DP method to use, explanation in constants.py, value of -1 means
       no differential privacy applied
     epsilon_dp: epsilon for DP
@@ -56,6 +57,7 @@ def fn_step_wrapped(
     a_rdp: alpha parameter for Renyi Differential Privacy
     quantization: number of quantization levels
   """
+  # Only timer function in object-mode
   with numba.objmode(t0='f8'):
     t0 = time.time()
 
@@ -65,12 +67,12 @@ def fn_step_wrapped(
       p_infected_matrix, quantization)
 
   p_infected_matrix = p_infected_matrix.astype(np.float32)
+  # Apply upper clipping
   if clip_upper < 1.0:
-    # Apply clipping
     p_infected_matrix = np.minimum(p_infected_matrix, np.float32(clip_upper))
 
+  # Apply lower clipping
   if clip_lower > 0.0:
-    # Apply clipping
     p_infected_matrix = np.maximum(p_infected_matrix, np.float32(clip_lower))
 
   if dp_method == 6:
@@ -144,6 +146,7 @@ def fn_step_wrapped(
 
     # Calculate log_joint
     # Numba only does matmul with 2D-arrays, so do reshaping below
+    # log_c and log_a are described in the CRISP paper (Herbrich et al. 2021)
     log_joint = log_c_z_u[i] + log_A_start + d_penalties + start_belief_all[i]
 
     # Calculate noise for differential privacy
@@ -166,6 +169,8 @@ def fn_step_wrapped(
       log_joint += dp_sigma*np.random.randn(num_sequences)
 
     joint_distr = softmax(log_joint).astype(np.single)
+
+    # Calculate the posterior expectations, with complete enumeration
     post_exps[i] = np.reshape(np.dot(
       seq_array_hot.reshape(num_time_steps*4, num_sequences), joint_distr),
       (num_time_steps, 4))
@@ -204,6 +209,9 @@ def fact_neigh(
 
   Uses Factorised Neighbor approach from
   'The dlr hierarchy of approximate inference, Rosen-Zvi, Jordan, Yuille, 2012'
+
+  Update equations described in
+  'No time to waste: ..., Romijnders et al. AISTATS 2023
 
   Args:
     num_users: Number of users to infer latent states
@@ -251,6 +259,7 @@ def fact_neigh(
   else:
     prior = [.25, .25, .25, .25]
 
+  # log_c and log_a are described in the CRISP paper (Herbrich et al. 2021)
   log_A_start = util.enumerate_log_prior_values(
     prior, [1-probab_0, 1-g_param, 1-h_param],
     seq_array, num_time_steps)

@@ -1,46 +1,43 @@
-# Research virus spread and contact tracing
+# Protect Your Score: Contact Tracing With Differential Privacy Guarantees
 
-This repo contains accompanying code for the AISTATS submission, 'no time to waste'.
+This repo contains accompanying code for the anonymous submission
 
 ## Typical usage
 
 Starting point for experiments will be the following command:
 
+For ABM:
 ```
 python3 dpfn/experiments/compare_stats.py \
-    --inference_method "dummy" \
+    --inference_method "fn" \
     --experiment_setup "prequential" \
     --config_data intermediate_graph_abm_02 \
-    --config_model model_IG02
+    --config_model model_ABM01
+```
+
+For COVASIM:
+```
+python3 dpfn/experiments/compare_stats.py \
+    --inference_method "fn" \
+    --experiment_setup "prequential" \
+    --config_data intermediate_graph_cv_02 \
+    --config_model model_CV01
 ```
 
 Experiments take two configs: one for the model and one for the simulator (data).
-Whenever 'abm' is in the data config, the ABM simulator will be used.
 
 Experimental setup could be 'single', where inference will be performed on a single, static graph, or 'prequential',
-where an experiment with conditional testing and quarantining will be performed (similar to related research like CRISP and SIB).
+where an experiment with a testing policy will be evolved over a defined number of time steps.
 
-## Typical data generation
-For 'single' inference, a static graph must be created and dumped. As this generation can take time, this code is
-multiprocessed:
-
-```
-python3 dpfn/data/generate_graph.py \
-    --config intermediate_graph_02 --sample_contact
-```
-
-'sample_contact' graph indicates that contacts should be sampled (in addition to running a single realisation of the states).
-The corresponding config should also be used in the call to 'dpfn/experiments/compare_stats.py'. These configs contain
-information about the dynamics, transmission/transition probabilities etcetera.
 
 ## Code convention
 
-Code convention: We care deeply about good code and scientific reproducibility. As of september 2022, the code contains
-57 unittests, spanning more than one thousands line of code (`make test` or `nose2 -v`).
+Code convention: We care about good code and scientific reproducibility. As of August 2023, the code contains
+72 unittests, spanning more than one thousands line of code (`$ make test` or `nose2 -v`).
 
-The code includes abundant type hints (`make hint` or `pytype dpfn`).
+The code includes type hints (type hints can be checked with `$ make hint` or `pytype dpfn`).
 
-Code is styled with included '.pylintrc' and pycodestyle (`make lint` or `pylint dpfn`)
+Code is styled with included '.pylintrc' and pycodestyle (`$ make lint` or `pylint dpfn`)
 
 ## Installation
 
@@ -92,9 +89,9 @@ Insights from debugging:
 ## Run a sweep with WandB
 To run a sweep with WandB, run the following command
 
-`$ wandb sweep sweep/stale_abm.yaml`
+`$ wandb sweep sweep/dpfn.yaml`
 
-Copy the sweepid. Then on the cluster, or another computer, start up an agent with
+Copy the sweepid. Then on the cluster, or your own computer, start up an agent with
 
 ```
 $ export SWEEP=sweepid
@@ -103,4 +100,4 @@ $ wandb agent "$USERNAME/dpfn-dpfn_experiments/$SWEEP"
 
 ## Attribution
 
-This readme is anonymous for conference review. Later, this section will contain contact info, and attribution to collaborators.
+This readme is anonymous for double-blind review.
