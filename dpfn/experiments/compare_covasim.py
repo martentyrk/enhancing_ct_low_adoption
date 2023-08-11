@@ -3,7 +3,7 @@ import argparse
 import covasim as cv
 import numpy as np
 from dpfn.config import config
-from dpfn.experiments import compare_stats, prequential, util_experiments
+from dpfn.experiments import compare_abm, prequential, util_experiments
 from dpfn import LOGGER_FILENAME, logger
 from dpfn import util
 from dpfn import util_wandb
@@ -96,7 +96,7 @@ def compare_policy_covasim(
     f"Settings at experiment: {quantization:.0f} quant, at {fraction_test}% "
     f"seed {seed}"))
 
-  inference_func, do_random = compare_stats.make_inference_func(
+  inference_func, do_random = compare_abm.make_inference_func(
     inference_method, num_users, cfg, trace_dir=trace_dir)
 
   sensitivity = 1. - cfg["data"]["alpha"]

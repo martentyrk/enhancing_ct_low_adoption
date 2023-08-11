@@ -18,4 +18,4 @@ sed -i "1i$MESSAGE" "/var/scratch/${USER}/projects/dpfn/jobs.txt"
 
 echo 'Starting'
 
-python3 dpfn/experiments/compare_stats.py --inference_method "fn" --experiment_setup "prequential" --config_data intermediate_graph_abm_02 --config_model model_ABM01  --name regression
+python3 dpfn/experiments/compare_abm.py --inference_method "fn" --experiment_setup "prequential" --config_data intermediate_graph_abm_02 --config_model model_ABM01  --name regression

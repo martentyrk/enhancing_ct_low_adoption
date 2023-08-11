@@ -8,7 +8,7 @@ Starting point for experiments will be the following command:
 
 For ABM:
 ```
-python3 dpfn/experiments/compare_stats.py \
+python3 dpfn/experiments/compare_abm.py \
     --inference_method "fn" \
     --experiment_setup "prequential" \
     --config_data intermediate_graph_abm_02 \
@@ -17,17 +17,30 @@ python3 dpfn/experiments/compare_stats.py \
 
 For COVASIM:
 ```
-python3 dpfn/experiments/compare_stats.py \
+python3 dpfn/experiments/compare_covasim.py \
     --inference_method "fn" \
-    --experiment_setup "prequential" \
     --config_data intermediate_graph_cv_02 \
     --config_model model_CV01
 ```
 
 Experiments take two configs: one for the model and one for the simulator (data).
+These configs can be found in dpfn/config/model_*.ini. For example, in that config
+one can change the epsilon and delta for Differential Privacy, or change the model
+parameters.
 
-Experimental setup could be 'single', where inference will be performed on a single, static graph, or 'prequential',
-where an experiment with a testing policy will be evolved over a defined number of time steps.
+The most used experimental setup would be 'prequential'. This indicates the simulation
+whose results can be found throughout the paper. For further analysis, one could use
+the experimental setup 'single'. This setup uses a static contact graph where one can
+analyze properties of the inference algorithm such as likelihoods and evidence.
+
+## Overview of important scripts
+
+Most of the code for running inference with DPFN is in inference.py.
+Utility functions for calculating DP terms are in util.py.
+
+The two main simulations on OpenABM and COVASIM are run with dpfn/experiments/compare_abm.py
+and dpfn/experiments/compare_covasim.py
+
 
 
 ## Code convention
@@ -91,11 +104,13 @@ To run a sweep with WandB, run the following command
 
 `$ wandb sweep sweep/dpfn.yaml`
 
-Copy the sweepid. Then on the cluster, or your own computer, start up an agent with
+This command will run a sweepid that can be used on the computer where you'l run the actual experiments. For example,
+you can setup the sweep from a local laptop, and run the actual experiments in the cloud or on a compute node.
+On the target machine, start up an agent with
 
 ```
 $ export SWEEP=sweepid
-$ wandb agent "$USERNAME/dpfn-dpfn_experiments/$SWEEP"
+$ wandb agent "${WANDBUSERNAME}/dpfn-dpfn_experiments/$SWEEP"
 ```
 
 ## Attribution
