@@ -1,6 +1,6 @@
 # Protect Your Score: Contact Tracing With Differential Privacy Guarantees
 
-This repo contains accompanying code for the anonymous submission
+This repo contains accompanying code for the anonymous submission titled "Protect Your Score"
 
 ## Typical usage
 
@@ -26,33 +26,50 @@ python3 dpfn/experiments/compare_covasim.py \
 Experiments take two configs: one for the model and one for the simulator (data).
 These configs can be found in dpfn/config/model_*.ini. For example, in that config
 one can change the epsilon and delta for Differential Privacy, or change the model
-parameters.
+parameters. In dpfn/config/graph_*.ini, one can change the simulator parameters
+like fraction_test or num_users.
 
 The most used experimental setup would be 'prequential'. This indicates the simulation
-whose results can be found throughout the paper. For further analysis, one could use
+whose results can be found throughout the paper. Prequential is slang for sequential
+prediction. At every 'day' of the simulation, the algorithm predicts covidscores
+for all users and decides who to test for the covid virus. For further analysis, one could use
 the experimental setup 'single'. This setup uses a static contact graph where one can
 analyze properties of the inference algorithm such as likelihoods and evidence.
 
 ## Overview of important scripts
 
 Most of the code for running inference with DPFN is in inference.py.
-Utility functions for calculating DP terms are in util.py.
+Utility functions for calculating differential privacy terms are in util.py and util_dp.py
+
+The naming of variables in this code generally follows two works:
+Herbrich et al. 2020, "Crisp", Romijnders et al. 2023, "No time to waste"
 
 The two main simulations on OpenABM and COVASIM are run with dpfn/experiments/compare_abm.py
 and dpfn/experiments/compare_covasim.py
 
 
+Different versions for obtaining a differentially private covidscore are numbered like
+dp1, dp2, ..., dp7. These are explained in constants.py.
+An important parameter in the config is `noisy_test` as this controls the False Positive Rate
+and False Negative Rate of the tests for covid. We distinguish between levels -1, 0, 1, 2, 3, 4.
+Levels 0,1,2,3 correspond to the levels used in the paper. Level 4 has FPR=FNR=1/2 which turns the
+covid test into a coinflip and this can be used for sanity checking some experiments (when the
+covid test is a coinflip, then the PIR should be very high). Leaving noisy_test a negative number
+will not change the FPR or FNR from their specified value or the default value.
+
 
 ## Code convention
 
 Code convention: We care about good code and scientific reproducibility. As of August 2023, the code contains
-72 unittests, spanning more than one thousands line of code (`$ make test` or `nose2 -v`).
+72 unittests, spanning more than a thousand lines of code (run tests with `$ make test` or `nose2 -v` in the base directory).
 
-The code includes type hints (type hints can be checked with `$ make hint` or `pytype dpfn`).
+Most functions include type hints (type hints can be checked with `$ make hint` or `pytype dpfn` in the base directory).
 
-Code is styled with included '.pylintrc' and pycodestyle (`$ make lint` or `pylint dpfn`)
+The code is style checked with the included '.pylintrc' and pycodestyle (style check with `$ make lint` or `pylint dpfn` in the base directory).
 
 ## Installation
+
+Installation of OpenABM will require the GSL utility functions and the SWIG library to interop between C++ and Python.
 
 For GSL, follow [these instructions](https://coral.ise.lehigh.edu/jild13/2016/07/11/hello/)
 
@@ -79,7 +96,7 @@ sudo apt-get update
 sudo apt-get -y install swig
 ```
 
-ABM install
+OpenABM install
 ```
 # Get the ABM code
 cd ../
