@@ -202,7 +202,7 @@ def compare_policy_covasim(
       #   f"Earliest obs {obs_rel[:, 1].min()} is before {sim.t}")
 
       # Add +1 so the model predicts one day into the future
-      _, pred = inference_func(
+      pred = inference_func(
         observations_list=obs_rel,
         contacts_list=contacts_rel,
         num_updates=num_rounds,

@@ -284,7 +284,7 @@ def compare_prequential_quarantine(
         f"Day {t_now}: {contacts_now.shape[0]} contacts, "
         f"{observations_now.shape[0]} obs"))
 
-      _, z_states_inferred = inference_func(
+      z_states_inferred = inference_func(
         observations_now,
         contacts_now,
         num_rounds,
@@ -449,7 +449,7 @@ def compare_inference_algorithms(
   logger.info(f"Start inference method {inference_method}")
 
   time_start = time.time()
-  _, z_states_inferred = inference_func(
+  z_states_inferred = inference_func(
     np.array(observations),
     np.array(contacts),
     num_rounds,

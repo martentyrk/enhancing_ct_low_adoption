@@ -86,7 +86,7 @@ def test_fact_neigh_with_prior():
 
   p0, p1 = 0.1, 0.5
 
-  _, post_exp = inference.fact_neigh(
+  post_exp = inference.fact_neigh(
     num_users=num_users,
     num_time_steps=num_time_steps,
     observations_all=observations_all,

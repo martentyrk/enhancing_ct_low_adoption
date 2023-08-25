@@ -32,7 +32,7 @@ def wrap_fact_neigh_inference(
       num_updates: int,
       num_time_steps: int,
       users_stale: Optional[np.ndarray] = None,
-      diagnostic: Optional[Any] = None) -> Tuple[np.ndarray, np.ndarray]:
+      diagnostic: Optional[Any] = None) -> np.ndarray:
 
     traces_per_user_fn = inference.fact_neigh(
       num_users=num_users,
@@ -73,14 +73,14 @@ def wrap_dummy_inference(
       num_updates: int,
       num_time_steps: int,
       users_stale: Optional[np.ndarray] = None,
-      diagnostic: Optional[Any] = None) -> Tuple[np.ndarray, np.ndarray]:
+      diagnostic: Optional[Any] = None) -> np.ndarray:
     del diagnostic, num_updates, contacts_list, observations_list
     del users_stale
 
     predictions = np.random.rand(num_users, num_time_steps, 4)
     predictions /= np.sum(predictions, axis=-1, keepdims=True)
 
-    return predictions[:, 1], predictions
+    return predictions
 
   return dummy_wrapped
 
@@ -112,7 +112,7 @@ def wrap_dpct_inference(
       num_updates: int,  # pylint: disable=unused-argument
       num_time_steps: int,
       users_stale: Optional[np.ndarray] = None,    # pylint: disable=unused-argument
-      diagnostic: Optional[Any] = None) -> Tuple[np.ndarray, np.ndarray]:    # pylint: disable=unused-argument
+      diagnostic: Optional[Any] = None) -> np.ndarray:    # pylint: disable=unused-argument
     # del num_updates, users_stale, diagnostic
     score_small = 0.0001  # Small number to prevent division by zero
 
@@ -139,7 +139,7 @@ def wrap_dpct_inference(
     score[:, -1, 2] = num_positive_neighbors
     score /= np.expand_dims(np.sum(score, axis=-1), axis=-1)
     score = score.astype(np.float32)
-    return score[:, 1], score
+    return score
 
   return dpct_wrapped
 
@@ -181,7 +181,7 @@ def wrap_belief_propagation(
       num_updates: int,
       num_time_steps: int,
       users_stale: Optional[np.ndarray] = None,
-      diagnostic: Optional[Any] = None) -> Tuple[np.ndarray, np.ndarray]:
+      diagnostic: Optional[Any] = None) -> np.ndarray:
     del users_stale, diagnostic
 
     # Contacts on last day are not of influence
@@ -242,7 +242,7 @@ def wrap_belief_propagation(
     # Collect beliefs
     bp_collect = bp_beliefs
     bp_collect /= np.sum(bp_collect, axis=-1, keepdims=True)
-    return bp_collect[:, 1], bp_collect
+    return bp_collect
   return bp_wrapped
 
 
@@ -275,7 +275,7 @@ def wrap_gibbs_inference(
       num_updates: int,
       num_time_steps: int,
       users_stale: Optional[np.ndarray] = None,
-      diagnostic: Optional[Any] = None) -> Tuple[np.ndarray, np.ndarray]:
+      diagnostic: Optional[Any] = None) -> np.ndarray:
     del diagnostic
 
     if users_stale is not None:
@@ -301,7 +301,7 @@ def wrap_gibbs_inference(
       probab_0, probab_1,
       clip_lower, epsilon_dp, False)
     marginals = result.get_marginals(num_updates, burnin=num_burnin, skip=skip)
-    return marginals[:, 1], marginals
+    return marginals
 
   return gibbs_wrapped
 
