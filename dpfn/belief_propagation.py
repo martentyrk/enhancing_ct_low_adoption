@@ -70,18 +70,17 @@ def adjust_matrices_map(
 
 @numba.njit(
   ('UniTuple(float32[:, :], 3)('
-   'float32[:, :], float64, int64, float32[:, :], float32[:, :], '
-   'int64, float32[:, :], float32[:], '
-   'float64, float64, float64, float64)'))
+   'float32[:, :], float64, float64, int64, float32[:, :], float32[:, :], '
+   'int64, float32[:, :], float64, float64, float64, float64)'))
 def forward_backward_user(
     A_matrix: np.ndarray,
+    p0: float,
     p1: float,
     user: int,
     backward_messages: np.ndarray,
     forward_messages: np.ndarray,
     num_time_steps: int,
     obs_messages: np.ndarray,
-    start_belief: np.ndarray,
     clip_lower: float,
     clip_upper: float,
     epsilon_dp: float,
@@ -105,13 +104,11 @@ def forward_backward_user(
       * user to
       * timestep of contact
       * forward message as scalar
-    start_belief: array/list of length 4, being start belief for SEIR states.
 
   Returns:
     marginal beliefs for this user after running bp, and the forward and
     backward messages that this user sends out.
   """
-  # assert start_belief.shape == (4,), f"Shape {start_belief.shape} is not [4] "
   mu_back_contact = (
     np.ones((num_time_steps, 4), dtype=np.float32) * np.float32(.25))
   if epsilon_dp < 0:  # Only calculate backward messages in non-DP setting
@@ -142,7 +139,8 @@ def forward_backward_user(
 
   betas = np.zeros((num_time_steps, 4))
   # Move all messages forward
-  mu_f2v_forward[0] = start_belief + np.float32(1E-12)
+  prior = np.array([1.-p0, p0, 0., 0.], dtype=np.float32)
+  mu_f2v_forward[0] = prior + np.float32(1E-12)
   for t_now in range(1, num_time_steps):
     mu_f2v_forward[t_now] = A_user[t_now-1].T.dot(
       mu_f2v_forward[t_now-1] * obs_messages[t_now-1]
@@ -313,7 +311,6 @@ def do_backward_forward_subset(
     clip_upper: float = 10000.,
     epsilon_dp: float = -1.,
     a_rdp: float = -1.,
-    start_beliefs: Optional[np.ndarray] = None,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
   """Does forward backward on a subset of users in sequence.
 
@@ -329,26 +326,18 @@ def do_backward_forward_subset(
   messages_forward_subset = -1 * np.ones(
     (num_users_interval, num_time_steps*constants.CTC, 4), dtype=np.float32)
 
-  # Default to start_belief as 1.-p0 in S and p0 in E
-  start_belief_def = np.array([1.-p0, p0, 1E-12, 1E-12], dtype=np.float32)
-  start_belief_def /= np.sum(start_belief_def)
-
   for user_id in numba.prange(num_users_interval):  # pylint: disable=not-an-iterable
-    start_belief_user = start_belief_def
-    if start_beliefs is not None:
-      start_belief_user = start_beliefs[user_id].astype(np.float32)
     (
       bp_beliefs_subset[user_id],
       messages_backward_subset[user_id],
       messages_forward_subset[user_id]) = (
         forward_backward_user(
-          A_matrix, p1,
+          A_matrix, p0, p1,
           user_id+user_interval[0],
           map_backward_message[user_id],
           map_forward_message[user_id],
           num_time_steps,
           obs_messages[user_id],
-          start_belief_user,
           clip_lower,
           clip_upper,
           epsilon_dp=epsilon_dp,
@@ -372,7 +361,6 @@ def do_backward_forward_and_message(
     clip_upper: float = 10000.,
     epsilon_dp: float = -1.,
     a_rdp: float = -1.,
-    start_belief: Optional[np.ndarray] = None,
     quantization: Optional[int] = -1,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Tuple[float, float, float]]:
   """Runs forward and backward messages for one user and collates messages."""
@@ -391,8 +379,7 @@ def do_backward_forward_and_message(
     clip_lower=clip_lower,
     clip_upper=clip_upper,
     epsilon_dp=epsilon_dp,
-    a_rdp=a_rdp,
-    start_beliefs=start_belief)
+    a_rdp=a_rdp)
 
   with numba.objmode(t1='f8'):
     t1 = time.time()

@@ -24,7 +24,6 @@ def fn_step_wrapped(
     probab0: float,
     probab1: float,
     past_contacts_array: np.ndarray,
-    start_belief: np.ndarray,
     clip_lower: float = -1.,
     clip_upper: float = 10000.,
     dp_method: int = -1,
@@ -47,9 +46,6 @@ def fn_step_wrapped(
     clip_lower: lower margin for clipping in preparation for DP calculations
     clip_upper: upper margin for clipping in preparation for DP calculations
     past_contacts_array: iterator with elements (timestep, user_u, features)
-    start_belief: matrix in [num_users_int, 4], i-th row is assumed to be the
-      start_belief of user user_slice[i]. start_belief is not used with
-      differential privacy as this would leak privacy.
     dp_method: DP method to use, explanation in constants.py, value of -1 means
       no differential privacy applied
     epsilon_dp: epsilon for DP
@@ -95,7 +91,8 @@ def fn_step_wrapped(
   # Array in [4, num_sequences]
   state_start_hot = seq_array_hot[0]
   # Array in [num_users, num_sequences]
-  start_belief_all = np.log(start_belief.dot(state_start_hot) + 1E-12)
+  prior = np.array([1.-probab0, probab0, 0., 0.], dtype=np.float32)
+  prior_seq = np.log(state_start_hot.T.dot(prior) + 1E-12)
 
   for i in numba.prange(interval_num_users):  # pylint: disable=not-an-iterable
 
@@ -147,7 +144,7 @@ def fn_step_wrapped(
     # Calculate log_joint
     # Numba only does matmul with 2D-arrays, so do reshaping below
     # log_c and log_a are described in the CRISP paper (Herbrich et al. 2021)
-    log_joint = log_c_z_u[i] + log_A_start + d_penalties + start_belief_all[i]
+    log_joint = log_c_z_u[i] + log_A_start + d_penalties + prior_seq
 
     # Calculate noise for differential privacy
     if dp_method == 4:
@@ -192,7 +189,6 @@ def fact_neigh(
     h_param: float,
     clip_lower: float = -1.,
     clip_upper: float = 10000.,
-    start_belief: Optional[np.ndarray] = None,
     alpha: float = 0.001,
     beta: float = 0.01,
     quantization: int = -1,
@@ -222,8 +218,6 @@ def fact_neigh(
     probab_1: Probability of transmission given contact
     g_param: float, dynamics parameter, p(E->I|E)
     h_param: float, dynamics parameter, p(I->R|I)
-    start_belief: array in [num_users, 4], which are the beliefs for the start
-      state
     alpha: False positive rate of observations, (1 minus specificity)
     beta: False negative rate of observations, (1 minus sensitivity)
     quantization: number of levels for quantization. Negative number indicates
@@ -253,15 +247,9 @@ def fact_neigh(
   seq_array_hot = np.transpose(util.state_seq_to_hot_time_seq(
     seq_array, time_total=num_time_steps), [1, 2, 0]).astype(np.int32)
 
-  # If 'start_belief' is provided, the prior will be applied per user, later
-  if start_belief is None:
-    prior = [1-probab_0, probab_0, 0., 0.]
-  else:
-    prior = [.25, .25, .25, .25]
-
   # log_c and log_a are described in the CRISP paper (Herbrich et al. 2021)
   log_A_start = util.enumerate_log_prior_values(
-    prior, [1-probab_0, 1-g_param, 1-h_param],
+    [1-probab_0, probab_0, 0., 0.], [1-probab_0, 1-g_param, 1-h_param],
     seq_array, num_time_steps)
 
   obs_array = util.make_inf_obs_array(int(num_time_steps), alpha, beta)
@@ -291,11 +279,6 @@ def fact_neigh(
     # with open(fname, 'a') as fp:
     #   fp.write(f"{max_num_contacts:.0f}\n")
 
-  start_belief_matrix = np.ones((num_users, 4), dtype=np.single)
-  if start_belief is not None:
-    assert len(start_belief) == num_users
-    start_belief_matrix = start_belief
-
   t_preamble2 = time.time() - t_start_preamble
   logger.info(
     f"Time spent on preamble1/preamble2 {t_preamble1:.1f}/{t_preamble2:.1f}")
@@ -316,7 +299,6 @@ def fact_neigh(
       clip_lower=-1.,
       clip_upper=10000.,
       past_contacts_array=past_contacts,
-      start_belief=start_belief_matrix,
       dp_method=-1,
       epsilon_dp=-1.,
       delta_dp=-1.,
@@ -382,7 +364,6 @@ def fact_neigh(
       clip_lower=clip_lower,
       clip_upper=clip_upper,
       past_contacts_array=past_contacts,
-      start_belief=start_belief_matrix,
       dp_method=dp_method,
       epsilon_dp=epsilon_dp,
       delta_dp=delta_dp,

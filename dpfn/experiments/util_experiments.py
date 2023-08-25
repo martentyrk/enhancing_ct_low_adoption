@@ -31,11 +31,10 @@ def wrap_fact_neigh_inference(
       contacts_list: constants.ContactList,
       num_updates: int,
       num_time_steps: int,
-      start_belief: Optional[np.ndarray] = None,
       users_stale: Optional[np.ndarray] = None,
       diagnostic: Optional[Any] = None) -> Tuple[np.ndarray, np.ndarray]:
 
-    start_belief, traces_per_user_fn = inference.fact_neigh(
+    traces_per_user_fn = inference.fact_neigh(
       num_users=num_users,
       num_time_steps=num_time_steps,
       observations_all=observations_list,
@@ -52,14 +51,13 @@ def wrap_fact_neigh_inference(
       a_rdp=a_rdp,  # alpha parameter for Renyi Differential Privacy
       clip_lower=clip_lower,  # Lower bound for clipping, depends on method
       clip_upper=clip_upper,  # Upper bound for clipping, depends on method
-      start_belief=start_belief,
       quantization=quantization,
       users_stale=users_stale,
       num_updates=num_updates,
       verbose=False,
       trace_dir=trace_dir,
       diagnostic=diagnostic)
-    return start_belief, traces_per_user_fn
+    return traces_per_user_fn
   return fact_neigh_wrapped
 
 
@@ -74,10 +72,9 @@ def wrap_dummy_inference(
       contacts_list: constants.ContactList,
       num_updates: int,
       num_time_steps: int,
-      start_belief: Optional[np.ndarray] = None,
       users_stale: Optional[np.ndarray] = None,
       diagnostic: Optional[Any] = None) -> Tuple[np.ndarray, np.ndarray]:
-    del diagnostic, start_belief, num_updates, contacts_list, observations_list
+    del diagnostic, num_updates, contacts_list, observations_list
     del users_stale
 
     predictions = np.random.rand(num_users, num_time_steps, 4)
@@ -114,10 +111,9 @@ def wrap_dpct_inference(
       contacts_list: constants.ContactList,
       num_updates: int,  # pylint: disable=unused-argument
       num_time_steps: int,
-      start_belief: Optional[np.ndarray] = None,    # pylint: disable=unused-argument
       users_stale: Optional[np.ndarray] = None,    # pylint: disable=unused-argument
       diagnostic: Optional[Any] = None) -> Tuple[np.ndarray, np.ndarray]:    # pylint: disable=unused-argument
-    # del num_updates, start_belief, users_stale, diagnostic
+    # del num_updates, users_stale, diagnostic
     score_small = 0.0001  # Small number to prevent division by zero
 
     # Break symmetry
@@ -184,7 +180,6 @@ def wrap_belief_propagation(
       contacts_list: np.ndarray,
       num_updates: int,
       num_time_steps: int,
-      start_belief: Optional[np.ndarray] = None,
       users_stale: Optional[np.ndarray] = None,
       diagnostic: Optional[Any] = None) -> Tuple[np.ndarray, np.ndarray]:
     del users_stale, diagnostic
@@ -211,7 +206,7 @@ def wrap_belief_propagation(
         belief_propagation.do_backward_forward_and_message(
           A_matrix, p0, p1, num_time_steps, obs_messages, num_users,
           map_backward_message, map_forward_message, (0, num_users),
-          clip_lower, clip_upper, epsilon_dp, a_rdp, start_belief=start_belief,
+          clip_lower, clip_upper, epsilon_dp, a_rdp,
           quantization=quantization))
 
       if np.any(np.isnan(bp_beliefs)):
@@ -279,17 +274,12 @@ def wrap_gibbs_inference(
       contacts_list: np.ndarray,
       num_updates: int,
       num_time_steps: int,
-      start_belief: Optional[np.ndarray] = None,
       users_stale: Optional[np.ndarray] = None,
       diagnostic: Optional[Any] = None) -> Tuple[np.ndarray, np.ndarray]:
     del diagnostic
 
     if users_stale is not None:
       raise ValueError('Not implemented stale users for Gibbs')
-    if start_belief is not None:
-      if start_belief[0][2] > 1E-3:
-        # Effectively check is start belief is defined
-        raise ValueError('Not implemented start belief for Gibbs')
 
     num_burnin = min((num_updates, 10))
     skip = 10

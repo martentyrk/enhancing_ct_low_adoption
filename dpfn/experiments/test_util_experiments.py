@@ -32,7 +32,7 @@ def test_dpct_inference():
     num_users, epsilon_dp=10., delta_dp=0.1)
 
   _, scores = dpct_func(
-    observations_all, contacts_all, None, num_time_steps, None, None, None)
+    observations_all, contacts_all, None, num_time_steps, None, None)
 
   # User 1 had an infected contact (user0)
   assert np.all(scores[1, -1, :2] < 0.5)
@@ -47,7 +47,7 @@ def test_dpct_inference():
     num_users, epsilon_dp=10000., delta_dp=0.1)
 
   _, scores = dpct_func(
-    observations_all, contacts_all, None, num_time_steps, None, None, None)
+    observations_all, contacts_all, None, num_time_steps, None, None)
 
   # Users 3, 4, 5 had no infected contacts
   np.testing.assert_array_less(scores[3:, -1, 2], 0.75)

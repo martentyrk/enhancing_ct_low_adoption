@@ -333,24 +333,6 @@ def enumerate_log_prior_values(
   return log_q_z
 
 
-def enumerate_start_belief(
-    seq_array: np.ndarray, start_belief: np.ndarray) -> np.ndarray:
-  """Calculates the start_belief for all enumerated sequences."""
-  assert seq_array.shape[1] == 3
-  assert start_belief.shape == (4,)
-
-  start_s = seq_array[:, 0] > 0
-  start_e = (1.-start_s) * (seq_array[:, 1] > 0)
-  start_i = (1.-start_s) * (1.-start_e) * (seq_array[:, 2] > 0)
-  start_r = np.sum(seq_array, axis=1) == 0
-
-  return (
-    start_belief[0] * start_s
-    + start_belief[1] * start_e
-    + start_belief[2] * start_i
-    + start_belief[3] * start_r)
-
-
 def enumerate_log_q_values(
     params: np.ndarray,
     sequences: np.ndarray) -> np.ndarray:

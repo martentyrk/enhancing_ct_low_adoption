@@ -71,7 +71,6 @@ def test_fward_bward_user():
   (p0, p1, alpha, beta, A_matrix, observations_all, contacts_all, num_users,
    num_time_steps) = construct_test_problem()
 
-  start_belief_def = np.array([1.-p0, p0, 0., 0.], dtype=np.float32)
   obs_distro = {
     0: np.array([1-beta, 1-beta, alpha, 1-beta], dtype=np.float32),
     1: np.array([beta, beta, 1-alpha, beta], dtype=np.float32),
@@ -88,9 +87,9 @@ def test_fward_bward_user():
   user_test = 0
   bp_beliefs_user, _, _ = (
     belief_propagation.forward_backward_user(
-      A_matrix, p1, user_test, map_backward_message[user_test],
+      A_matrix, p0, p1, user_test, map_backward_message[user_test],
       map_forward_message[user_test], num_time_steps, obs_messages[user_test],
-      start_belief_def, -1., 10000., -1., -1.))
+      -1., 10000., -1., -1.))
 
   # Compare to result with exact inference
   expected = np.array(
@@ -107,7 +106,6 @@ def test_consistent_fward():
   (p0, p1, alpha, beta, A_matrix, observations_all, contacts_all, num_users,
    num_time_steps) = construct_test_problem()
 
-  start_belief_def = np.array([1.-p0, p0, 0., 0.], dtype=np.float32)
   obs_distro = {
     0: np.array([1-beta, 1-beta, alpha, 1-beta]),
     1: np.array([beta, beta, 1-alpha, beta]),
@@ -124,9 +122,9 @@ def test_consistent_fward():
   user_test = 0
   _, list_bw, list_fw = (
     belief_propagation.forward_backward_user(
-      A_matrix, p1, user_test, map_backward_message[user_test],
+      A_matrix, p0, p1, user_test, map_backward_message[user_test],
       map_forward_message[user_test], num_time_steps, obs_messages[user_test],
-      start_belief_def, -1., 10000., -1., -1.))
+      -1., 10000., -1., -1.))
 
   assert np.all(list_bw < 0)
   np.testing.assert_almost_equal(list_fw[0][3], 0.12634230837716198, decimal=5)
@@ -136,7 +134,6 @@ def test_consistent_fward2():
   (p0, p1, alpha, beta, A_matrix, observations_all, contacts_all, num_users,
    num_time_steps) = construct_test_problem()
 
-  start_belief_def = np.array([1.-p0, p0, 0., 0.], dtype=np.float32)
   obs_distro = {
     0: np.array([1-beta, 1-beta, alpha, 1-beta]),
     1: np.array([beta, beta, 1-alpha, beta]),
@@ -153,9 +150,9 @@ def test_consistent_fward2():
   user_test = 0
   _, list_bw, list_fw = (
     belief_propagation.forward_backward_user(
-      A_matrix, p1, user_test, map_backward_message[user_test],
+      A_matrix, p0, p1, user_test, map_backward_message[user_test],
       map_forward_message[user_test], num_time_steps, obs_messages[user_test],
-      start_belief_def, -1., 10000., -1., -1.))
+      -1., 10000., -1., -1.))
 
   assert np.all(list_bw < 0)
   np.testing.assert_almost_equal(list_fw[0][3], 0.27795103957754486, decimal=5)
@@ -165,7 +162,6 @@ def test_consistent_bward():
   (p0, p1, alpha, beta, A_matrix, observations_all, contacts_all, num_users,
    num_time_steps) = construct_test_problem()
 
-  start_belief_def = np.array([1.-p0, p0, 0., 0.], dtype=np.float32)
   obs_distro = {
     0: np.array([1-beta, 1-beta, alpha, 1-beta]),
     1: np.array([beta, beta, 1-alpha, beta]),
@@ -186,9 +182,9 @@ def test_consistent_bward():
   user_test = 2
   _, list_bw, list_fw = (
     belief_propagation.forward_backward_user(
-      A_matrix, p1, user_test, map_backward_message[user_test],
+      A_matrix, p0, p1, user_test, map_backward_message[user_test],
       map_forward_message[user_test], num_time_steps, obs_messages[user_test],
-      start_belief_def, -1., 10000., -1., -1.))
+      -1., 10000., -1., -1.))
 
   map_bw = {tuple(x[0:3].tolist()): x[3:] for x in list_bw}
 
@@ -207,7 +203,6 @@ def test_consistent_bward2():
   (p0, p1, alpha, beta, A_matrix, observations_all, contacts_all, num_users,
    num_time_steps) = construct_test_problem()
 
-  start_belief_def = np.array([1.-p0, p0, 0., 0.], dtype=np.float32)
   obs_distro = {
     0: np.array([1-beta, 1-beta, alpha, 1-beta]),
     1: np.array([beta, beta, 1-alpha, beta]),
@@ -228,9 +223,9 @@ def test_consistent_bward2():
   user_test = 2
   _, list_bw, list_fw = (
     belief_propagation.forward_backward_user(
-      A_matrix, p1, user_test, map_backward_message[user_test],
+      A_matrix, p0, p1, user_test, map_backward_message[user_test],
       map_forward_message[user_test], num_time_steps, obs_messages[user_test],
-      start_belief_def, -1., 10000., -1., -1.))
+      -1., 10000., -1., -1.))
 
   map_bw = {tuple(x[0:3].tolist()): x[3:] for x in list_bw}
 
@@ -542,7 +537,6 @@ def test_fward_bward_user_rdp():
   (p0, p1, alpha, beta, A_matrix, observations_all, contacts_all, num_users,
    num_time_steps) = construct_test_problem()
 
-  start_belief_def = np.array([1.-p0, p0, 0., 0.], dtype=np.float32)
   obs_distro = {
     0: np.array([1-beta, 1-beta, alpha, 1-beta], dtype=np.float32),
     1: np.array([beta, beta, 1-alpha, beta], dtype=np.float32),
@@ -559,15 +553,15 @@ def test_fward_bward_user_rdp():
   user_test = 0
   bp_beliefs_user, _, _ = (
     belief_propagation.forward_backward_user(
-      A_matrix, p1, user_test, map_backward_message[user_test],
+      A_matrix, p0, p1, user_test, map_backward_message[user_test],
       map_forward_message[user_test], num_time_steps, obs_messages[user_test],
-      start_belief_def, -1., 10000., -1., -1.))
+      -1., 10000., -1., -1.))
 
   bp_noised, _, _ = (
     belief_propagation.forward_backward_user(
-      A_matrix, p1, user_test, map_backward_message[user_test],
+      A_matrix, p0, p1, user_test, map_backward_message[user_test],
       map_forward_message[user_test], num_time_steps, obs_messages[user_test],
-      start_belief_def, -1., 10000., .1, 5.))
+      -1., 10000., .1, 5.))
 
   diff = np.sum(np.abs(bp_beliefs_user - bp_noised))
   assert diff > 1E-3
@@ -577,7 +571,6 @@ def test_fward_bward_user_strong_dp():
   (p0, p1, alpha, beta, A_matrix, observations_all, contacts_all, num_users,
    num_time_steps) = construct_test_problem()
 
-  start_belief_def = np.array([1.-p0, p0, 0., 0.], dtype=np.float32)
   obs_distro = {
     0: np.array([1-beta, 1-beta, alpha, 1-beta], dtype=np.float32),
     1: np.array([beta, beta, 1-alpha, beta], dtype=np.float32),
@@ -594,9 +587,9 @@ def test_fward_bward_user_strong_dp():
   user_test = 0
   bp_beliefs_user, _, _ = (
     belief_propagation.forward_backward_user(
-      A_matrix, p1, user_test, map_backward_message[user_test],
+      A_matrix, p0, p1, user_test, map_backward_message[user_test],
       map_forward_message[user_test], num_time_steps, obs_messages[user_test],
-      start_belief_def, -1., 10000., 0.001, 5.))
+      -1., 10000., 0.001, 5.))
 
   assert not np.any(np.isinf(bp_beliefs_user))
   assert not np.any(np.isnan(bp_beliefs_user))

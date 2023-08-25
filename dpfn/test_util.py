@@ -598,21 +598,6 @@ def test_past_contact_array_fast_copy_paste_static():
   )
 
 
-def test_enumerate_start_belief():
-  seq_array = np.stack(list(
-    util.iter_sequences(time_total=5, start_se=False)))
-
-  start_belief = np.array([.1, .2, .3, .4])
-  A_start_belief = util.enumerate_start_belief(seq_array, start_belief)
-
-  expected = np.array(
-    [0.4, 0.3, 0.3, 0.3, 0.3, 0.3, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2,
-     0.2, 0.2, 0.2, 0.2, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1,
-     0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
-
-  np.testing.assert_array_almost_equal(A_start_belief, expected)
-
-
 def test_spread_buckets():
   num_sample_array = util.spread_buckets(100, 10)
   expected = 10 * np.ones((10))

@@ -64,7 +64,6 @@ def test_factorised_neighbor_step():
     p0,
     p1,
     past_contacts_array=past_contacts,
-    start_belief=np.ones((num_users, 4), dtype=np.float32),
     quantization=-1)
 
   time_spent = tend - tstart
@@ -74,7 +73,7 @@ def test_factorised_neighbor_step():
     post_exp.shape, [num_users, num_time_steps, 4])
 
 
-def test_fact_neigh_with_start_belief():
+def test_fact_neigh_with_prior():
 
   contacts_all = np.array([
     (0, 1, 2, 1),
@@ -85,11 +84,7 @@ def test_fact_neigh_with_start_belief():
   num_users = 2
   num_time_steps = 5
 
-  p0, p1 = 0.01, 0.5
-
-  start_belief = np.array(
-    [[.1, .4, .5, .0],
-     [.9, .1, .0, .0]], dtype=np.float32)
+  p0, p1 = 0.1, 0.5
 
   _, post_exp = inference.fact_neigh(
     num_users=num_users,
@@ -100,7 +95,6 @@ def test_fact_neigh_with_start_belief():
     probab_1=p1,
     g_param=.5,
     h_param=.5,
-    start_belief=start_belief,
     alpha=0.001,
     beta=0.01,
     num_updates=5)
@@ -176,7 +170,6 @@ def test_factorised_neighbor_step_clipping():
     p0,
     p1,
     past_contacts_array=past_contacts,
-    start_belief=np.ones((num_users, 4), dtype=np.float32),
     quantization=-1)
 
   post_exp, tstart, tend = inference.fn_step_wrapped(
@@ -191,7 +184,6 @@ def test_factorised_neighbor_step_clipping():
     clip_lower=.2,
     clip_upper=.8,
     past_contacts_array=past_contacts,
-    start_belief=np.ones((num_users, 4), dtype=np.float32),
     quantization=-1)
 
   time_spent = tend - tstart
@@ -217,7 +209,6 @@ def test_factorised_neighbor_step_clipping():
     dp_method=4,
     epsilon_dp=1.,
     delta_dp=1./100,
-    start_belief=np.ones((num_users, 4), dtype=np.float32),
     quantization=-1)
 
   assert time_spent < 1.0, f"FN takes way too long: {time_spent}"
@@ -288,7 +279,6 @@ def test_factorised_neighbor_diff_private():
     p0,
     p1,
     past_contacts_array=past_contacts,
-    start_belief=np.ones((num_users, 4), dtype=np.float32),
     quantization=-1)
 
   post_exp_dp, tstart, tend = inference.fn_step_wrapped(
@@ -303,7 +293,6 @@ def test_factorised_neighbor_diff_private():
     clip_lower=.01,
     clip_upper=.99,
     past_contacts_array=past_contacts,
-    start_belief=np.ones((num_users, 4), dtype=np.float32),
     quantization=-1,
     dp_method=6,
     epsilon_dp=0.1,
@@ -321,7 +310,6 @@ def test_factorised_neighbor_diff_private():
     clip_lower=.0001,
     clip_upper=.9999,
     past_contacts_array=past_contacts,
-    start_belief=np.ones((num_users, 4), dtype=np.float32),
     quantization=-1,
     dp_method=6,
     epsilon_dp=1000000,

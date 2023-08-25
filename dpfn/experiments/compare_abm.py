@@ -181,8 +181,6 @@ def compare_prequential_quarantine(
   num_days_quarantine = cfg["data"]["num_days_quarantine"]
   t_start_quarantine = cfg["data"]["t_start_quarantine"]
 
-  probab_0 = cfg["model"]["p0"]
-
   logger.info((
     f"Settings at experiment: {quantization:.0f} quant, at {fraction_test}%"))
 
@@ -201,11 +199,6 @@ def compare_prequential_quarantine(
     [cfg["data"]["alpha"], 1-float(cfg["data"]["alpha"])], dtype=np.float32)
   p_obs_not_infected = np.array(
     [1-float(cfg["data"]["beta"]), cfg["data"]["beta"]], dtype=np.float32)
-
-  # start_belief_inferred = -1 * np.ones((num_users, 4))
-  start_belief_global = (
-    np.ones((num_users, 4)) * np.array([1. - probab_0, probab_0, 0., 0.]))
-  start_belief_global = start_belief_global.astype(np.float32)
 
   if quick:
     num_rounds = 2
@@ -282,15 +275,6 @@ def compare_prequential_quarantine(
     if not do_random_quarantine:
       t_start = time.time()
 
-      # Make inference over SEIR states
-      start_belief = start_belief_global
-      # Start_belief is not used with differential privacy, as that would leak
-      # if num_days <= t_now:
-      #   # This condition is true when num_days_window > t_now
-      #   logger.info("Use window!")
-      #   start_belief = start_belief_inferred
-      # start_belief = np.ascontiguousarray(start_belief, dtype=np.single)
-
       contacts_now = util.make_default_array(
         sim.get_contacts(), dtype=np.int32, rowlength=4)
       observations_now = util.make_default_array(
@@ -305,7 +289,6 @@ def compare_prequential_quarantine(
         contacts_now,
         num_rounds,
         num_days,
-        start_belief,
         users_stale=users_stale,
         diagnostic=diagnostic)
 
