@@ -88,12 +88,6 @@ def fn_step_wrapped(
   seq_array_hot = seq_array_hot.astype(np.single)
   num_sequences = seq_array_hot.shape[2]
 
-  # Array in [4, num_sequences]
-  state_start_hot = seq_array_hot[0]
-  # Array in [num_users, num_sequences]
-  prior = np.array([1.-probab0, probab0, 0., 0.], dtype=np.float32)
-  prior_seq = np.log(state_start_hot.T.dot(prior) + 1E-12)
-
   for i in numba.prange(interval_num_users):  # pylint: disable=not-an-iterable
 
     if (dp_method <= 4) or (dp_method == 6):
@@ -144,7 +138,7 @@ def fn_step_wrapped(
     # Calculate log_joint
     # Numba only does matmul with 2D-arrays, so do reshaping below
     # log_c and log_a are described in the CRISP paper (Herbrich et al. 2021)
-    log_joint = log_c_z_u[i] + log_A_start + d_penalties + prior_seq
+    log_joint = log_c_z_u[i] + log_A_start + d_penalties
 
     # Calculate noise for differential privacy
     if dp_method == 4:
