@@ -4,7 +4,7 @@ import numba
 import numpy as np
 from dpfn import constants, inference, logger, belief_propagation
 import subprocess
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 
 def wrap_fact_neigh_inference(
