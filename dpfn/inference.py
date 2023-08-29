@@ -187,7 +187,7 @@ def fact_neigh(
     clip_upper: float = 10000.,
     quantization: int = -1,
     users_stale: Optional[np.ndarray] = None,
-    num_updates: int = 1000,
+    num_updates: int = 5,
     dp_method: int = -1,
     epsilon_dp: float = -1.,
     delta_dp: float = -1.,
