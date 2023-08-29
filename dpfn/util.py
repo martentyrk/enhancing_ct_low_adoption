@@ -297,6 +297,7 @@ def enumerate_log_prior_values(
     sequences: np.ndarray,
     time_total: int) -> np.ndarray:
   """Enumerate values of log prior."""
+  # TODO: drop the option to start in I or R state
   np.testing.assert_almost_equal(np.sum(params_start), 1.)
 
   b0, b1, b2 = params[0], params[1], params[2]

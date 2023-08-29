@@ -237,6 +237,7 @@ def fact_neigh(
   assert clip_upper > 0
 
   seq_array = np.stack(list(
+    # TODO: change start_se to True
     util.iter_sequences(time_total=num_time_steps, start_se=False)))
   seq_array_hot = np.transpose(util.state_seq_to_hot_time_seq(
     seq_array, time_total=num_time_steps), [1, 2, 0]).astype(np.int32)

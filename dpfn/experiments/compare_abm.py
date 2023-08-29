@@ -296,6 +296,13 @@ def compare_prequential_quarantine(
         z_states_inferred.shape, [num_users, num_days, 4])
       logger.info(f"Time spent on inference_func {time.time() - t_start:.0f}")
 
+      if trace_dir is not None:
+        if t_now == 15:
+          fname = os.path.join(trace_dir, f"contacts_10k.npy")
+          np.save(fname, contacts_now)
+          fname = os.path.join(trace_dir, f"observations_10k.npy")
+          np.save(fname, observations_now)
+
     else:
       z_states_inferred = np.zeros((num_users, num_days, 4))
 
