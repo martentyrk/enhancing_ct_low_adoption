@@ -424,12 +424,13 @@ if __name__ == "__main__":
     # This exception sends an WandB alert with the traceback and sweepid
     logger.info(f'Error repr: {repr(e)}')
     traceback_report = traceback.format_exc()
-    wandb.alert(
-      title=f"Error {os.getenv('SWEEPID')}-{os.getenv('SLURM_JOB_ID')}",
-      text=(
-        f"'{configname_data}', '{configname_model}', '{inf_method}'\n"
-        + traceback_report)
-    )
+    if slurmid := os.getenv('SLURM_JOB_ID'):
+      wandb.alert(
+        title=f"Error {os.getenv('SWEEPID')}-{slurmid}",
+        text=(
+          f"'{configname_data}', '{configname_model}', '{inf_method}'\n"
+          + traceback_report)
+      )
     raise e
 
   runner_global.finish()
