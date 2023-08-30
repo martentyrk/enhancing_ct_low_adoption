@@ -122,6 +122,8 @@ def make_inference_func(
       epsilon_dp=epsilon_dp,
       delta_dp=delta_dp,
       a_rdp=a_rdp,
+      clip_lower=clip_lower,
+      clip_upper=clip_upper,
       quantization=quantization,
       trace_dir=trace_dir)
   elif inference_method == "gibbs":

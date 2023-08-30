@@ -98,13 +98,14 @@ def wrap_fact_neigh_cpp(
     epsilon_dp: float = -1.,
     delta_dp: float = -1.,
     a_rdp: float = -1.,
+    clip_lower: float = -1.,
+    clip_upper: float = 10.,
     quantization: int = -1,
     trace_dir: Optional[str] = None,
     ):
   """Wraps the inference function that runs FN from pybind."""
-  assert epsilon_dp < 0, "Not implemented for epsilon_dp > 0"
-  assert a_rdp < 0, "Not implemented for a_rdp > 0"
-  assert dp_method < 0, "Not implemented for dp_method > 0"
+  assert (dp_method < 0) or (dp_method == 5), (
+    "Not implemented for dp_method > 0")
   del trace_dir, delta_dp
 
   num_workers = max((util.get_cpu_count()-1, 1))
@@ -130,6 +131,10 @@ def wrap_fact_neigh_cpp(
       h_param=h_param,
       alpha=alpha,
       beta=beta,
+      rho_rdp=epsilon_dp,
+      a_rdp=a_rdp,
+      clip_lower=clip_lower,
+      clip_upper=clip_upper,
       quantization=quantization,
       observations=observations_list,
       contacts=contacts_list)

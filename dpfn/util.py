@@ -570,7 +570,8 @@ def precompute_d_penalty_terms_rdp(
     # Everything hereafter is post-processing
     # Clip to [0, 1], equals clip to [\infty, 0] in logdomain
     log_expectations = np.minimum(
-      log_expectations_noised, 0.)
+      log_expectations_noised,
+      num_contacts * np.log(1 - clip_lower*p1)).astype(np.float32)
 
     # Public knowledge: No expectation can be lower than (1-\gamma*p_1)**num_c
     log_expectations = np.maximum(
