@@ -82,8 +82,8 @@ def make_inference_func(
       num_users=num_users,
       alpha=alpha,
       beta=beta,
-      p0=p0,
-      p1=p1,
+      probab0=p0,
+      probab1=p1,
       param_g=g,
       param_h=h,
       epsilon_dp=epsilon_dp,
@@ -97,8 +97,8 @@ def make_inference_func(
       num_users=num_users,
       alpha=alpha,
       beta=beta,
-      p0=p0,
-      p1=p1,
+      probab0=p0,
+      probab1=p1,
       g_param=g,
       h_param=h,
       dp_method=dp_method,
@@ -107,6 +107,21 @@ def make_inference_func(
       a_rdp=a_rdp,
       clip_lower=clip_lower,
       clip_upper=clip_upper,
+      quantization=quantization,
+      trace_dir=trace_dir)
+  elif inference_method == "fncpp":
+    inference_func = util_experiments.wrap_fact_neigh_cpp(
+      num_users=num_users,
+      alpha=alpha,
+      beta=beta,
+      probab0=p0,
+      probab1=p1,
+      g_param=g,
+      h_param=h,
+      dp_method=dp_method,
+      epsilon_dp=epsilon_dp,
+      delta_dp=delta_dp,
+      a_rdp=a_rdp,
       quantization=quantization,
       trace_dir=trace_dir)
   elif inference_method == "gibbs":
@@ -139,7 +154,7 @@ def make_inference_func(
   else:
     raise ValueError((
       f"Not recognised inference method {inference_method}. Should be one of"
-      f"['random', 'fn', 'dummy', 'dpct', 'bp', 'gibbs']"
+      f"['random', 'fn', 'dummy', 'dpct', 'bp', 'gibbs', 'fncpp']"
     ))
   return inference_func, do_random_quarantine
 
@@ -390,7 +405,7 @@ if __name__ == "__main__":
   parser.add_argument('--inference_method', type=str, default='fn',
                       choices=[
                         'fn', 'dummy', 'random', 'bp', 'dpct',
-                        'gibbs'],
+                        'gibbs', 'fncpp'],
                       help='Name of the inference method')
   parser.add_argument('--experiment_setup', type=str, default='single',
                       choices=['single', 'prequential'],

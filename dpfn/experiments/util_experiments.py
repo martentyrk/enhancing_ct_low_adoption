@@ -2,7 +2,8 @@
 import crisp
 import numba
 import numpy as np
-from dpfn import constants, inference, logger, belief_propagation
+from dpfn import constants, inference, logger, belief_propagation, util
+import dpfn_util
 import subprocess
 from typing import Any, Dict, Optional
 
@@ -11,8 +12,8 @@ def wrap_fact_neigh_inference(
     num_users: int,
     alpha: float,
     beta: float,
-    p0: float,
-    p1: float,
+    probab0: float,
+    probab1: float,
     g_param: float,
     h_param: float,
     clip_lower: float,
@@ -41,8 +42,8 @@ def wrap_fact_neigh_inference(
       contacts_all=contacts_list,
       alpha=alpha,
       beta=beta,
-      probab_0=p0,  # Probability of spontaneous infection
-      probab_1=p1,  # Probability of transmission given a contact
+      probab_0=probab0,  # Probability of spontaneous infection
+      probab_1=probab1,  # Probability of transmission given a contact
       g_param=g_param,  # Dynamics parameter for E -> I transition
       h_param=h_param,  # Dynamics parameter for I -> R transition
       dp_method=dp_method,  # Integer to choose an experimental dp method
@@ -83,6 +84,58 @@ def wrap_dummy_inference(
     return predictions
 
   return dummy_wrapped
+
+
+def wrap_fact_neigh_cpp(
+    num_users: int,
+    alpha: float,
+    beta: float,
+    probab0: float,
+    probab1: float,
+    g_param: float,
+    h_param: float,
+    dp_method: int = -1,
+    epsilon_dp: float = -1.,
+    delta_dp: float = -1.,
+    a_rdp: float = -1.,
+    quantization: int = -1,
+    trace_dir: Optional[str] = None,
+    ):
+  """Wraps the inference function that runs FN from pybind."""
+  assert epsilon_dp < 0, "Not implemented for epsilon_dp > 0"
+  assert a_rdp < 0, "Not implemented for a_rdp > 0"
+  assert dp_method < 0, "Not implemented for dp_method > 0"
+  del trace_dir, delta_dp
+
+  num_workers = max((util.get_cpu_count()-1, 1))
+  logger.info(f"Using {num_workers} workers for FN inference")
+
+  def fact_neigh_cpp(
+      observations_list: constants.ObservationList,
+      contacts_list: constants.ContactList,
+      num_updates: int,
+      num_time_steps: int,
+      users_stale: Optional[np.ndarray] = None,
+      diagnostic: Optional[Any] = None) -> np.ndarray:
+    del diagnostic, users_stale
+
+    post_exp_out = dpfn_util.fn_full_func(
+      num_workers=num_workers,
+      num_rounds=num_updates,
+      num_users=num_users,
+      num_time_steps=num_time_steps,
+      probab0=probab0,
+      probab1=probab1,
+      g_param=g_param,
+      h_param=h_param,
+      alpha=alpha,
+      beta=beta,
+      quantization=quantization,
+      observations=observations_list,
+      contacts=contacts_list)
+    assert post_exp_out.shape == (num_users, num_time_steps, 4)
+    return post_exp_out
+  return fact_neigh_cpp
 
 
 def wrap_dpct_inference(
@@ -150,8 +203,8 @@ def wrap_belief_propagation(
     param_h: float,
     alpha: float,
     beta: float,
-    p0: float,
-    p1: float,
+    probab0: float,
+    probab1: float,
     clip_lower: float,
     clip_upper: float,
     epsilon_dp: float,
@@ -164,7 +217,7 @@ def wrap_belief_propagation(
   del freeze_backwards, trace_dir
 
   A_matrix = np.array([
-    [1-p0, p0, 0, 0],
+    [1-probab0, probab0, 0, 0],
     [0, 1-param_g, param_g, 0],
     [0, 0, 1-param_h, param_h],
     [0, 0, 0, 1]
@@ -204,7 +257,7 @@ def wrap_belief_propagation(
 
       (bp_beliefs, map_backward_message, map_forward_message, timing) = (
         belief_propagation.do_backward_forward_and_message(
-          A_matrix, p0, p1, num_time_steps, obs_messages, num_users,
+          A_matrix, probab0, probab1, num_time_steps, obs_messages, num_users,
           map_backward_message, map_forward_message, (0, num_users),
           clip_lower, clip_upper, epsilon_dp, a_rdp,
           quantization=quantization))
