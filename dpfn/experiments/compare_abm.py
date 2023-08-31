@@ -275,6 +275,7 @@ def compare_abm(
         f"Day {t_now}: {contacts_now.shape[0]} contacts, "
         f"{observations_now.shape[0]} obs"))
 
+      t_start = time.time()
       z_states_inferred = inference_func(
         observations_now,
         contacts_now,
