@@ -109,6 +109,11 @@ def wrap_fact_neigh_cpp(
   del trace_dir, delta_dp
 
   num_workers = max((util.get_cpu_count()-1, 1))
+
+  # Heuristically cap the number of workers. If the number of workers is too
+  # large, then the overhead of creating a single thread is too large.
+  max_num_workers = 8 if num_users < 200000 else 16
+  num_workers = min((num_workers, max_num_workers))
   logger.info(f"Using {num_workers} workers for FN inference")
 
   def fact_neigh_cpp(
