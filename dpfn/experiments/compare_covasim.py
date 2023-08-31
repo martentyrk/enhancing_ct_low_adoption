@@ -306,7 +306,7 @@ if __name__ == "__main__":
   parser.add_argument('--inference_method', type=str, default='fn',
                       choices=[
                         'fn', 'dummy', 'random', 'bp', 'dpct',
-                        'gibbs'],
+                        'gibbs', 'fncpp'],
                       help='Name of the inference method')
   parser.add_argument('--config_data', type=str, default='small_graph',
                       help='Name of the config file for the data')
