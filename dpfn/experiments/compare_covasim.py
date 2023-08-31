@@ -62,10 +62,14 @@ class StoreSEIR(cv.Analyzer):
     self.timestamps[day] = time.time() - self._time_prev
     self._time_prev = time.time()
 
+    time_inf_func = sim.get_intervention(
+      'intervention_history').history['time_inf_func'][sim.t]
+
     logger.info((
       f"On day {day:3} recall is {self.recalls[day]:.2f} "
       f"at IR {self.i_rate[day] + self.e_rate[day]:.4f} "
-      f"timediff {self.timestamps[day]:8.1f}"))
+      f"timediff {self.timestamps[day]:8.1f}"
+      f"({time_inf_func:5.1f})"))
 
 
 def compare_policy_covasim(
@@ -202,12 +206,14 @@ def compare_policy_covasim(
       #   f"Earliest obs {obs_rel[:, 1].min()} is before {sim.t}")
 
       # Add +1 so the model predicts one day into the future
+      t_start = time.time()
       pred = inference_func(
         observations_list=obs_rel,
         contacts_list=contacts_rel,
         num_updates=num_rounds,
         num_time_steps=num_days + 1)
       rank_score = pred[:, -1, 1] + pred[:, -1, 2]
+      time_spent = time.time() - t_start
 
       # Track some metrics here:
       states_today = 3*np.ones(num_users, dtype=np.int32)
@@ -219,6 +225,7 @@ def compare_policy_covasim(
       history['likelihoods_state'][sim.t] = np.mean(np.log(p_at_state+1E-9))
       history['ave_prob_inf_at_inf'][sim.t] = np.mean(
         p_at_state[states_today == 2])
+      history['time_inf_func'][sim.t] = time_spent
     else:
       # For the first few days of a simulation, just test randomly
       rank_score = np.ones(num_users) + np.random.rand(num_users)
