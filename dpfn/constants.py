@@ -22,7 +22,10 @@ from typing import Tuple, Union
 # DP=7, corresponds to using the Gaussian mechanism in log-domain when doing FN
 #         (note that this method introduces a bias in the covidscore);
 
-CTC = 120  # Contact tracing capacity per day
+# Number of contacts to save per time window. Setting this value too small
+# means that many contacts will be discarded (which implies that the predictions
+# are worse and the peak infection rate could be worse)
+CTC = 900
 
 colors = ['b', 'm', 'r', 'k']
 state_names = ['S', 'E', 'I', 'R']

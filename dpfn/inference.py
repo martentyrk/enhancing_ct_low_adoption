@@ -260,7 +260,7 @@ def fact_neigh(
   t_preamble1 = time.time() - t_start_preamble
   t_start_preamble = time.time()
 
-  num_max_msg = int(constants.CTC*max((num_time_steps, 14)))
+  num_max_msg = constants.CTC
   past_contacts, max_num_contacts = util.get_past_contacts_static(
     (0, num_users), contacts_all, num_msg=num_max_msg)
 

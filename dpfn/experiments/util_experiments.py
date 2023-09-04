@@ -151,7 +151,7 @@ def wrap_fact_neigh_cpp(
 def wrap_dpct_inference(
     num_users: int,
     epsilon_dp: float,
-    delta_dp: float = 1 / constants.CTC):
+    delta_dp: float):
   """Wraps the DPCT function for dummy inference.
 
   Differentially Private version of Traditional contact tracing.
@@ -260,7 +260,7 @@ def wrap_belief_propagation(
 
     map_forward_message, map_backward_message = (
       belief_propagation.init_message_maps(
-        contacts_list, (0, num_users), num_time_steps))
+        contacts_list, (0, num_users)))
 
     t_inference, t_quant, t_comm = 0., 0., 0.
     for _ in range(num_updates):

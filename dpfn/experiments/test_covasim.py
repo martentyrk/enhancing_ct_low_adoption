@@ -69,7 +69,8 @@ def test_covasim_tests():
     daily_tests=int(0.1*num_users),
     do_plot=False,
     sensitivity=1.0,
-    subtarget=subtarget_func)
+    subtarget=subtarget_func,
+    label='intervention_history')
 
   # Create, run, and plot the simulations
   analyzer = compare_covasim.StoreSEIR(

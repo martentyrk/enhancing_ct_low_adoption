@@ -205,6 +205,12 @@ def compare_policy_covasim(
       # assert 0 <= obs_rel[:, 1].min() <= sim.t, (
       #   f"Earliest obs {obs_rel[:, 1].min()} is before {sim.t}")
 
+      if trace_dir and sim.t == 15:
+        fname = os.path.join(trace_dir, f"contacts_{sim.t}.npz")
+        np.savez(
+          fname, contacts=contacts_rel, observations=obs_rel)
+        logger.info(f"Dumped traces to {fname}")
+
       # Add +1 so the model predicts one day into the future
       t_start = time.time()
       pred = inference_func(

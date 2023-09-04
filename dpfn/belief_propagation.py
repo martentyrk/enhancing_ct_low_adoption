@@ -89,7 +89,7 @@ def forward_backward_user(
 
   Args:
     user: integer which is the user index (in absolute counting!!)
-    map_backward_mesage: for each user, this is an array of size [CTC*T, 7]
+    map_backward_mesage: for each user, this is an array of size [CTC, 7]
       where the 7 columns are
       * user from
       * user to
@@ -98,7 +98,7 @@ def forward_backward_user(
       * backward message E
       * backward message I
       * backward message R
-    map_backward_mesage: for each user, this is an array of size [CTC*T, 4]
+    map_backward_mesage: for each user, this is an array of size [CTC, 4]
       where the 4 columns are
       * user from
       * user to
@@ -159,7 +159,7 @@ def forward_backward_user(
   betas /= np.expand_dims(np.sum(betas, axis=1), axis=1)
 
   # Calculate messages backward
-  max_num_messages = num_time_steps*constants.CTC
+  max_num_messages = constants.CTC
   messages_send_back = -1 * np.ones((max_num_messages, 7), dtype=np.float32)
   # TODO: unfreeze backward messages
   if epsilon_dp < 0:   # Only calculate bwd messages when non-DP
@@ -257,13 +257,12 @@ def forward_backward_user(
 
 def init_message_maps(
     contacts_all: np.ndarray,
-    user_interval: Tuple[int, int],
-    num_time_steps: int) -> Tuple[np.ndarray, np.ndarray]:
+    user_interval: Tuple[int, int]) -> Tuple[np.ndarray, np.ndarray]:
   """Initialises the message maps."""
   # Put backward messages in hashmap, such that they can be overwritten when
   #   doing multiple iterations in loopy belief propagation
   num_users_interval = user_interval[1] - user_interval[0]
-  max_num_contacts = num_time_steps * constants.CTC
+  max_num_contacts = constants.CTC
   map_backward_message = -1 * np.ones((num_users_interval, max_num_contacts, 7))
   map_forward_message = -1 * np.ones((num_users_interval, max_num_contacts, 4))
 
@@ -322,9 +321,9 @@ def do_backward_forward_subset(
 
   # Init ndarrays for all messages being sent by users in this subset
   messages_backward_subset = -1 * np.ones(
-    (num_users_interval, num_time_steps*constants.CTC, 7), dtype=np.float32)
+    (num_users_interval, constants.CTC, 7), dtype=np.float32)
   messages_forward_subset = -1 * np.ones(
-    (num_users_interval, num_time_steps*constants.CTC, 4), dtype=np.float32)
+    (num_users_interval, constants.CTC, 4), dtype=np.float32)
 
   for user_id in numba.prange(num_users_interval):  # pylint: disable=not-an-iterable
     (
@@ -387,10 +386,10 @@ def do_backward_forward_and_message(
   # Sort by receiving user
   # Array in [num_users, max_num_messages, num_elements]
   map_backward_message = util_bp.flip_message_send(
-    msg_list_bwd, num_users, num_time_steps=num_time_steps, do_bwd=True)
+    msg_list_bwd, num_users, do_bwd=True)
   # Array in [num_users, max_num_messages, num_elements]
   map_forward_message = util_bp.flip_message_send(
-    msg_list_fwd, num_users, num_time_steps=num_time_steps, do_bwd=False)
+    msg_list_fwd, num_users, do_bwd=False)
 
   # Do quantization
   map_backward_message[:, :, 3:] = util.quantize(
