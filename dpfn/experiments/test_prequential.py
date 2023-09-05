@@ -189,35 +189,6 @@ def test_decide_tests():
   assert users_to_test.dtype == np.int32
 
 
-def test_offset_observations():
-  observations = np.array([
-    (0, 11, 1),
-    (1, 11, 1),
-    (2, 1, 1),
-    ], dtype=np.int32)
-  observations_new = prequential.offset_observations(observations, offset=2)
-
-  observations_expected = [
-    (0, 9, 1),
-    (1, 9, 1),
-    ]
-
-  np.testing.assert_array_almost_equal(observations_new, observations_expected)
-
-  assert observations[0][1] == 11, (
-    "Time changed. Did the function change value in place (change value instead"
-    "of change reference. For now the code is based on a separate data "
-    "structure with absolute timing"
-    + f"{observations[0][1]} does not match 11")
-
-
-def test_offset_observations_empty():
-  observations = np.zeros((0, 3), dtype=np.int32)
-  observations_new = prequential.offset_observations(observations, offset=2)
-
-  assert len(observations_new) == 0
-
-
 def test_dump_results():
 
   fname_config_data = "dpfn/config/small_graph_01.ini"

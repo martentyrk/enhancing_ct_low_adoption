@@ -3,9 +3,7 @@ import argparse
 import copy
 import numpy as np
 from dpfn.config import config
-from dpfn.data import data_load
 from dpfn.experiments import prequential, util_experiments
-from dpfn import constants
 from dpfn import LOGGER_FILENAME, logger
 from dpfn import simulator
 from dpfn import util
@@ -15,11 +13,10 @@ import os
 import psutil
 import random
 from sklearn import metrics
-import sys
 import time
 import tqdm
 import traceback
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 import wandb
 
 
@@ -147,26 +144,17 @@ def make_inference_func(
   return inference_func, do_random_quarantine
 
 
-def compare_prequential_quarantine(
+def compare_abm(
     inference_method: str,
     num_users: int,
     num_time_steps: int,
-    observations: List[constants.Observation],
-    contacts: List[constants.Contact],
-    states: np.ndarray,
     cfg: Dict[str, Any],
     runner,
     results_dir: str,
     trace_dir: Optional[str] = None,
     quick: bool = False,
-    do_diagnosis: bool = False,
-    use_abm_simulator: bool = False):
+    do_diagnosis: bool = False):
   """Compares different inference algorithms on the supplied contact graph."""
-  del states
-
-  num_users = int(num_users)
-  del observations
-
   num_days_window = cfg["model"]["num_days_window"]
   quantization = cfg["model"]["quantization"]
 
@@ -174,7 +162,6 @@ def compare_prequential_quarantine(
   rng_seed = cfg.get("seed", 123)
 
   fraction_test = cfg["data"]["fraction_test"]
-  positive_e_state = bool(cfg["data"]["positive_e_state"])
 
   # Data and simulator params
   fraction_stale = cfg["data"]["fraction_stale"]
@@ -223,22 +210,11 @@ def compare_prequential_quarantine(
   logger.info(f"Do random quarantine? {do_random_quarantine}")
   t0 = time.time()
 
-  do_sim = True
-  if do_sim:
-    if use_abm_simulator:
-      sim_factory = simulator.ABMSimulator
-      contacts = []
-    else:
-      assert False, "Stopped supporting the CRISP simulator"
+  sim = simulator.ABMSimulator(
+    num_time_steps, num_users, rng_seed)
 
-    sim = sim_factory(
-      num_time_steps, num_users, positive_e_state, rng_seed)
-    sim.init_day0(copy.deepcopy(contacts))
-
-    logger.info((
-      f"Start simulation with {num_rounds} updates"))
-  else:
-    sim = simulator.DummySimulator(num_time_steps, num_users)
+  logger.info((
+    f"Start simulation with {num_rounds} updates"))
 
   for t_now in tqdm.trange(1, num_time_steps):
     t_start_loop = time.time()
@@ -409,96 +385,6 @@ def compare_prequential_quarantine(
     infection_rates=infection_rates)
 
 
-def compare_inference_algorithms(
-    inference_method: str,
-    num_users: int,
-    num_time_steps: int,
-    observations: List[constants.Observation],
-    contacts: List[constants.Contact],
-    states: np.ndarray,
-    cfg: Dict[str, Any],
-    runner,
-    results_dir: str,
-    trace_dir: Optional[str] = None,
-    quick: bool = False,
-    do_diagnosis: bool = False,
-    use_abm_simulator: bool = False):
-  """Compares different inference algorithms on a fixed contact graph."""
-  del results_dir, use_abm_simulator
-
-  # Contacts on last day are not of influence
-  def filter_fn(datum):
-    return datum[2] < (num_time_steps - 1)
-  contacts = list(filter(filter_fn, contacts))
-
-  alpha = cfg["model"]["alpha"]
-  beta = cfg["model"]["beta"]
-
-  num_rounds = cfg["model"]["num_rounds"]
-  num_users = int(num_users)
-
-  # Data and simulator params
-  fraction_stale = cfg["data"]["fraction_stale"]
-
-  users_stale = None
-  if fraction_stale > 0:
-    users_stale = np.random.choice(
-      num_users, replace=False, size=int(fraction_stale*num_users))
-
-  inference_func, _ = make_inference_func(
-    inference_method, num_users, cfg, trace_dir)
-
-  if quick:
-    num_rounds = 2
-
-  diagnostic = runner if do_diagnosis else None
-
-  logger.info(f"Start inference method {inference_method}")
-
-  time_start = time.time()
-  z_states_inferred = inference_func(
-    np.array(observations),
-    np.array(contacts),
-    num_rounds,
-    num_time_steps,
-    users_stale=users_stale,
-    diagnostic=diagnostic)
-  np.testing.assert_array_almost_equal(
-    z_states_inferred.shape, [num_users, num_time_steps, 4])
-  time_spent = time.time() - time_start
-
-  z_states_reshaped = z_states_inferred.reshape((num_users*num_time_steps, 4))
-  like = z_states_reshaped[
-    range(num_users*num_time_steps), states.flatten()].reshape(states.shape)
-
-  # Calculate AUPR
-  score_pos = np.array(z_states_inferred[:, :, 2][states == 2]).flatten()
-  score_neg = np.array(z_states_inferred[:, :, 2][states != 2]).flatten()
-  scores = np.concatenate((score_pos, score_neg))
-  labels = np.concatenate((np.ones_like(score_pos), np.zeros_like(score_neg)))
-  auroc = metrics.roc_auc_score(labels, scores)
-  av_precision = metrics.average_precision_score(labels, scores)
-
-  log_like = np.mean(np.log(like+1E-9))
-
-  log_like_obs = prequential.get_evidence_obs(
-    observations, z_states_inferred, alpha, beta)
-
-  logger.info((
-    f"{num_rounds:5} rounds for {num_users:10} users in {time_spent:10.2f} "
-    f"seconds with log-like {log_like:10.2f}/{log_like_obs:10.2f} nats "
-    f"and AUROC {auroc:5.3f} and AP {av_precision:5.3f}"))
-  sys.stdout.flush()
-
-  runner.log({
-    "num_rounds": num_rounds,
-    "time_spent": time_spent,
-    "log_likelihood": log_like,
-    "log_like_obs": log_like_obs,
-    "AUROC": auroc,
-    "AP": av_precision})
-
-
 if __name__ == "__main__":
 
   parser = argparse.ArgumentParser(
@@ -535,7 +421,6 @@ if __name__ == "__main__":
   fname_config_data = f"dpfn/config/{configname_data}.ini"
   fname_config_model = f"dpfn/config/{configname_model}.ini"
   data_dir = f"dpfn/data/{configname_data}/"
-  do_abm = '_abm' in configname_data
 
   inf_method = args.inference_method
   # Set up locations to store results
@@ -591,8 +476,6 @@ if __name__ == "__main__":
   else:
     runner_global = util_wandb.WandbDummy()
     config_wandb = None
-    # config_wandb = {
-    #   "data": config_data.to_dict(), "model": config_model.to_dict()}
 
   logger.info(f"Logger filename {LOGGER_FILENAME}")
   logger.info(f"Saving to results_dir_global {results_dir_global}")
@@ -610,41 +493,17 @@ if __name__ == "__main__":
   # Random number generator to pass as argument to some imported functions
   arg_rng = np.random.default_rng(seed=seed_value)
 
-  if not do_abm:
-    if not os.path.exists(data_dir):
-      raise FileNotFoundError((
-        f"{data_dir} not found. Current wd: {os.getcwd()}"))
-
-    observations_all, contacts_all, states_all = data_load.load_jsons(data_dir)
-  else:
-    observations_all = contacts_all = []
-    states_all = np.zeros((1, 1, 1))
-
-  experiment_fn = None
-  if args.experiment_setup == "single":
-    experiment_fn = compare_inference_algorithms
-  elif args.experiment_setup == "prequential":
-    experiment_fn = compare_prequential_quarantine
-  else:
-    raise ValueError(
-      (f"Not recognized experiment {args.experiment_setup}. Should be one of"
-       f"['single','prequential']"))
-
   try:
-    experiment_fn(
+    compare_abm(
       inf_method,
       num_users=config_wandb["data"]["num_users"],
       num_time_steps=config_wandb["data"]["num_time_steps"],
-      observations=observations_all,
-      contacts=contacts_all,
-      states=states_all,
       cfg=config_wandb,
       runner=runner_global,
       results_dir=results_dir_global,
       trace_dir=trace_dir_global,
       quick=args.quick,
       do_diagnosis=args.do_diagnosis,
-      use_abm_simulator=do_abm,
       )
   except Exception as e:
     # This exception sends an WandB alert with the traceback and sweepid

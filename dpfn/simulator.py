@@ -8,7 +8,7 @@ from dpfn import constants, logger, util
 from dpfn.experiments import prequential
 import numpy as np
 import os
-from typing import Any, List, Union
+from typing import List, Union
 
 
 def _embed_contact(contact_tuple) -> constants.Contact:
@@ -25,17 +25,12 @@ class Simulator(ABC):
       self,
       num_time_steps: int,
       num_users: int,
-      positive_e_state: bool = False,
       rng_seed: int = 123) -> None:
     self.num_time_steps = num_time_steps
     self.num_users = num_users
     self.rng_seed = rng_seed
 
     self._day_current = 0
-    self.states = None  # Type will depend on implementation
-
-    # When true, both E and I state are considered positive
-    self._postive_e_state = positive_e_state
 
     # Note that contacts are offset with self._day_start_window and contacts
     # prior to self._day_start_window have been discarded.
@@ -53,8 +48,10 @@ class Simulator(ABC):
     counting for day0.
     """
     to_cut_off = max((0, days_offset - self._day_start_window))
-    self._observations_all = prequential.offset_observations(
-      self._observations_all, to_cut_off)
+    self._observations_all = self._observations_all[
+      self._observations_all[:, 1] >= to_cut_off]
+    self._observations_all[:, 1] -= to_cut_off
+
     self._contacts = list(prequential.offset_contacts(
       self._contacts, to_cut_off))
     self._day_start_window = days_offset
@@ -100,8 +97,7 @@ class Simulator(ABC):
       day_relative,
       p_obs_infected,
       p_obs_not_infected,
-      obs_rng,
-      positive_e_state=self._postive_e_state)
+      obs_rng)
     self._observations_all = np.concatenate(
       (self._observations_all, observations_new), axis=0)
     return observations_new
@@ -125,17 +121,6 @@ class Simulator(ABC):
     """
 
 
-class DummySimulator(Simulator):
-  """Simulator with dummy functions."""
-
-  def init_day0(self):
-    """Initializes the simulator for day0."""
-    self._contacts = []
-    self.states = np.zeros(
-      (self.num_users, self.num_time_steps, 4), dtype=np.int32)
-    self._observations_all = []
-
-
 class ABMSimulator(Simulator):
   """Simulator based on Oxford ABM."""
 
@@ -143,12 +128,10 @@ class ABMSimulator(Simulator):
       self,
       num_time_steps: int,
       num_users: int,
-      positive_e_state: bool = False,
       rng_seed: int = 123,
       ) -> None:
     super().__init__(
-      num_time_steps, num_users, positive_e_state=positive_e_state,
-      rng_seed=rng_seed)
+      num_time_steps, num_users, rng_seed=rng_seed)
 
     filename = "baseline_parameters.csv"
     filename_hh = "baseline_household_demographics.csv"
@@ -188,10 +171,6 @@ class ABMSimulator(Simulator):
     self.model = simulation.COVID19IBM(model=model_init)
     self.sim = simulation.Simulation(env=self.model, end_time=num_time_steps)
     logger.info("Finished constructing ABM simulator")
-
-  def init_day0(self, contacts: Any):
-    """Initializes the simulator for day0."""
-    del contacts
 
   def get_states_today(self) -> np.ndarray:
     """Returns the states an np.ndarray in size [num_users].

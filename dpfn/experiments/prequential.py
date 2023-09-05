@@ -61,7 +61,6 @@ def init_states_observations(
   return states, observations_all
 
 
-@numba.njit
 def get_observations_one_day(
     states: np.ndarray,
     users_to_observe: np.ndarray,
@@ -69,8 +68,7 @@ def get_observations_one_day(
     timestep: int,
     p_obs_infected: np.ndarray,
     p_obs_not_infected: np.ndarray,
-    obs_rng: np.random._generator.Generator,
-    positive_e_state: bool = False) -> np.ndarray:
+    obs_rng: np.random._generator.Generator) -> np.ndarray:
   """Makes observations for tests on one day.
 
   Args:
@@ -82,7 +80,6 @@ def get_observations_one_day(
     p_obs_infected: The probability of a positive test for an infected user.
     p_obs_not_infected: The probability of a positive test for a not infected.
     obs_rng: Random number generator to ensure reproducibility for a fixed seed.
-    positive_e_state: Whether to observe E state as positive
 
   Returns:
     The observations, array of shape (num_obs, 3), where the columns are (user,
@@ -99,10 +96,7 @@ def get_observations_one_day(
   assert np.abs(p_obs_not_infected[0] + p_obs_not_infected[1] - 1.) < 0.001
 
   states_user = states[users_to_observe]
-  positive = states_user == 2
-
-  if positive_e_state:
-    positive = np.logical_or(positive, states_user == 1)
+  positive = np.logical_or(states_user == 2, states_user == 1)
 
   sample_prob = np.where(positive, p_obs_infected[1], p_obs_not_infected[1])
 
@@ -191,19 +185,6 @@ def delay_contacts(
   """Offsets the contacts or observations by a number of days."""
   for contact in contacts:
     yield (contact[0], contact[1], contact[2] + delay, contact[3])
-
-
-def offset_observations(
-    observations_in: constants.ObservationList, offset: int
-    ) -> constants.ObservationList:
-  """Offsets the cobservations by a number of days."""
-  if offset == 0:
-    return observations_in
-
-  observations = np.copy(observations_in)
-  observations = observations[observations[:, 1] >= offset]
-  observations[:, 1] -= offset
-  return observations
 
 
 def offset_contacts(

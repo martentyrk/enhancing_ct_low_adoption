@@ -152,6 +152,7 @@ def test_factorised_neighbor_step_clipping():
 
   q_marginal_infected = np.random.rand(
     num_users, num_time_steps).astype(np.float32)
+  q_marginal_infected[0] = 0.0
 
   past_contacts, _ = util.get_past_contacts_static(
     (0, num_users), contacts_all, num_msg=num_time_steps*4)
