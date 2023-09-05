@@ -2,7 +2,7 @@
 import crisp
 import numba
 import numpy as np
-from dpfn import constants, inference, logger, belief_propagation, util
+from dpfn import inference, logger, belief_propagation, util
 import dpfn_util
 import subprocess
 from typing import Any, Dict, Optional
@@ -117,8 +117,8 @@ def wrap_fact_neigh_cpp(
   logger.info(f"Using {num_workers} workers for FN inference")
 
   def fact_neigh_cpp(
-      observations_list: constants.ObservationList,
-      contacts_list: constants.ContactList,
+      observations_list: np.ndarray,
+      contacts_list: np.ndarray,
       num_updates: int,
       num_time_steps: int,
       users_stale: Optional[np.ndarray] = None,
@@ -246,12 +246,6 @@ def wrap_belief_propagation(
       users_stale: Optional[np.ndarray] = None,
       diagnostic: Optional[Any] = None) -> np.ndarray:
     del users_stale, diagnostic
-
-    # Contacts on last day are not of influence
-    def filter_fn(contact):
-      return (contact[2] + 1) < num_time_steps
-    contacts_list = list(filter(filter_fn, contacts_list))
-
     # Collect observations, allows for multiple observations per user per day
     obs_messages = np.ones((num_users, num_time_steps, 4), dtype=np.float32)
     for obs in observations_list:

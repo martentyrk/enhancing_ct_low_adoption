@@ -17,14 +17,14 @@ def construct_test_problem():
   ], dtype=np.float32)
 
   num_time_steps = 5
-  observations_all = [
+  observations_all = np.array([
     (0, 2, 1),
     (1, 3, 1),
-    ]
-  contacts_all = [
+    ], dtype=np.int32)
+  contacts_all = np.array([
     (0, 2, 1, 1),
     (1, 2, 1, 1),
-  ]
+  ], dtype=np.int32)
   num_users = 3
 
   return (p0, p1, alpha, beta, A_matrix, observations_all, contacts_all,
@@ -292,10 +292,10 @@ def test_fward_bward_messages_simul_send2():
   (p0, p1, alpha, beta, A_matrix, observations_all, contacts_all, num_users,
    num_time_steps) = construct_test_problem()
 
-  contacts_all = [
+  contacts_all = np.array([
     (0, 2, 1, 1),
     (0, 1, 1, 1),
-    ]
+    ], dtype=np.int32)
 
   obs_distro = {
     0: np.array([1-beta, 1-beta, alpha, 1-beta]),
@@ -344,11 +344,11 @@ def test_fward_bward_messages_simul_send3():
   (p0, p1, alpha, beta, A_matrix, observations_all, contacts_all, num_users,
    num_time_steps) = construct_test_problem()
 
-  contacts_all = [
+  contacts_all = np.array([
     (0, 1, 1, 1),
     (0, 2, 1, 1),
     (0, 3, 1, 1),
-    ]
+    ], dtype=np.int32)
   num_users += 1
 
   obs_distro = {
@@ -406,17 +406,17 @@ def test_fward_bward_messages_simul_receive3():
   (p0, p1, alpha, beta, A_matrix, observations_all, contacts_all, num_users,
    num_time_steps) = construct_test_problem()
 
-  observations_all = [
+  observations_all = np.array([
     (0, 2, 1),
     (1, 3, 1),
     (2, 3, 1),
-    ]
+    ], dtype=np.int32)
 
-  contacts_all = [
+  contacts_all = np.array([
     (0, 3, 1, 1),
     (1, 3, 1, 1),
     (2, 3, 1, 1),
-    ]
+    ], dtype=np.int32)
   num_users += 1
 
   obs_distro = {
@@ -474,11 +474,11 @@ def test_fward_bward_messages_simul_send3_quantized():
   (p0, p1, alpha, beta, A_matrix, observations_all, contacts_all, num_users,
    num_time_steps) = construct_test_problem()
 
-  contacts_all = [
+  contacts_all = np.array([
     (0, 1, 1, 1),
     (0, 2, 1, 1),
     (0, 3, 1, 1),
-    ]
+    ], dtype=np.int32)
   num_users += 1
 
   obs_distro = {
