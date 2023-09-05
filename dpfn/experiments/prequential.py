@@ -1,11 +1,9 @@
 """Experiments related to sequential predicton and simulation."""
 import datetime
 import json
-import numba
 import numpy as np
-from dpfn import constants
 import os
-from typing import Any, Dict, Iterable, List, Tuple, Union
+from typing import Any, Dict, Tuple
 
 
 def dump_results(
@@ -44,21 +42,6 @@ def dump_results_json(
   fname = os.path.join(datadir, "results.jl")
   with open(fname, 'a') as fp:
     fp.write(json.dumps(kwargs) + "\n\r")
-
-
-def init_states_observations(
-    num_users: int, num_days: int
-    ) -> Tuple[np.ndarray, List[constants.Observation]]:
-  """Initializes the states and observations for prequential simulation."""
-  states = np.zeros((num_users, num_days), dtype=np.int16)
-
-  num_users_E_at_start = 2
-  observations_all = []
-
-  for user in range(num_users_E_at_start):
-    states[user, 0] = 1
-    observations_all.append((user, 2, 1))
-  return states, observations_all
 
 
 def get_observations_one_day(
@@ -132,26 +115,8 @@ def calc_prec_recall(
   return precision, recall
 
 
-def remove_quarantine_users(
-    contacts: List[constants.Contact],
-    quarantine_users: Union[List[int], np.ndarray],
-    t_start: int,
-    t_delta: int) -> List[constants.Contact]:
-  """Removes quarantined users from contact list.
-
-  A contact will be removed if EITHER the user u or user v is being quarantined
-  and the timestep is GREATER OR EQUAL t_start and LESS THAN t_start+t_delta.
-  """
-  def filter_func(contact):
-    return not (
-      ((contact[0] in quarantine_users) or (contact[1] in quarantine_users))
-      and (contact[2] >= t_start)
-      and (contact[2] < (t_start+t_delta)))
-  return list(filter(filter_func, contacts))
-
-
 def get_evidence_obs(
-    observations: constants.ObservationList,
+    observations: np.ndarray,
     z_states: np.ndarray,
     alpha: float,
     beta: float) -> float:
@@ -177,24 +142,3 @@ def decide_tests(
 
   users_to_test = np.argsort(scores_infect)[-num_tests:]
   return users_to_test.astype(np.int32)
-
-
-def delay_contacts(
-    contacts: List[constants.Contact], delay: int
-    ) -> Iterable[constants.Contact]:
-  """Offsets the contacts or observations by a number of days."""
-  for contact in contacts:
-    yield (contact[0], contact[1], contact[2] + delay, contact[3])
-
-
-def offset_contacts(
-    contacts: Iterable[constants.Contact], offset: int
-    ) -> Iterable[constants.Contact]:
-  """Offsets the cobservations by a number of days."""
-  if offset == 0:
-    yield from contacts
-    return
-
-  for contact in contacts:
-    if contact[2] >= offset:
-      yield (contact[0], contact[1], contact[2] - offset, contact[3])

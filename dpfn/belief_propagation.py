@@ -256,7 +256,7 @@ def forward_backward_user(
 
 
 def init_message_maps(
-    contacts_all: constants.ContactList,
+    contacts_all: np.ndarray,
     user_interval: Tuple[int, int],
     num_time_steps: int) -> Tuple[np.ndarray, np.ndarray]:
   """Initialises the message maps."""

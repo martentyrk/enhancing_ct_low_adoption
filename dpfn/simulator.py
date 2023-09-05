@@ -11,13 +11,6 @@ import os
 from typing import List, Union
 
 
-def _embed_contact(contact_tuple) -> constants.Contact:
-  # Tuples from ABM simulator have semantics:
-  # (user_from, user_to, timestep, features)
-  # TODO replace with 'contact_tuple[3]'
-  return (contact_tuple[0], contact_tuple[1], contact_tuple[2], 1)
-
-
 class Simulator(ABC):
   """Base class for a simulator."""
 
@@ -37,8 +30,8 @@ class Simulator(ABC):
     self._day_start_window = 0
     # Array with rows (user, timestep, outcome), all integers
     self._observations_all = np.zeros((0, 3), dtype=np.int32)
-    # List of (user_u, user_v, timestep, [features])
-    self._contacts = []
+    # Array with rows (user_from, user_to, timestep, feature)
+    self._contacts = np.zeros((0, 4), dtype=np.int32)
 
   def set_window(self, days_offset: int):
     """Sets the window with days_offset at day0.
@@ -52,8 +45,10 @@ class Simulator(ABC):
       self._observations_all[:, 1] >= to_cut_off]
     self._observations_all[:, 1] -= to_cut_off
 
-    self._contacts = list(prequential.offset_contacts(
-      self._contacts, to_cut_off))
+    self._contacts = self._contacts[
+      self._contacts[:, 2] >= to_cut_off]
+    self._contacts[:, 2] -= to_cut_off
+
     self._day_start_window = days_offset
 
   def get_current_day(self) -> int:
@@ -71,7 +66,7 @@ class Simulator(ABC):
     """
     return np.zeros((self.num_users), dtype=np.int32)
 
-  def get_contacts(self) -> List[constants.Contact]:
+  def get_contacts(self) -> np.ndarray:
     """Returns contacts.
 
     Note that contacts are offset with self._day_start_window and contacts prior
@@ -85,7 +80,7 @@ class Simulator(ABC):
       p_obs_infected: np.ndarray,
       p_obs_not_infected: np.ndarray,
       obs_rng: np.random._generator.Generator,
-      ) -> constants.ObservationList:
+      ) -> np.ndarray:
     """Returns the observations for current day."""
     assert users_to_observe.dtype == np.int32
 
@@ -102,7 +97,7 @@ class Simulator(ABC):
       (self._observations_all, observations_new), axis=0)
     return observations_new
 
-  def get_observations_all(self) -> constants.ObservationList:
+  def get_observations_all(self) -> np.ndarray:
     """Returns all observations."""
     return self._observations_all
 
@@ -191,12 +186,15 @@ class ABMSimulator(Simulator):
     Contacts from OpenABM will be appended to the list of contacts.
     """
     self.sim.steps(num_steps)
-    contacts_incoming = list(map(
-      _embed_contact, covid19.get_contacts_daily(
-        self.model.model.c_model, self._day_current)))
+    contacts_incoming = np.array(covid19.get_contacts_daily(
+      self.model.model.c_model, self._day_current), dtype=np.int32)
 
-    self._contacts += prequential.offset_contacts(
-      contacts_incoming, self._day_start_window)
+    # TODO: use these features
+    contacts_incoming[:, 3] = 1
+    contacts_incoming[:, 2] = self.get_current_day() - self._day_start_window
+
+    self._contacts = np.concatenate((
+      self._contacts, contacts_incoming), axis=0)
     self._day_current += 1
 
   def quarantine_users(

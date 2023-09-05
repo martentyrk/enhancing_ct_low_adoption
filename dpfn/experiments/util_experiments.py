@@ -27,8 +27,8 @@ def wrap_fact_neigh_inference(
   """Wraps the inference function that runs Factorised Neighbors."""
 
   def fact_neigh_wrapped(
-      observations_list: constants.ObservationList,
-      contacts_list: constants.ContactList,
+      observations_list: np.ndarray,
+      contacts_list: np.ndarray,
       num_updates: int,
       num_time_steps: int,
       users_stale: Optional[np.ndarray] = None,
@@ -68,8 +68,8 @@ def wrap_dummy_inference(
   del trace_dir
 
   def dummy_wrapped(
-      observations_list: constants.ObservationList,
-      contacts_list: constants.ContactList,
+      observations_list: np.ndarray,
+      contacts_list: np.ndarray,
       num_updates: int,
       num_time_steps: int,
       users_stale: Optional[np.ndarray] = None,
@@ -107,8 +107,8 @@ def wrap_dpct_inference(
 
   @numba.njit
   def dpct_wrapped(
-      observations_list: constants.ObservationList,
-      contacts_list: constants.ContactList,
+      observations_list: np.ndarray,
+      contacts_list: np.ndarray,
       num_updates: int,  # pylint: disable=unused-argument
       num_time_steps: int,
       users_stale: Optional[np.ndarray] = None,    # pylint: disable=unused-argument

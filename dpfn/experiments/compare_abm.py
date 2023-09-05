@@ -251,10 +251,8 @@ def compare_abm(
     if not do_random_quarantine:
       t_start = time.time()
 
-      contacts_now = util.make_default_array(
-        sim.get_contacts(), dtype=np.int32, rowlength=4)
-      observations_now = util.make_default_array(
-        sim.get_observations_all(), dtype=np.int32, rowlength=3)
+      contacts_now = sim.get_contacts()
+      observations_now = sim.get_observations_all()
 
       logger.info((
         f"Day {t_now}: {contacts_now.shape[0]} contacts, "

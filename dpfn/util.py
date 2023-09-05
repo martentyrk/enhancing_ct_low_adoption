@@ -5,7 +5,7 @@ import functools
 import itertools
 import time  # pylint: disable=unused-import
 import math
-from dpfn import constants, logger
+from dpfn import logger
 import numba
 import numpy as np
 import os
@@ -755,7 +755,7 @@ def make_plain_observations(obs):
   return [(o['u'], o['time'], o['outcome']) for o in obs]
 
 
-def make_plain_contacts(contacts) -> List[constants.Contact]:
+def make_plain_contacts(contacts) -> List[Any]:
   return [
     (c['u'], c['v'], c['time'], int(c['features'][0])) for c in contacts]
 
@@ -780,24 +780,6 @@ def timeit(message: str):
   tstart = time.time()
   yield
   logger.info(f"{message} took {time.time() - tstart:.3f} seconds")
-
-
-def make_default_array(
-    list_of_data: List[Any], dtype, rowlength: int = 3) -> np.ndarray:
-  """Makes a default array.
-
-  Args:
-    list_of_data: list of data to be put in the array
-    dtype: the dtype of the array
-
-  Returns:
-    a numpy array with the data in it
-  """
-  array = np.array(list_of_data, dtype=dtype, ndmin=2)
-  if np.prod(array.shape) == 0:
-    return -1 * np.ones((0, rowlength), dtype=dtype)
-
-  return array
 
 
 def root_find_a_rdp(

@@ -175,8 +175,8 @@ def fn_step_wrapped(
 def fact_neigh(
     num_users: int,
     num_time_steps: int,
-    observations_all: constants.ObservationList,
-    contacts_all: constants.ContactList,
+    observations_all: np.ndarray,
+    contacts_all: np.ndarray,
     probab_0: float,
     probab_1: float,
     g_param: float,

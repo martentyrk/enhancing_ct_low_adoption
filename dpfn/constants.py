@@ -1,7 +1,7 @@
 """Constants for the entire project."""
 
 import numpy as np
-from typing import List, Tuple, Union
+from typing import Tuple, Union
 
 # Definition of dp_method:
 #
@@ -53,10 +53,8 @@ state_to_seir = np.array(
 
 # Global type definitions
 
-# (user_u, user_v, timestep, [features])
+# (user_u, user_v, timestep, feature)
 Contact = Union[Tuple[int, int, int, int], np.ndarray]
-ContactList = Union[List[Contact], List[np.ndarray], np.ndarray]
 
 # (user_u, timestep, outcome)
 Observation = Union[Tuple[int, int, int], np.ndarray]
-ObservationList = Union[List[Observation], List[np.ndarray], np.ndarray]

@@ -153,9 +153,9 @@ def test_calc_prec_recall_nan():
 def test_get_evidence_obs():
   alpha = 1E-9
   beta = 1E-9
-  observations = [
+  observations = np.array([
     (0, 1, 1),
-    (1, 1, 1)]
+    (1, 1, 1)], dtype=np.int32)
 
   z_states = np.array([
     [[0., 0., 1., 0.], [0., 0., 1., 0.]],
