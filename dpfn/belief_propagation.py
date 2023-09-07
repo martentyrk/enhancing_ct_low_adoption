@@ -139,8 +139,7 @@ def forward_backward_user(
 
   betas = np.zeros((num_time_steps, 4))
   # Move all messages forward
-  prior = np.array([1.-p0, p0, 0., 0.], dtype=np.float32)
-  mu_f2v_forward[0] = prior + np.float32(1E-12)
+  mu_f2v_forward[0] = np.array([1.-p0, p0, 1E-9, 1E-9], dtype=np.float32)
   for t_now in range(1, num_time_steps):
     mu_f2v_forward[t_now] = A_user[t_now-1].T.dot(
       mu_f2v_forward[t_now-1] * obs_messages[t_now-1]

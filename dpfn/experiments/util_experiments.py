@@ -148,6 +148,66 @@ def wrap_fact_neigh_cpp(
   return fact_neigh_cpp
 
 
+def wrap_bp_cpp(
+    num_users: int,
+    alpha: float,
+    beta: float,
+    probab0: float,
+    probab1: float,
+    g_param: float,
+    h_param: float,
+    dp_method: int = -1,
+    epsilon_dp: float = -1.,
+    delta_dp: float = -1.,
+    a_rdp: float = -1.,
+    clip_lower: float = -1.,
+    clip_upper: float = 10.,
+    quantization: int = -1,
+    trace_dir: Optional[str] = None,
+    ):
+  """Wraps the inference function that runs BP from pybind."""
+  assert (dp_method < 0), (
+    "Not implemented for dp_method > 0")
+  del trace_dir, epsilon_dp, a_rdp, delta_dp
+
+  num_workers = max((util.get_cpu_count()-1, 1))
+
+  # Heuristically cap the number of workers. If the number of workers is too
+  # large, then the overhead of creating a single thread is too large.
+  max_num_workers = 8 if num_users < 200000 else 16
+  num_workers = min((num_workers, max_num_workers))
+  logger.info(f"Using {num_workers} workers for FN inference")
+
+  def bp_cpp(
+      observations_list: np.ndarray,
+      contacts_list: np.ndarray,
+      num_updates: int,
+      num_time_steps: int,
+      users_stale: Optional[np.ndarray] = None,
+      diagnostic: Optional[Any] = None) -> np.ndarray:
+    del diagnostic, users_stale
+
+    post_exp_out = dpfn_util.bp_full_func(
+      num_workers=num_workers,
+      num_rounds=num_updates,
+      num_users=num_users,
+      num_time_steps=num_time_steps,
+      probab0=probab0,
+      probab1=probab1,
+      g_param=g_param,
+      h_param=h_param,
+      alpha=alpha,
+      beta=beta,
+      clip_lower=clip_lower,
+      clip_upper=clip_upper,
+      quantization=quantization,
+      observations=observations_list,
+      contacts=contacts_list)
+    assert post_exp_out.shape == (num_users, num_time_steps, 4)
+    return post_exp_out
+  return bp_cpp
+
+
 def wrap_dpct_inference(
     num_users: int,
     epsilon_dp: float,

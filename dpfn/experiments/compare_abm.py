@@ -126,6 +126,23 @@ def make_inference_func(
       clip_upper=clip_upper,
       quantization=quantization,
       trace_dir=trace_dir)
+  elif inference_method == "bpcpp":
+    inference_func = util_experiments.wrap_bp_cpp(
+      num_users=num_users,
+      alpha=alpha,
+      beta=beta,
+      probab0=p0,
+      probab1=p1,
+      g_param=g,
+      h_param=h,
+      dp_method=dp_method,
+      epsilon_dp=epsilon_dp,
+      delta_dp=delta_dp,
+      a_rdp=a_rdp,
+      clip_lower=clip_lower,
+      clip_upper=clip_upper,
+      quantization=quantization,
+      trace_dir=trace_dir)
   elif inference_method == "gibbs":
     if epsilon_dp > 0:
       assert a_rdp < 0
@@ -156,7 +173,7 @@ def make_inference_func(
   else:
     raise ValueError((
       f"Not recognised inference method {inference_method}. Should be one of"
-      f"['random', 'fn', 'dummy', 'dpct', 'bp', 'gibbs', 'fncpp']"
+      f"['random', 'fn', 'dummy', 'dpct', 'bp', 'gibbs', 'fncpp', 'bpcpp']"
     ))
   return inference_func, do_random_quarantine
 
@@ -408,7 +425,7 @@ if __name__ == "__main__":
   parser.add_argument('--inference_method', type=str, default='fn',
                       choices=[
                         'fn', 'dummy', 'random', 'bp', 'dpct',
-                        'gibbs', 'fncpp'],
+                        'gibbs', 'fncpp', 'bpcpp'],
                       help='Name of the inference method')
   parser.add_argument('--experiment_setup', type=str, default='single',
                       choices=['single', 'prequential'],
