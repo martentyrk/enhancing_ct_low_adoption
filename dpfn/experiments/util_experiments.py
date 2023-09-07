@@ -157,7 +157,7 @@ def wrap_bp_cpp(
     g_param: float,
     h_param: float,
     dp_method: int = -1,
-    epsilon_dp: float = -1.,
+    rho_rdp: float = -1.,
     delta_dp: float = -1.,
     a_rdp: float = -1.,
     clip_lower: float = -1.,
@@ -166,9 +166,9 @@ def wrap_bp_cpp(
     trace_dir: Optional[str] = None,
     ):
   """Wraps the inference function that runs BP from pybind."""
-  assert (dp_method < 0), (
+  assert ((dp_method < 0) or (dp_method == 5)), (
     "Not implemented for dp_method > 0")
-  del trace_dir, epsilon_dp, a_rdp, delta_dp
+  del trace_dir, delta_dp
 
   num_workers = max((util.get_cpu_count()-1, 1))
 
@@ -198,6 +198,8 @@ def wrap_bp_cpp(
       h_param=h_param,
       alpha=alpha,
       beta=beta,
+      rho_rdp=rho_rdp,
+      a_rdp=a_rdp,
       clip_lower=clip_lower,
       clip_upper=clip_upper,
       quantization=quantization,

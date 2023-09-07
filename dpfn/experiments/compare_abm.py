@@ -54,7 +54,8 @@ def make_inference_func(
   dp_method = cfg["model"]["dp_method"]
 
   # TODO: put a flag here to use the analytic solution for a_rdp
-  if int(a_rdp) == -42:
+  if dp_method == 5:
+    logger.info("DP method 5, convert (eps,delta) to (a, rho)")
     # In this clause, we optimize for a_rdp analytically
     # For any other value of a_rdp, we use the value provided
     eps_orig = copy.copy(epsilon_dp)
@@ -136,7 +137,7 @@ def make_inference_func(
       g_param=g,
       h_param=h,
       dp_method=dp_method,
-      epsilon_dp=epsilon_dp,
+      rho_rdp=epsilon_dp,
       delta_dp=delta_dp,
       a_rdp=a_rdp,
       clip_lower=clip_lower,

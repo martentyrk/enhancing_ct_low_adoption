@@ -140,8 +140,9 @@ def test_consistent_fward2():
   }
 
   obs_messages = np.ones((num_users, num_time_steps, 4), dtype=np.float32)
-  for obs in observations_all + [(0, 3, 1)]:
+  for obs in observations_all:
     obs_messages[obs[0]][obs[1]] *= obs_distro[obs[2]]
+  obs_messages[0][3] *= obs_distro[1]
 
   map_forward_message, map_backward_message = (
     belief_propagation.init_message_maps(
@@ -168,8 +169,9 @@ def test_consistent_bward():
   }
 
   obs_messages = np.ones((num_users, num_time_steps, 4), dtype=np.float32)
-  for obs in observations_all + [(2, 3, 1)]:
+  for obs in observations_all:
     obs_messages[obs[0]][obs[1]] *= obs_distro[obs[2]]
+  obs_messages[2][3] *= obs_distro[1]
 
   map_forward_message, map_backward_message = (
     belief_propagation.init_message_maps(
@@ -209,8 +211,9 @@ def test_consistent_bward2():
   }
 
   obs_messages = np.ones((num_users, num_time_steps, 4), dtype=np.float32)
-  for obs in observations_all + [(2, 4, 1)]:
+  for obs in observations_all:
     obs_messages[obs[0]][obs[1]] *= obs_distro[obs[2]]
+  obs_messages[2][4] *= obs_distro[1]
 
   map_forward_message, map_backward_message = (
     belief_propagation.init_message_maps(

@@ -6,9 +6,10 @@ import time
 from typing import Optional, Tuple
 
 
-@numba.njit((
-  'float32[:, :, :](float32[:, :], float64, float32[:, :], '
-  'int64, float64, float64, float64, float64)'))
+# @numba.njit((
+#   'float32[:, :, :](float32[:, :], float64, float32[:, :], '
+#   'int64, float64, float64, float64, float64)'))
+@numba.njit
 def adjust_matrices_map(
     A_matrix: np.ndarray,
     p1: float,
@@ -68,10 +69,11 @@ def adjust_matrices_map(
   return A_adjusted
 
 
-@numba.njit(
-  ('UniTuple(float32[:, :], 3)('
-   'float32[:, :], float64, float64, int64, float32[:, :], float32[:, :], '
-   'int64, float32[:, :], float64, float64, float64, float64)'))
+# @numba.njit(
+#   ('UniTuple(float32[:, :], 3)('
+#    'float32[:, :], float64, float64, int64, float32[:, :], float32[:, :], '
+#    'int64, float32[:, :], float64, float64, float64, float64)'))
+@numba.njit
 def forward_backward_user(
     A_matrix: np.ndarray,
     p0: float,
