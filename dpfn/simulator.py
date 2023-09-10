@@ -40,7 +40,10 @@ class Simulator(ABC):
     The internal counter self._day_start_window keeps track of the previous
     counting for day0.
     """
+    # Days_offset and day_start are absolute days, cut_off is relative
     to_cut_off = max((0, days_offset - self._day_start_window))
+    assert to_cut_off <= self._day_current
+
     self._observations_all = self._observations_all[
       self._observations_all[:, 1] >= to_cut_off]
     self._observations_all[:, 1] -= to_cut_off

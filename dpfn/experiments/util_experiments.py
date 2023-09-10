@@ -104,9 +104,9 @@ def wrap_fact_neigh_cpp(
     trace_dir: Optional[str] = None,
     ):
   """Wraps the inference function that runs FN from pybind."""
-  assert (dp_method < 0) or (dp_method == 5), (
+  assert (dp_method < 0) or (dp_method == 5) or (dp_method == 2), (
     "Not implemented for dp_method > 0")
-  del trace_dir, delta_dp
+  del trace_dir
 
   num_workers = max((util.get_cpu_count()-1, 1))
 
@@ -125,7 +125,7 @@ def wrap_fact_neigh_cpp(
       diagnostic: Optional[Any] = None) -> np.ndarray:
     del diagnostic, users_stale
 
-    post_exp_out = dpfn_util.fn_full_func(
+    post_exp = dpfn_util.fn_full_func(
       num_workers=num_workers,
       num_rounds=num_updates,
       num_users=num_users,
@@ -143,8 +143,25 @@ def wrap_fact_neigh_cpp(
       quantization=quantization,
       observations=observations_list,
       contacts=contacts_list)
-    assert post_exp_out.shape == (num_users, num_time_steps, 4)
-    return post_exp_out
+    assert post_exp.shape == (num_users, num_time_steps, 4)
+
+    if dp_method == 2:
+      assert epsilon_dp > 0.
+      assert delta_dp > 0.
+      assert a_rdp < 0
+      covidscore = post_exp[:, -1, 2]
+
+      c_upper = np.min((clip_upper, 1.))
+      c_lower = np.max((clip_lower, 0.))
+
+      sensitivity = probab1*(c_upper - c_lower)
+      sigma = (sensitivity / epsilon_dp) * np.sqrt(2 * np.log(1.25 / delta_dp))
+
+      covidscore += sigma*np.random.randn(num_users)
+
+      post_exp = np.zeros((num_users, num_time_steps, 4), dtype=np.float32)
+      post_exp[:, -1, 2] = np.clip(covidscore, c_lower, c_upper)
+    return post_exp
   return fact_neigh_cpp
 
 
@@ -168,7 +185,12 @@ def wrap_bp_cpp(
   """Wraps the inference function that runs BP from pybind."""
   assert ((dp_method < 0) or (dp_method == 5)), (
     "Not implemented for dp_method > 0")
-  del trace_dir, delta_dp
+  del trace_dir
+
+  if dp_method == 5:
+    assert delta_dp < 0
+    assert rho_rdp > 0
+    assert a_rdp > 1
 
   num_workers = max((util.get_cpu_count()-1, 1))
 
