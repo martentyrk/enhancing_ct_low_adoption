@@ -116,6 +116,8 @@ def wrap_fact_neigh_cpp(
   num_workers = min((num_workers, max_num_workers))
   logger.info(f"Using {num_workers} workers for FN inference")
 
+  epsilon_dp_use = epsilon_dp if dp_method != 2 else -1.
+
   def fact_neigh_cpp(
       observations_list: np.ndarray,
       contacts_list: np.ndarray,
@@ -136,7 +138,7 @@ def wrap_fact_neigh_cpp(
       h_param=h_param,
       alpha=alpha,
       beta=beta,
-      rho_rdp=epsilon_dp,
+      rho_rdp=epsilon_dp_use,
       a_rdp=a_rdp,
       clip_lower=clip_lower,
       clip_upper=clip_upper,
