@@ -108,7 +108,7 @@ def wrap_fact_neigh_cpp(
     "Not implemented for dp_method > 0")
   del trace_dir
 
-  num_workers = max((util.get_cpu_count()-1, 1))
+  num_workers = util.get_cpu_count()
 
   # Heuristically cap the number of workers. If the number of workers is too
   # large, then the overhead of creating a single thread is too large.
@@ -194,7 +194,7 @@ def wrap_bp_cpp(
     assert rho_rdp > 0
     assert a_rdp > 1
 
-  num_workers = max((util.get_cpu_count()-1, 1))
+  num_workers = util.get_cpu_count()
 
   # Heuristically cap the number of workers. If the number of workers is too
   # large, then the overhead of creating a single thread is too large.
