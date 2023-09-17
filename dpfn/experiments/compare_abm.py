@@ -523,9 +523,12 @@ if __name__ == "__main__":
   util_experiments.make_git_log()
 
   # Set random seed
-  seed_value = config_wandb.get("seed", None)
-  random.seed(seed_value)
-  np.random.seed(seed_value)
+  seed_value = config_wandb.get("seed", -1)
+  if seed_value > 0:
+    random.seed(seed_value)
+    np.random.seed(seed_value)
+  else:
+    seed_value = random.randint(0, 999)
   # Random number generator to pass as argument to some imported functions
   arg_rng = np.random.default_rng(seed=seed_value)
 

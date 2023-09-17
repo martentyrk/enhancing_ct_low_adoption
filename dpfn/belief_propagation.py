@@ -45,17 +45,19 @@ def adjust_matrices_map(
     clip_lower = np.maximum(clip_lower, 0.00001)
     sensitivity = np.abs(np.log(1-clip_upper*p1) - np.log(1-clip_lower*p1))
 
-    num_contacts = np.sum(forward_messages[:, 0] > 0)
+    num_contacts = np.sum(forward_messages[:, 0] >= 0)
     log_probs = util.add_lognormal_noise_rdp(
       log_probs, num_contacts, a_rdp, epsilon_dp, sensitivity)
 
     # Everything hereafter is post-processing
     # Clip to [0, 1], equals clip to [\infty, 0] in logdomain
-    log_probs = np.minimum(
-      log_probs, 0.).astype(np.float32)
+    known_upper = num_contacts*np.log(1-clip_lower*p1)
+    known_lower = num_contacts*np.log(1-clip_upper*p1)
 
+    log_probs = np.minimum(
+      log_probs, known_upper).astype(np.float32)
     log_probs = np.maximum(
-      log_probs, num_contacts * np.log(1 - p1)).astype(np.float32)
+      log_probs, known_lower).astype(np.float32)
 
   transition_prob = np.exp(log_probs)
 
