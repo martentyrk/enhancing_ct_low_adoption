@@ -14,6 +14,7 @@ import os
 import psutil
 import random
 from sklearn import metrics
+import socket
 import threading
 import time
 import tqdm
@@ -755,6 +756,9 @@ if __name__ == "__main__":
   logger.info(f"slurm_ntasks: {os.getenv('SLURM_NTASKS')}")
 
   util_experiments.make_git_log()
+
+  if not 'carbon' in socket.gethostname():
+    wandb.mark_preempting()
 
   # Set random seed
   seed_value = config_wandb.get("seed", -1)
