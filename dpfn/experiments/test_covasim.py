@@ -1,6 +1,6 @@
 """Compare inference methods on likelihood and AUROC, and run prequentially."""
 import covasim as cv
-from dpfn.experiments import compare_covasim
+from dpfn.experiments import util_covasim
 import numpy as np
 
 
@@ -73,7 +73,7 @@ def test_covasim_tests():
     label='intervention_history')
 
   # Create, run, and plot the simulations
-  analyzer = compare_covasim.StoreSEIR(
+  analyzer = util_covasim.StoreSEIR(
     num_days=num_time_steps, label='analysis')
   sim = cv.Sim(
     pars,
