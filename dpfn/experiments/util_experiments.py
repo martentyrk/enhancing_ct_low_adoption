@@ -131,7 +131,7 @@ def wrap_fact_neigh_cpp(
     if users_age is None:
       users_age = -1*np.ones((num_users), dtype=np.int32)
 
-    post_exp = dpfn_util.fn_full_func(
+    post_exp, _ = dpfn_util.fn_full_func(
       num_workers=num_workers,
       num_rounds=num_updates,
       num_users=num_users,
