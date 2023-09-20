@@ -32,8 +32,9 @@ def wrap_fact_neigh_inference(
       contacts_list: np.ndarray,
       num_updates: int,
       num_time_steps: int,
-      users_stale: Optional[np.ndarray] = None,
+      users_age: Optional[np.ndarray] = None,
       diagnostic: Optional[Any] = None) -> np.ndarray:
+    del users_age
 
     traces_per_user_fn = inference.fact_neigh(
       num_users=num_users,
@@ -53,7 +54,7 @@ def wrap_fact_neigh_inference(
       clip_lower=clip_lower,  # Lower bound for clipping, depends on method
       clip_upper=clip_upper,  # Upper bound for clipping, depends on method
       quantization=quantization,
-      users_stale=users_stale,
+      users_stale=None,
       num_updates=num_updates,
       verbose=False,
       trace_dir=trace_dir,
@@ -73,10 +74,10 @@ def wrap_dummy_inference(
       contacts_list: np.ndarray,
       num_updates: int,
       num_time_steps: int,
-      users_stale: Optional[np.ndarray] = None,
+      users_age: Optional[np.ndarray] = None,
       diagnostic: Optional[Any] = None) -> np.ndarray:
     del diagnostic, num_updates, contacts_list, observations_list
-    del users_stale
+    del users_age
 
     predictions = np.random.rand(num_users, num_time_steps, 4)
     predictions /= np.sum(predictions, axis=-1, keepdims=True)
@@ -123,9 +124,12 @@ def wrap_fact_neigh_cpp(
       contacts_list: np.ndarray,
       num_updates: int,
       num_time_steps: int,
-      users_stale: Optional[np.ndarray] = None,
+      users_age: Optional[np.ndarray] = None,
       diagnostic: Optional[Any] = None) -> np.ndarray:
-    del diagnostic, users_stale
+    del diagnostic
+
+    if users_age is None:
+      users_age = -1*np.ones((num_users), dtype=np.int32)
 
     post_exp = dpfn_util.fn_full_func(
       num_workers=num_workers,
@@ -144,7 +148,8 @@ def wrap_fact_neigh_cpp(
       clip_upper=clip_upper,
       quantization=quantization,
       observations=observations_list,
-      contacts=contacts_list)
+      contacts=contacts_list,
+      users_age=users_age)
     assert post_exp.shape == (num_users, num_time_steps, 4)
 
     if dp_method == 2:
@@ -207,9 +212,9 @@ def wrap_bp_cpp(
       contacts_list: np.ndarray,
       num_updates: int,
       num_time_steps: int,
-      users_stale: Optional[np.ndarray] = None,
+      users_age: Optional[np.ndarray] = None,
       diagnostic: Optional[Any] = None) -> np.ndarray:
-    del diagnostic, users_stale
+    del diagnostic, users_age
 
     post_exp_out = dpfn_util.bp_full_func(
       num_workers=num_workers,
@@ -260,9 +265,9 @@ def wrap_dpct_inference(
       contacts_list: np.ndarray,
       num_updates: int,  # pylint: disable=unused-argument
       num_time_steps: int,
-      users_stale: Optional[np.ndarray] = None,    # pylint: disable=unused-argument
+      users_age: Optional[np.ndarray] = None,    # pylint: disable=unused-argument
       diagnostic: Optional[Any] = None) -> np.ndarray:    # pylint: disable=unused-argument
-    # del num_updates, users_stale, diagnostic
+    # del num_updates, users_age, diagnostic
     score_small = 0.0001  # Small number to prevent division by zero
 
     # Break symmetry
@@ -329,9 +334,9 @@ def wrap_belief_propagation(
       contacts_list: np.ndarray,
       num_updates: int,
       num_time_steps: int,
-      users_stale: Optional[np.ndarray] = None,
+      users_age: Optional[np.ndarray] = None,
       diagnostic: Optional[Any] = None) -> np.ndarray:
-    del users_stale, diagnostic
+    del users_age, diagnostic
     # Collect observations, allows for multiple observations per user per day
     obs_messages = np.ones((num_users, num_time_steps, 4), dtype=np.float32)
     for obs in observations_list:
@@ -417,12 +422,9 @@ def wrap_gibbs_inference(
       contacts_list: np.ndarray,
       num_updates: int,
       num_time_steps: int,
-      users_stale: Optional[np.ndarray] = None,
+      users_age: Optional[np.ndarray] = None,
       diagnostic: Optional[Any] = None) -> np.ndarray:
-    del diagnostic
-
-    if users_stale is not None:
-      raise ValueError('Not implemented stale users for Gibbs')
+    del diagnostic, users_age
 
     num_burnin = min((num_updates, 10))
     skip = 10

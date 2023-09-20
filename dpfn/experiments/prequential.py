@@ -31,7 +31,7 @@ def dump_results_json(
     "clip_upper", "a_rdp"]
   data_keys = [
     "num_users", "num_time_steps", "num_days_quarantine",
-    "fraction_test", "fraction_stale"]
+    "fraction_test"]
 
   for key in model_keys:
     kwargs[f"model.{key}"] = cfg["model"].get(key, -1.)

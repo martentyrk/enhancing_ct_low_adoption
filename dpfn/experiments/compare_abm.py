@@ -202,17 +202,11 @@ def compare_abm(
   fraction_test = cfg["data"]["fraction_test"]
 
   # Data and simulator params
-  fraction_stale = cfg["data"]["fraction_stale"]
   num_days_quarantine = cfg["data"]["num_days_quarantine"]
   t_start_quarantine = cfg["data"]["t_start_quarantine"]
 
   logger.info((
     f"Settings at experiment: {quantization:.0f} quant, at {fraction_test}%"))
-
-  users_stale = None
-  if fraction_stale > 0:
-    users_stale = np.random.choice(
-      num_users, replace=False, size=int(fraction_stale*num_users))
 
   diagnostic = runner if do_diagnosis else None
 
@@ -250,6 +244,7 @@ def compare_abm(
 
   sim = simulator.ABMSimulator(
     num_time_steps, num_users, rng_seed)
+  users_age = -1*np.ones((num_users), dtype=np.int32)
 
   logger.info((
     f"Start simulation with {num_rounds} updates"))
@@ -258,6 +253,8 @@ def compare_abm(
     t_start_loop = time.time()
 
     sim.step()
+    if t_now == 1:
+      users_age = sim.get_age_users()
 
     # Number of days to use for inference
     num_days = min((t_now + 1, num_days_window))
@@ -302,7 +299,7 @@ def compare_abm(
         contacts_now,
         num_rounds,
         num_days,
-        users_stale=users_stale,
+        users_age=users_age,
         diagnostic=diagnostic)
 
       np.testing.assert_array_almost_equal(
@@ -757,7 +754,7 @@ if __name__ == "__main__":
 
   util_experiments.make_git_log()
 
-  if not 'carbon' in socket.gethostname():
+  if 'carbon' not in socket.gethostname():
     wandb.mark_preempting()
 
   # Set random seed

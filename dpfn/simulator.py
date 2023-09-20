@@ -179,6 +179,10 @@ class ABMSimulator(Simulator):
       constants.state_to_seir,
       np.array(covid19.get_state(self.model.model.c_model)))
 
+  def get_age_users(self) -> np.ndarray:
+    """Returns the age categories of all users."""
+    return np.array(covid19.get_age(self.model.model.c_model), dtype=np.int32)
+
   def _get_states_abm(self) -> np.ndarray:
     """Returns the states of the underlying abm simulator."""
     return np.array(covid19.get_state(self.model.model.c_model))
