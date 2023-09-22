@@ -5,7 +5,7 @@ import numpy as np
 from dpfn import inference, logger, belief_propagation, util
 import dpfn_util
 import subprocess
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 
 def wrap_fact_neigh_inference(
@@ -33,7 +33,8 @@ def wrap_fact_neigh_inference(
       num_updates: int,
       num_time_steps: int,
       users_age: Optional[np.ndarray] = None,
-      diagnostic: Optional[Any] = None) -> np.ndarray:
+      diagnostic: Optional[Any] = None
+      ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
     del users_age
 
     traces_per_user_fn = inference.fact_neigh(
@@ -59,7 +60,7 @@ def wrap_fact_neigh_inference(
       verbose=False,
       trace_dir=trace_dir,
       diagnostic=diagnostic)
-    return traces_per_user_fn
+    return traces_per_user_fn, None
   return fact_neigh_wrapped
 
 
@@ -75,14 +76,15 @@ def wrap_dummy_inference(
       num_updates: int,
       num_time_steps: int,
       users_age: Optional[np.ndarray] = None,
-      diagnostic: Optional[Any] = None) -> np.ndarray:
+      diagnostic: Optional[Any] = None
+      ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
     del diagnostic, num_updates, contacts_list, observations_list
     del users_age
 
     predictions = np.random.rand(num_users, num_time_steps, 4)
     predictions /= np.sum(predictions, axis=-1, keepdims=True)
 
-    return predictions
+    return predictions, None
 
   return dummy_wrapped
 
@@ -125,13 +127,14 @@ def wrap_fact_neigh_cpp(
       num_updates: int,
       num_time_steps: int,
       users_age: Optional[np.ndarray] = None,
-      diagnostic: Optional[Any] = None) -> np.ndarray:
+      diagnostic: Optional[Any] = None
+      ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
     del diagnostic
 
     if users_age is None:
       users_age = -1*np.ones((num_users), dtype=np.int32)
 
-    post_exp, _ = dpfn_util.fn_full_func(
+    post_exp, contacts_age = dpfn_util.fn_full_func(
       num_workers=num_workers,
       num_rounds=num_updates,
       num_users=num_users,
@@ -151,6 +154,7 @@ def wrap_fact_neigh_cpp(
       contacts=contacts_list,
       users_age=users_age)
     assert post_exp.shape == (num_users, num_time_steps, 4)
+    contacts_age = np.reshape(contacts_age, (2, num_users)).T
 
     if dp_method == 2:
       assert epsilon_dp > 0.
@@ -168,7 +172,7 @@ def wrap_fact_neigh_cpp(
 
       post_exp = np.zeros((num_users, num_time_steps, 4), dtype=np.float32)
       post_exp[:, -1, 2] = np.clip(covidscore, c_lower, c_upper)
-    return post_exp
+    return post_exp, contacts_age
   return fact_neigh_cpp
 
 
@@ -213,7 +217,8 @@ def wrap_bp_cpp(
       num_updates: int,
       num_time_steps: int,
       users_age: Optional[np.ndarray] = None,
-      diagnostic: Optional[Any] = None) -> np.ndarray:
+      diagnostic: Optional[Any] = None
+      ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
     del diagnostic, users_age
 
     post_exp_out = dpfn_util.bp_full_func(
@@ -235,7 +240,7 @@ def wrap_bp_cpp(
       observations=observations_list,
       contacts=contacts_list)
     assert post_exp_out.shape == (num_users, num_time_steps, 4)
-    return post_exp_out
+    return post_exp_out, None
   return bp_cpp
 
 
@@ -266,7 +271,8 @@ def wrap_dpct_inference(
       num_updates: int,  # pylint: disable=unused-argument
       num_time_steps: int,
       users_age: Optional[np.ndarray] = None,    # pylint: disable=unused-argument
-      diagnostic: Optional[Any] = None) -> np.ndarray:    # pylint: disable=unused-argument
+      diagnostic: Optional[Any] = None  # pylint: disable=unused-argument
+      ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
     # del num_updates, users_age, diagnostic
     score_small = 0.0001  # Small number to prevent division by zero
 
@@ -293,7 +299,7 @@ def wrap_dpct_inference(
     score[:, -1, 2] = num_positive_neighbors
     score /= np.expand_dims(np.sum(score, axis=-1), axis=-1)
     score = score.astype(np.float32)
-    return score
+    return score, None
 
   return dpct_wrapped
 
@@ -335,7 +341,8 @@ def wrap_belief_propagation(
       num_updates: int,
       num_time_steps: int,
       users_age: Optional[np.ndarray] = None,
-      diagnostic: Optional[Any] = None) -> np.ndarray:
+      diagnostic: Optional[Any] = None
+      ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
     del users_age, diagnostic
     # Collect observations, allows for multiple observations per user per day
     obs_messages = np.ones((num_users, num_time_steps, 4), dtype=np.float32)
@@ -390,7 +397,7 @@ def wrap_belief_propagation(
     # Collect beliefs
     bp_collect = bp_beliefs
     bp_collect /= np.sum(bp_collect, axis=-1, keepdims=True)
-    return bp_collect
+    return bp_collect, None
   return bp_wrapped
 
 
@@ -423,7 +430,8 @@ def wrap_gibbs_inference(
       num_updates: int,
       num_time_steps: int,
       users_age: Optional[np.ndarray] = None,
-      diagnostic: Optional[Any] = None) -> np.ndarray:
+      diagnostic: Optional[Any] = None
+      ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
     del diagnostic, users_age
 
     num_burnin = min((num_updates, 10))
@@ -446,7 +454,7 @@ def wrap_gibbs_inference(
       probab_0, probab_1,
       clip_lower, epsilon_dp, False)
     marginals = result.get_marginals(num_updates, burnin=num_burnin, skip=skip)
-    return marginals
+    return marginals, None
 
   return gibbs_wrapped
 

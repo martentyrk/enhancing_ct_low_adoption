@@ -197,6 +197,7 @@ def compare_abm(
   quantization = cfg["model"]["quantization"]
 
   num_rounds = cfg["model"]["num_rounds"]
+  policy_weight_01 = cfg["model"]["policy_weight_01"]
   rng_seed = cfg.get("seed", 123)
 
   fraction_test = cfg["data"]["fraction_test"]
@@ -236,6 +237,7 @@ def compare_abm(
   # Placeholder for tests on first day
   z_states_inferred = np.zeros((num_users, 1, 4))
   user_quarantine_ends = -1*np.ones((num_users), dtype=np.int32)
+  contacts_age = np.zeros((num_users, 2), dtype=np.int32)
 
   logger.info(f"Do random quarantine? {do_random_quarantine}")
   t0 = time.time()
@@ -265,6 +267,10 @@ def compare_abm(
 
     rank_score = (z_states_inferred[:, -1, 1] + z_states_inferred[:, -1, 2])
 
+    if np.abs(policy_weight_01) > 1E-9:
+      assert contacts_age is not None, f"Contacts age is {contacts_age}"
+      rank_score += policy_weight_01 * contacts_age[:, 1]
+
     # Do not test when user in quarantine
     rank_score *= (user_quarantine_ends < t_now)
 
@@ -292,7 +298,7 @@ def compare_abm(
         f"{observations_now.shape[0]} obs"))
 
       t_start = time.time()
-      z_states_inferred = inference_func(
+      z_states_inferred, contacts_age = inference_func(
         observations_now,
         contacts_now,
         num_rounds,
@@ -567,7 +573,7 @@ def compare_policy_covasim(
 
       # Add +1 so the model predicts one day into the future
       t_start = time.time()
-      pred = inference_func(
+      pred, _ = inference_func(
         observations_list=obs_rel,
         contacts_list=contacts_rel,
         num_updates=num_rounds,
