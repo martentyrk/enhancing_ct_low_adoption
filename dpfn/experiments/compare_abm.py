@@ -383,7 +383,11 @@ def compare_abm(
       })
 
   time_pir, pir = np.argmax(infection_rates), np.max(infection_rates)
-  logger.info(f"At day {time_pir} peak infection rate is {pir}")
+  total_drate = sim.get_death_rate()
+
+  logger.info((
+    f"At day {time_pir} peak infection rate is {pir:.5f} "
+    f"and total death rate is {total_drate:.5f}"))
 
   prequential.dump_results_json(
     datadir=results_dir,
@@ -410,6 +414,7 @@ def compare_abm(
   runner.log({
     "time_spent": time_spent,
     "pir_mean": pir,
+    "total_drate": total_drate,
     "recall": np.nanmean(recalls[10:]),
     "precision": np.nanmean(precisions[10:])})
 
@@ -441,6 +446,7 @@ def compare_policy_covasim(
   fraction_test = cfg["data"]["fraction_test"]
   # Probability of the person being lost-to-follow-up after a test
   loss_prob = cfg["data"]["loss_prob"]
+  t_start_quarantine = cfg["data"]["t_start_quarantine"]
 
   num_days_window = cfg["model"]["num_days_window"]
   quantization = cfg["model"]["quantization"]
@@ -510,7 +516,7 @@ def compare_policy_covasim(
     assert isinstance(history, dict)
     # Slice window
 
-    if sim.t > 3:
+    if sim.t > t_start_quarantine:
       contacts = sim.people.contacts
 
       contacts_add = []
@@ -633,8 +639,13 @@ def compare_policy_covasim(
     quantization=quantization,
     seed=cfg.get("seed", -1))
 
+  # Calculate PIR and Drate
   time_pir, pir = np.argmax(infection_rates), np.max(infection_rates)
-  logger.info(f"At day {time_pir} peak infection rate is {pir:.5f}")
+  total_drate = sim.people.dead.sum() / len(sim.people)
+
+  logger.info((
+    f"At day {time_pir} peak infection rate is {pir:.5f} "
+    f"and total death rate is {total_drate:.5f}"))
 
   _, loadavg5, loadavg15 = os.getloadavg()
   swap_use = psutil.swap_memory().used / (1024.0 ** 3)
@@ -644,6 +655,7 @@ def compare_policy_covasim(
   runner.log({
     "time_spent": time_spent,
     "pir_mean": pir,
+    "total_drate": total_drate,
     "loadavg5": loadavg5,
     "loadavg15": loadavg15,
     "swap_use": swap_use,

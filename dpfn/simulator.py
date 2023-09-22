@@ -187,6 +187,13 @@ class ABMSimulator(Simulator):
     """Returns the states of the underlying abm simulator."""
     return np.array(covid19.get_state(self.model.model.c_model))
 
+  def get_death_rate(self) -> float:
+    """Returns the death rate of the underlying OpenABM simulator."""
+    states = np.array(
+      covid19.get_state(self.model.model.c_model), dtype=np.int32)
+    # State 9 is death in OpenABM simulator
+    return np.mean(states == 9)
+
   def step(self, num_steps: int = 1):
     """Advances the simulator by num_steps days.
 
