@@ -269,7 +269,7 @@ def compare_abm(
 
     if np.abs(policy_weight_01) > 1E-9:
       assert contacts_age is not None, f"Contacts age is {contacts_age}"
-      rank_score += policy_weight_01 * contacts_age[:, 1]
+      rank_score += policy_weight_01 * contacts_age[:, 1] / 10
 
     # Do not test when user in quarantine
     rank_score *= (user_quarantine_ends < t_now)
