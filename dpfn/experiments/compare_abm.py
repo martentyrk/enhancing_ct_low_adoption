@@ -453,6 +453,7 @@ def compare_policy_covasim(
   fraction_test = cfg["data"]["fraction_test"]
   # Probability of the person being lost-to-follow-up after a test
   loss_prob = cfg["data"]["loss_prob"]
+  policy_weight_01 = cfg["model"]["policy_weight_01"]
   t_start_quarantine = cfg["data"]["t_start_quarantine"]
 
   num_days_window = cfg["model"]["num_days_window"]
@@ -518,6 +519,11 @@ def compare_policy_covasim(
     assert isinstance(history, dict)
     # Slice window
 
+    # TODO(rob): no need to compute this every timestep
+    users_age = np.digitize(
+      sim.people.age, np.array([0, 10, 20, 30, 40, 50, 60, 70, 80, 90,])) - 1
+    users_age = users_age.astype(np.int32)
+
     if sim.t > t_start_quarantine:
       contacts = sim.people.contacts
 
@@ -573,13 +579,18 @@ def compare_policy_covasim(
 
       # Add +1 so the model predicts one day into the future
       t_start = time.time()
-      pred, _ = inference_func(
+      pred, contacts_age = inference_func(
         observations_list=obs_rel,
         contacts_list=contacts_rel,
         num_updates=num_rounds,
-        num_time_steps=num_days + 1)
+        num_time_steps=num_days + 1,
+        users_age=users_age)
       rank_score = pred[:, -1, 1] + pred[:, -1, 2]
       time_spent = time.time() - t_start
+
+      if np.abs(policy_weight_01) > 1E-9:
+        assert contacts_age is not None, f"Contacts age is {contacts_age}"
+        rank_score += policy_weight_01 * contacts_age[:, 1] / 10
 
       # Track some metrics here:
       states_today = 3*np.ones(num_users, dtype=np.int32)
@@ -666,6 +677,7 @@ def compare_policy_covasim(
     "recall": np.nanmean(analysis.recalls[10:]),
     "precision": np.nanmean(analysis.precisions[10:])}
   runner.log(results)
+
   return results
 
 
