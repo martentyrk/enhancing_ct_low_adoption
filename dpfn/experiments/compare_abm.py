@@ -184,15 +184,15 @@ def make_inference_func(
 
 def compare_abm(
     inference_method: str,
-    num_users: int,
-    num_time_steps: int,
     cfg: Dict[str, Any],
     runner,
     results_dir: str,
     trace_dir: Optional[str] = None,
-    quick: bool = False,
     do_diagnosis: bool = False):
   """Compares different inference algorithms on the supplied contact graph."""
+  num_users = config_wandb["data"]["num_users"]
+  num_time_steps = config_wandb["data"]["num_time_steps"]
+
   num_days_window = cfg["model"]["num_days_window"]
   quantization = cfg["model"]["quantization"]
 
@@ -218,9 +218,6 @@ def compare_abm(
     [cfg["data"]["alpha"], 1-float(cfg["data"]["alpha"])], dtype=np.float32)
   p_obs_not_infected = np.array(
     [1-float(cfg["data"]["beta"]), cfg["data"]["beta"]], dtype=np.float32)
-
-  if quick:
-    num_rounds = 2
 
   # Arrays to accumulate statistics
   pir_running = 0.
@@ -411,17 +408,19 @@ def compare_abm(
 
   time_spent = time.time() - t0
   logger.info(f"With {num_rounds} rounds, PIR {pir:5.2f}")
-  runner.log({
+  results = {
     "time_spent": time_spent,
     "pir_mean": pir,
     "total_drate": total_drate,
     "recall": np.nanmean(recalls[10:]),
-    "precision": np.nanmean(precisions[10:])})
+    "precision": np.nanmean(precisions[10:])}
+  runner.log(results)
 
   # Overwrite every experiment, such that code could be pre-empted
   prequential.dump_results(
     results_dir, precisions=precisions, recalls=recalls,
     infection_rates=infection_rates)
+  return results
 
 
 def compare_policy_covasim(
@@ -430,7 +429,6 @@ def compare_policy_covasim(
     runner,
     results_dir: str,
     trace_dir: Optional[str] = None,
-    quick: bool = False,
     do_diagnosis: bool = False):
   """Compares different inference algorithms on the supplied contact graph."""
   del do_diagnosis
@@ -469,11 +467,6 @@ def compare_policy_covasim(
   cfg["model"]["beta"] = 0
   cfg["data"]["beta"] = 0
   assert num_time_steps == 91, "hardcoded 91 days for now, TODO: fix this"
-
-  if quick:
-    num_rounds = 2
-
-  # Arrays to accumulate statistics
 
   t0 = time.time()
 
@@ -652,15 +645,17 @@ def compare_policy_covasim(
 
   time_spent = time.time() - t0
   logger.info(f"With {num_rounds} rounds, PIR {pir:5.2f}")
-  runner.log({
+  results = {
     "time_spent": time_spent,
     "pir_mean": pir,
     "total_drate": total_drate,
     "loadavg5": loadavg5,
     "loadavg15": loadavg15,
     "swap_use": swap_use,
-    "recall": np.nanmean(analysis.recalls),
-    "precision": np.nanmean(analysis.precisions)})
+    "recall": np.nanmean(analysis.recalls[10:]),
+    "precision": np.nanmean(analysis.precisions[10:])}
+  runner.log(results)
+  return results
 
 
 if __name__ == "__main__":
@@ -684,9 +679,6 @@ if __name__ == "__main__":
                             ' when left undefined'))
   parser.add_argument('--do_diagnosis', action='store_true')
   parser.add_argument('--dump_traces', action='store_true')
-  parser.add_argument('--quick', action='store_true',
-                      help=('include flag --quick to run a minimal version of'
-                            'the code quickly, usually for debugging purpose'))
 
   # TODO make a better heuristic for this:
   num_threads = max((util.get_cpu_count()-1, 1))
@@ -705,8 +697,6 @@ if __name__ == "__main__":
   inf_method = args.inference_method
   # Set up locations to store results
   experiment_name = 'run_prequential'
-  if args.quick:
-    experiment_name += "_quick"
   results_dir_global = (
     f'results/{experiment_name}/{configname_data}__{configname_model}/')
 
@@ -735,8 +725,7 @@ if __name__ == "__main__":
   tags = [
     str(args.simulator), inf_method, f"cpu{util.get_cpu_count()}",
     configname_data, configname_model]
-  tags.append("quick" if args.quick else "noquick")
-  tags.append("dump_traces" if args.dump_traces else "noquick")
+  tags.append("dump_traces" if args.dump_traces else "nodump")
 
   tags.append("local" if (os.getenv('SLURM_JOB_ID') is None) else "slurm")
 
@@ -781,29 +770,20 @@ if __name__ == "__main__":
 
   try:
     if args.simulator == "abm":
-      compare_abm(
-        inf_method,
-        num_users=config_wandb["data"]["num_users"],
-        num_time_steps=config_wandb["data"]["num_time_steps"],
-        cfg=config_wandb,
-        runner=runner_global,
-        results_dir=results_dir_global,
-        trace_dir=trace_dir_global,
-        quick=args.quick,
-        do_diagnosis=args.do_diagnosis,
-        )
+      comparison_fn = compare_abm
     elif args.simulator == "covasim":
-      compare_policy_covasim(
-        inf_method,
-        cfg=config_wandb,
-        runner=runner_global,
-        results_dir=results_dir_global,
-        trace_dir=trace_dir_global,
-        quick=args.quick,
-        do_diagnosis=args.do_diagnosis,
-        )
+      comparison_fn = compare_policy_covasim
     else:
       raise ValueError(f"Unknown simulator {args.simulator}")
+
+    # Run full comparison
+    comparison_fn(
+      inf_method,
+      cfg=config_wandb,
+      runner=runner_global,
+      results_dir=results_dir_global,
+      trace_dir=trace_dir_global,
+      do_diagnosis=args.do_diagnosis)
 
   except Exception as e:
     # This exception sends an WandB alert with the traceback and sweepid
