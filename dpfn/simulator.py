@@ -1,5 +1,4 @@
 """Simulating individuals in a pandemic with SEIR states."""
-from abc import ABC
 from COVID19 import model as abm_model
 from COVID19 import simulation
 import covid19
@@ -11,14 +10,23 @@ import os
 from typing import List, Union
 
 
-class Simulator(ABC):
-  """Base class for a simulator."""
+class ABMSimulator():
+  """Simulator based on OpenABM.
+
+  Based on the simulator:
+  Hinch, et al. 'OpenABM-Covid19—An agent-based model for non-pharmaceutical
+  interventions against COVID-19 including contact tracing.'
+  PLoS computational biology 2021.
+
+  See README.md for installation instructions.
+  """
 
   def __init__(
       self,
       num_time_steps: int,
       num_users: int,
-      rng_seed: int = 123) -> None:
+      rng_seed: int = 123,
+      ) -> None:
     self.num_time_steps = num_time_steps
     self.num_users = num_users
     self.rng_seed = rng_seed
@@ -32,104 +40,6 @@ class Simulator(ABC):
     self._observations_all = np.zeros((0, 3), dtype=np.int32)
     # Array with rows (user_from, user_to, timestep, feature)
     self._contacts = np.zeros((0, 4), dtype=np.int32)
-
-  def set_window(self, days_offset: int):
-    """Sets the window with days_offset at day0.
-
-    All days will start counting 0 at days_offset.
-    The internal counter self._day_start_window keeps track of the previous
-    counting for day0.
-    """
-    # Days_offset and day_start are absolute days, cut_off is relative
-    to_cut_off = max((0, days_offset - self._day_start_window))
-    assert to_cut_off <= self._day_current
-
-    self._observations_all = self._observations_all[
-      self._observations_all[:, 1] >= to_cut_off]
-    self._observations_all[:, 1] -= to_cut_off
-
-    self._contacts = self._contacts[
-      self._contacts[:, 2] >= to_cut_off]
-    self._contacts[:, 2] -= to_cut_off
-
-    self._day_start_window = days_offset
-
-  def get_current_day(self) -> int:
-    """Returns the current day in absolute counting.
-
-    Note, this day number is INDEPENDENT of the windowing.
-    """
-    # 0-based indexes!
-    return self._day_current
-
-  def get_states_today(self) -> np.ndarray:
-    """Returns the states an np.ndarray in size [num_users].
-
-    Each element in [0, 1, 2, 3].
-    """
-    return np.zeros((self.num_users), dtype=np.int32)
-
-  def get_contacts(self) -> np.ndarray:
-    """Returns contacts.
-
-    Note that contacts are offset with self._day_start_window and contacts prior
-    to self._day_start_window have been discarded.
-    """
-    return self._contacts
-
-  def get_observations_today(
-      self,
-      users_to_observe: np.ndarray,
-      p_obs_infected: np.ndarray,
-      p_obs_not_infected: np.ndarray,
-      obs_rng: np.random._generator.Generator,
-      ) -> np.ndarray:
-    """Returns the observations for current day."""
-    assert users_to_observe.dtype == np.int32
-
-    day_relative = self.get_current_day() - self._day_start_window
-    observations_new = prequential.get_observations_one_day(
-      self.get_states_today(),
-      users_to_observe,
-      len(users_to_observe),
-      day_relative,
-      p_obs_infected,
-      p_obs_not_infected,
-      obs_rng)
-    self._observations_all = np.concatenate(
-      (self._observations_all, observations_new), axis=0)
-    return observations_new
-
-  def get_observations_all(self) -> np.ndarray:
-    """Returns all observations."""
-    return self._observations_all
-
-  def step(self, num_steps: int = 1):
-    """Advances the simulator by num_steps days."""
-    self._day_current += num_steps
-
-  def quarantine_users(
-      self,
-      users_to_quarantine: Union[np.ndarray, List[int]],
-      num_days: int):
-    """Quarantines the defined users.
-
-    This function will remove the contacts that happen TODAY (and which may
-    spread the virus and cause people to shift to E-state tomorrow).
-    """
-
-
-class ABMSimulator(Simulator):
-  """Simulator based on Oxford ABM."""
-
-  def __init__(
-      self,
-      num_time_steps: int,
-      num_users: int,
-      rng_seed: int = 123,
-      ) -> None:
-    super().__init__(
-      num_time_steps, num_users, rng_seed=rng_seed)
 
     filename = "baseline_parameters.csv"
     filename_hh = "baseline_household_demographics.csv"
@@ -193,6 +103,70 @@ class ABMSimulator(Simulator):
       covid19.get_state(self.model.model.c_model), dtype=np.int32)
     # State 9 is death in OpenABM simulator
     return np.mean(states == 9)
+
+  def get_contacts(self) -> np.ndarray:
+    """Returns contacts.
+
+    Note that contacts are offset with self._day_start_window and contacts prior
+    to self._day_start_window have been discarded.
+    """
+    return self._contacts
+
+  def get_observations_all(self) -> np.ndarray:
+    """Returns all observations."""
+    return self._observations_all
+
+  def get_observations_today(
+      self,
+      users_to_observe: np.ndarray,
+      p_obs_infected: np.ndarray,
+      p_obs_not_infected: np.ndarray,
+      obs_rng: np.random._generator.Generator,
+      ) -> np.ndarray:
+    """Returns the observations for current day."""
+    assert users_to_observe.dtype == np.int32
+
+    day_relative = self.get_current_day() - self._day_start_window
+    observations_new = prequential.get_observations_one_day(
+      self.get_states_today(),
+      users_to_observe,
+      len(users_to_observe),
+      day_relative,
+      p_obs_infected,
+      p_obs_not_infected,
+      obs_rng)
+    self._observations_all = np.concatenate(
+      (self._observations_all, observations_new), axis=0)
+    return observations_new
+
+  def set_window(self, days_offset: int):
+    """Sets the window with days_offset at day0.
+
+    All days will start counting 0 at days_offset.
+    The internal counter self._day_start_window keeps track of the previous
+    counting for day0.
+    """
+    # Days_offset and day_start are absolute days, cut_off is relative
+    to_cut_off = max((0, days_offset - self._day_start_window))
+    assert to_cut_off <= self._day_current
+
+    self._observations_all = self._observations_all[
+      self._observations_all[:, 1] >= to_cut_off]
+    self._observations_all[:, 1] -= to_cut_off
+
+    self._contacts = self._contacts[
+      self._contacts[:, 2] >= to_cut_off]
+    self._contacts[:, 2] -= to_cut_off
+
+    self._day_start_window = days_offset
+
+  def get_current_day(self) -> int:
+    """Returns the current day in absolute counting.
+
+    Note, this day number is INDEPENDENT of the windowing.
+    """
+    # 0-based indexes!
+    return self._day_current
 
   def step(self, num_steps: int = 1):
     """Advances the simulator by num_steps days.

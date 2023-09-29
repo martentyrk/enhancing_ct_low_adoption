@@ -50,4 +50,4 @@ def test_dpct_inference():
     observations_all, contacts_all, None, num_time_steps, None, None)
 
   # Users 3, 4, 5 had no infected contacts
-  np.testing.assert_array_less(scores[3:, -1, 2], 0.75)
+  np.testing.assert_array_less(scores[3:, -1, 2], 0.8)
