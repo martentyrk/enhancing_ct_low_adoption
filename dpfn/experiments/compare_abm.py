@@ -198,6 +198,8 @@ def compare_abm(
 
   num_rounds = cfg["model"]["num_rounds"]
   policy_weight_01 = cfg["model"]["policy_weight_01"]
+  policy_weight_02 = cfg["model"]["policy_weight_02"]
+  policy_weight_03 = cfg["model"]["policy_weight_03"]
   rng_seed = cfg.get("seed", 123)
 
   fraction_test = cfg["data"]["fraction_test"]
@@ -267,9 +269,13 @@ def compare_abm(
 
     rank_score = (z_states_inferred[:, -1, 1] + z_states_inferred[:, -1, 2])
 
-    if np.abs(policy_weight_01) > 1E-9:
+    if np.any(np.abs(
+        [policy_weight_01, policy_weight_02, policy_weight_03]) > 1E-9):
       assert contacts_age is not None, f"Contacts age is {contacts_age}"
-      rank_score += policy_weight_01 * contacts_age[:, 1] / 10
+      rank_score += (
+        policy_weight_01 * contacts_age[:, 1] / 10
+        + policy_weight_02 * contacts_age[:, 0] / 10
+        + policy_weight_03 * users_age / 10)
 
     # Do not test when user in quarantine
     rank_score *= (user_quarantine_ends < t_now)
@@ -454,6 +460,8 @@ def compare_policy_covasim(
   # Probability of the person being lost-to-follow-up after a test
   loss_prob = cfg["data"]["loss_prob"]
   policy_weight_01 = cfg["model"]["policy_weight_01"]
+  policy_weight_02 = cfg["model"]["policy_weight_02"]
+  policy_weight_03 = cfg["model"]["policy_weight_03"]
   t_start_quarantine = cfg["data"]["t_start_quarantine"]
 
   num_days_window = cfg["model"]["num_days_window"]
@@ -588,9 +596,13 @@ def compare_policy_covasim(
       rank_score = pred[:, -1, 1] + pred[:, -1, 2]
       time_spent = time.time() - t_start
 
-      if np.abs(policy_weight_01) > 1E-9:
+      if np.any(np.abs(
+          [policy_weight_01, policy_weight_02, policy_weight_03]) > 1E-9):
         assert contacts_age is not None, f"Contacts age is {contacts_age}"
-        rank_score += policy_weight_01 * contacts_age[:, 1] / 10
+        rank_score += (
+          policy_weight_01 * contacts_age[:, 1] / 10
+          + policy_weight_02 * contacts_age[:, 0] / 10
+          + policy_weight_03 * users_age / 10)
 
       # Track some metrics here:
       states_today = 3*np.ones(num_users, dtype=np.int32)
