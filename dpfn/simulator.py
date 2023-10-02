@@ -104,6 +104,13 @@ class ABMSimulator():
     # State 9 is death in OpenABM simulator
     return np.mean(states == 9)
 
+  def get_critical_rate(self) -> float:
+    """Returns the critical rate of the underlying OpenABM simulator."""
+    states = np.array(
+      covid19.get_state(self.model.model.c_model), dtype=np.int32)
+    # State 9 is death in OpenABM simulator
+    return np.mean(np.logical_or(states == 6, states == 7))
+
   def get_contacts(self) -> np.ndarray:
     """Returns contacts.
 

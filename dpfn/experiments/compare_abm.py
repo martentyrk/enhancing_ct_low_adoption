@@ -225,6 +225,7 @@ def compare_abm(
   recalls = np.zeros((num_time_steps))
   infection_rates = np.zeros((num_time_steps))
   exposed_rates = np.zeros((num_time_steps))
+  critical_rates = np.zeros((num_time_steps))
   likelihoods_state = np.zeros((num_time_steps))
   ave_prob_inf = np.zeros((num_time_steps))
   ave_prob_inf_at_inf = np.zeros((num_time_steps))
@@ -345,6 +346,7 @@ def compare_abm(
     precisions[t_now] = precision
     recalls[t_now] = recall
     infection_rates[t_now] = infection_rate
+    critical_rates[t_now] = sim.get_critical_rate()
     exposed_rates[t_now] = np.mean(
       np.logical_or(states_today == 1, states_today == 2))
     num_quarantined[t_now] = len(users_to_quarantine)
@@ -411,6 +413,7 @@ def compare_abm(
   results = {
     "time_spent": time_spent,
     "pir_mean": pir,
+    "pcr": np.max(critical_rates),
     "total_drate": total_drate,
     "recall": np.nanmean(recalls[10:]),
     "precision": np.nanmean(precisions[10:])}
@@ -482,7 +485,7 @@ def compare_policy_covasim(
     "pop_size": num_users,
     "pop_infected": pop_infected,
     "start_day": '2020-02-01',
-    "end_day": '2020-03-01',
+    "end_day": '2020-05-01',
   }
 
   def subtarget_func_random(sim, history):
