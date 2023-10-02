@@ -482,7 +482,7 @@ def compare_policy_covasim(
     "pop_size": num_users,
     "pop_infected": pop_infected,
     "start_day": '2020-02-01',
-    "end_day": '2020-05-01',
+    "end_day": '2020-03-01',
   }
 
   def subtarget_func_random(sim, history):
@@ -615,6 +615,7 @@ def compare_policy_covasim(
   analysis = sim.get_analyzer('analysis')
   history_intv = sim.get_intervention('intervention_history').history
   infection_rates = analysis.e_rate + analysis.i_rate
+  peak_crit_rate = np.max(analysis.crit_rate)
 
   prequential.dump_results_json(
     datadir=results_dir,
@@ -648,6 +649,7 @@ def compare_policy_covasim(
   results = {
     "time_spent": time_spent,
     "pir_mean": pir,
+    "pcr": peak_crit_rate,
     "total_drate": total_drate,
     "loadavg5": loadavg5,
     "loadavg15": loadavg15,

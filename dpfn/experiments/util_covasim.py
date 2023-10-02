@@ -18,6 +18,9 @@ class StoreSEIR(cv.Analyzer):
     self.i_rate = np.zeros((num_days), dtype=np.float32)
     self.r_rate = np.zeros((num_days), dtype=np.float32)
 
+    # Severe + critical rate
+    self.crit_rate = np.zeros((num_days), dtype=np.float32)
+
     self.isolation_rate = np.zeros((num_days), dtype=np.float32)
 
     self.precisions = np.zeros((num_days), dtype=np.float32)
@@ -37,6 +40,8 @@ class StoreSEIR(cv.Analyzer):
     self.e_rate[day] = (ppl.exposed.sum() - ppl.infectious.sum()) / num_people
     self.i_rate[day] = ppl.infectious.sum() / num_people
     self.r_rate[day] = ppl.recovered.sum() + ppl.dead.sum() / num_people
+
+    self.crit_rate[day] = (ppl.severe.sum() + ppl.critical.sum()) / num_people
 
     isolated = np.logical_or(ppl.isolated, ppl.quarantined)
     true_positives = np.sum(np.logical_and(isolated, ppl.infectious))
