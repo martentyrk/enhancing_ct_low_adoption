@@ -18,5 +18,5 @@ sed -i "1i$MESSAGE" "/var/scratch/${USER}/projects/dpfn/jobs.txt"
 
 echo 'Starting'
 
-python3 dpfn/experiments/compare_abm.py --inference_method "fn" --experiment_setup "prequential" --config_data intermediate_graph_abm_02 --config_model model_DP01  --name dp-regression
-python3 dpfn/experiments/compare_abm.py --inference_method "fncpp" --experiment_setup "prequential" --config_data intermediate_graph_abm_02 --config_model model_DP01  --name dp-regression
+python3 dpfn/experiments/compare_abm.py --inference_method "fn" --simulator abm --config_data intermediate_graph_abm_02 --config_model model_DP01  --name dp-regression
+python3 dpfn/experiments/compare_abm.py --inference_method "fncpp" --simulator abm --config_data intermediate_graph_abm_02 --config_model model_DP01  --name dp-regression
