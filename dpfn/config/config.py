@@ -19,9 +19,11 @@ def clean_hierarchy(config_dict: Dict[str, Any]) -> Dict[str, Any]:
 
     for key in keys_move:
       key_new = key.replace(prefix_, "")
-      assert key_new in config_dict[prefix], (
-        f"Only allow defined keys to be modified. Did not find key {key_new} in"
-        f" {list(config_dict['model'].keys())}")
+      if key_new not in config_dict[prefix]:
+        if not key_new.startswith("convertlog_"):
+          raise ValueError(
+            f"Only defined keys can be modified. Did not find key {key_new}"
+            f" in {list(config_dict['model'].keys())}")
       config_dict[prefix][key_new] = config_dict[key]
       del config_dict[key]
   return config_dict
