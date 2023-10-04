@@ -494,7 +494,7 @@ def convert_log_params(cfg: Dict[str, Any]) -> Dict[str, Any]:
       key_original = key.replace("convertlog_", "")
       value_new = np.power(10., cfg["model"][key])
 
-      logger.info(f"Converting {key_original} from value log-domain {value_new}")
+      logger.info(f"Converting {key_original} from log-domain to {value_new}")
 
       cfg["model"][key_original] = value_new
 
