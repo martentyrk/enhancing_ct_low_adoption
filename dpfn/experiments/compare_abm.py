@@ -776,6 +776,7 @@ if __name__ == "__main__":
 
     config_wandb = config.clean_hierarchy(dict(runner_global.config))
     config_wandb = util_experiments.set_noisy_test_params(config_wandb)
+    config_wandb = util_experiments.convert_log_params(config_wandb)
     logger.info(config_wandb)
   else:
     runner_global = util_wandb.WandbDummy()

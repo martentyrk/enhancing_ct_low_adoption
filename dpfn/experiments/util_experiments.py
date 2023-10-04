@@ -481,6 +481,26 @@ def set_noisy_test_params(cfg: Dict[str, Any]) -> Dict[str, Any]:
   return cfg
 
 
+def convert_log_params(cfg: Dict[str, Any]) -> Dict[str, Any]:
+  """Converts any parameters that are defined in the log-domain.
+
+  When doing sweeps or Bayesian optimization, it is convenient to define some
+  parameters in the log-domain. In the sweep.yaml file, one can prepend any
+  parameter with 'convertlog_' to indicate that the parameter is in the log10
+  domain. This function will convert those parameters to the original domain.
+  """
+  for key in cfg["model"].keys():
+    if key.startswith("convertlog_"):
+      key_original = key.replace("convertlog_", "")
+      value_new = np.power(10., cfg["model"][key])
+
+      print(f"Converting {key_original} from value log-domain {value_new}")
+
+      cfg["model"][key_original] = value_new
+
+  return cfg
+
+
 def make_git_log():
   """Logs the git diff and git show.
 
@@ -488,6 +508,10 @@ def make_git_log():
   errors produced by the git commands.
   """
   try:
+    result = subprocess.run(
+      ['git', 'status'], stdout=subprocess.PIPE, check=True)
+    logger.info(f"Git status \n{result.stdout.decode('utf-8')}")
+
     result = subprocess.run(
       ['git', 'show', '--summary'], stdout=subprocess.PIPE, check=True)
     logger.info(f"Git show \n{result.stdout.decode('utf-8')}")
