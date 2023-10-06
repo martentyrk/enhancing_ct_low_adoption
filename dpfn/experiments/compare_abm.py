@@ -415,6 +415,8 @@ def compare_abm(
     num_quarantined=num_quarantined.tolist(),
     num_tested=num_tested.tolist(),
     pir=float(pir),
+    pcr=float(np.max(critical_rates)),
+    total_drate=float(total_drate),
     precisions=precisions.tolist(),
     quantization=quantization,
     recalls=recalls.tolist(),
@@ -650,6 +652,10 @@ def compare_policy_covasim(
   infection_rates = analysis.e_rate + analysis.i_rate
   peak_crit_rate = np.max(analysis.crit_rate)
 
+  # Calculate PIR and Drate
+  time_pir, pir = np.argmax(infection_rates), np.max(infection_rates)
+  total_drate = sim.people.dead.sum() / len(sim.people)
+
   prequential.dump_results_json(
     datadir=results_dir,
     cfg=cfg,
@@ -664,12 +670,10 @@ def compare_policy_covasim(
     inference_method=inference_method,
     name=runner.name,
     pir=float(np.max(infection_rates)),
+    pcr=float(np.max(analysis.crit_rate)),
+    total_drate=float(total_drate),
     quantization=quantization,
     seed=cfg.get("seed", -1))
-
-  # Calculate PIR and Drate
-  time_pir, pir = np.argmax(infection_rates), np.max(infection_rates)
-  total_drate = sim.people.dead.sum() / len(sim.people)
 
   logger.info((
     f"At day {time_pir} peak infection rate is {pir:.5f} "
