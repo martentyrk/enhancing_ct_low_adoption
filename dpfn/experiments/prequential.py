@@ -3,6 +3,7 @@ import datetime
 import json
 import numpy as np
 import os
+import socket
 from typing import Any, Dict, Tuple
 
 
@@ -23,21 +24,12 @@ def dump_results_json(
   kwargs["slurm_id"] = str(os.getenv('SLURM_JOB_ID'))  # Defaults to 'none'
   kwargs["slurm_name"] = str(os.getenv('SLURM_JOB_NAME'))  # Defaults to 'none'
   kwargs["sweep_id"] = str(os.getenv('SWEEPID'))  # Defaults to 'none'
+  kwargs["hostname"] = socket.gethostname()
 
-  model_keys = [
-    "p0", "p1", "alpha", "beta", "prob_g", "prob_h", "noisy_test",
-    "num_days_window", "quantization", "num_rounds",
-    "epsilon_dp", "delta_dp", "dp_method", "clip_lower",
-    "clip_upper", "a_rdp", "policy_weight_01", "policy_weight_02",
-    "policy_weight_03"]
-  data_keys = [
-    "num_users", "num_time_steps", "num_days_quarantine",
-    "fraction_test"]
-
-  for key in model_keys:
+  for key in cfg["model"].keys():
     kwargs[f"model.{key}"] = cfg["model"].get(key, -1.)
 
-  for key in data_keys:
+  for key in cfg["data"].keys():
     kwargs[f"data.{key}"] = cfg["data"].get(key, -1.)
 
   fname = os.path.join(datadir, "results.jl")
