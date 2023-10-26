@@ -12,6 +12,7 @@ log/*
 wandb/
 results/
 sweep/
+notebooks/
 
 # Slurm files
 slurm*

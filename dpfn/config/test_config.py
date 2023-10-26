@@ -9,7 +9,7 @@ def test_clean_hierarchy():
   result = config.clean_hierarchy(data)
   assert result == data
 
-  with np.testing.assert_raises(AssertionError):
+  with np.testing.assert_raises(ValueError):
     data = {"model.a": 1, "b": 2, "model": {"c": 3}, "data": {"d": 4}}
     result = config.clean_hierarchy(data)
 

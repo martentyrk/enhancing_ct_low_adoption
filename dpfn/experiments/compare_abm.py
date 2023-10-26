@@ -4,7 +4,7 @@ import copy
 import covasim as cv
 import numpy as np
 from dpfn.config import config
-from dpfn.experiments import prequential, util_experiments, util_covasim
+from dpfn.experiments import prequential, util_experiments, util_covasim, util_dataset
 from dpfn import LOGGER_FILENAME, logger
 from dpfn import simulator
 from dpfn import util
@@ -317,11 +317,19 @@ def compare_abm(
       logger.info(f"Time spent on inference_func {time.time() - t_start:.0f}")
 
       if trace_dir is not None:
-        if t_now == 15:
-          fname = os.path.join(trace_dir, "contacts_10k.npy")
-          np.save(fname, contacts_now)
-          fname = os.path.join(trace_dir, "observations_10k.npy")
-          np.save(fname, observations_now)
+        # if t_now == 15:
+        #   fname = os.path.join(trace_dir, "contacts_10k.npy")
+        #   np.save(fname, contacts_now)
+        #   fname = os.path.join(trace_dir, "observations_10k.npy")
+        #   np.save(fname, observations_now)
+
+        # Dump graphs to train with a GNN
+        if t_now > 10:
+          # import pdb; pdb.set_trace()
+          util_dataset.dump_graphs(
+            contacts_now, observations_now, z_states_inferred,
+            sim.get_states_today(),
+            contacts_age, users_age, trace_dir, num_users, t_now)
 
     else:
       z_states_inferred = np.zeros((num_users, num_days, 4))
