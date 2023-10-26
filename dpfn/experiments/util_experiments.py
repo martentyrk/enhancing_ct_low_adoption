@@ -105,6 +105,7 @@ def wrap_fact_neigh_cpp(
     clip_upper: float = 10.,
     quantization: int = -1,
     trace_dir: Optional[str] = None,
+    dedup_contacts: int = 0,
     ):
   """Wraps the inference function that runs FN from pybind."""
   assert (dp_method < 0) or (dp_method == 5) or (dp_method == 2), (
@@ -152,7 +153,8 @@ def wrap_fact_neigh_cpp(
       quantization=quantization,
       observations=observations_list,
       contacts=contacts_list,
-      users_age=users_age)
+      users_age=users_age,
+      dedup_contacts=dedup_contacts)
     assert post_exp.shape == (num_users, num_time_steps, 4)
     contacts_age = np.reshape(contacts_age, (2, num_users)).T
 

@@ -4,6 +4,7 @@ import json
 import numpy as np
 import os
 
+
 def dump_graphs(
     contacts_now: np.ndarray,
     observations_now: np.ndarray,
@@ -20,6 +21,7 @@ def dump_graphs(
     contacts_now: Contacts at current time.
     observations_now: Observations at current time.
     z_states_inferred: Inferred latent states.
+    z_states_sim: States according to the simulator.
     contacts_age: Contacts age.
     users_age: Users age.
     trace_dir: Directory to dump graphs.
@@ -37,13 +39,14 @@ def dump_graphs(
   assert len(users_age.shape) == 1
 
   # Filenames
-  fname_train = os.path.join(trace_dir, f"train.jl")
-  fname_val = os.path.join(trace_dir, f"val.jl")
-  fname_test = os.path.join(trace_dir, f"test.jl")
+  fname_train = os.path.join(trace_dir, "train.jl")
+  fname_val = os.path.join(trace_dir, "val.jl")
+  fname_test = os.path.join(trace_dir, "test.jl")
 
   if t_now < 14:
     return
-  elif t_now == 14:
+
+  if t_now == 14:
     # Clear dataset
     with open(fname_train, "w") as f:
       f.write("")
@@ -71,7 +74,8 @@ def dump_graphs(
     user_u = int(contact[0])
     user_v = int(contact[1])
     timestep = int(contact[2])
-    dataset[user_v]["contacts"].append(float(z_states_inferred[user_u, timestep, 2]))
+    dataset[user_v]["contacts"].append(
+      float(z_states_inferred[user_u, timestep, 2]))
 
   for user in range(num_users):
     if len(dataset[user]["contacts"]) == 0:
@@ -79,7 +83,8 @@ def dump_graphs(
       dataset[user]["riskscore_contact_median"] = 0.0
       continue
 
-    score_max, score_median = np.max(dataset[user]["contacts"]), np.median(dataset[user]["contacts"])
+    score_max = np.max(dataset[user]["contacts"])
+    score_median = np.median(dataset[user]["contacts"])
     dataset[user]["riskscore_contact_max"] = float(score_max)
     dataset[user]["riskscore_contact_median"] = float(score_median)
 

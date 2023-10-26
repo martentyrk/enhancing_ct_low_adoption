@@ -4,7 +4,8 @@ import copy
 import covasim as cv
 import numpy as np
 from dpfn.config import config
-from dpfn.experiments import prequential, util_experiments, util_covasim, util_dataset
+from dpfn.experiments import (
+  prequential, util_experiments, util_covasim, util_dataset)
 from dpfn import LOGGER_FILENAME, logger
 from dpfn import simulator
 from dpfn import util
@@ -52,6 +53,8 @@ def make_inference_func(
   a_rdp = cfg["model"]["a_rdp"]
   clip_lower = cfg["model"]["clip_lower"]
   clip_upper = cfg["model"]["clip_upper"]
+
+  dedup_contacts = cfg["model"]["dedup_contacts"]
 
   # DP method to use, explanation in constants.py, value of -1 means no DP
   dp_method = cfg["model"]["dp_method"]
@@ -129,7 +132,8 @@ def make_inference_func(
       clip_lower=clip_lower,
       clip_upper=clip_upper,
       quantization=quantization,
-      trace_dir=trace_dir)
+      trace_dir=trace_dir,
+      dedup_contacts=dedup_contacts)
   elif inference_method == "bpcpp":
     inference_func = util_experiments.wrap_bp_cpp(
       num_users=num_users,
