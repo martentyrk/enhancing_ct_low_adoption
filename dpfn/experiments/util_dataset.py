@@ -1,11 +1,12 @@
 """Utility functions for a dump of dataset for GNNs."""
 from dpfn import logger
+import dpfn_util
 import json
 import numpy as np
 import os
 
 
-def dump_graphs(
+def dump_features_flat(
     contacts_now: np.ndarray,
     observations_now: np.ndarray,
     z_states_inferred: np.ndarray,
@@ -101,3 +102,52 @@ def dump_graphs(
             f = f_test
 
           f.write(json.dumps(dataset[user]) + "\n")
+
+
+def dump_features_graph(
+    contacts_now: np.ndarray,
+    observations_now: np.ndarray,
+    z_states_inferred: np.ndarray,
+    z_states_sim: np.ndarray,
+    users_age: np.ndarray,
+    trace_dir: str,
+    num_users: int,
+    num_time_steps: int,
+    t_now: int):
+  """Dump graphs for GNNs."""
+  datadump = dpfn_util.fn_features_dump(
+    num_workers=1,
+    num_users=num_users,
+    num_time_steps=num_time_steps,
+    q_marginal=z_states_inferred[:, :, 2],
+    observations=observations_now,
+    contacts=contacts_now,
+    users_age=users_age)
+
+  # Try to dump the dataset
+  dirname = os.path.join(trace_dir, 'test_dump')
+  os.makedirs(dirname, exist_ok=True)
+  fname = os.path.join(dirname, f'day_{t_now}.jl')
+
+  # TODO(rob) This dump depends on JSON library. We can make this way faster
+  # with something like protobuf or TFRecord.
+  for user in range(num_users):
+    output = {
+      "fn_pred": float(z_states_inferred[user][-1][2]),
+      "sim_state": float(z_states_sim[user]),
+      "contacts": [],
+    }
+
+    for row in datadump[user]:
+      if row[0] < 0:
+        break
+      assert row[3] <= 1024
+      output['contacts'].append([
+        int(row[0]),  # timestep
+        int(row[1]),  # sender
+        int(row[2]),  # age
+        int(row[3]),  # pinf
+      ])
+
+    with open(fname, 'a') as f:
+      f.write(json.dumps(output) + "\n")

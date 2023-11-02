@@ -328,12 +328,16 @@ def compare_abm(
         #   np.save(fname, observations_now)
 
         # Dump graphs to train with a GNN
+        # if t_now > 10:
+        #   util_dataset.dump_features_flat(
+        #     contacts_now, observations_now, z_states_inferred,
+        #     sim.get_states_today(),
+        #     contacts_age, users_age, trace_dir, num_users, t_now)
         if t_now > 10:
-          # import pdb; pdb.set_trace()
-          util_dataset.dump_graphs(
+          util_dataset.dump_features_graph(
             contacts_now, observations_now, z_states_inferred,
-            sim.get_states_today(),
-            contacts_age, users_age, trace_dir, num_users, t_now)
+            sim.get_states_today(), users_age, trace_dir, num_users,
+            num_time_steps, t_now)
 
     else:
       z_states_inferred = np.zeros((num_users, num_days, 4))
