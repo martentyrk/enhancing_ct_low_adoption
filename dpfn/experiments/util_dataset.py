@@ -131,23 +131,24 @@ def dump_features_graph(
 
   # TODO(rob) This dump depends on JSON library. We can make this way faster
   # with something like protobuf or TFRecord.
-  for user in range(num_users):
-    output = {
-      "fn_pred": float(z_states_inferred[user][-1][2]),
-      "sim_state": float(z_states_sim[user]),
-      "contacts": [],
-    }
+  with open(fname, 'w') as f:
+    for user in range(num_users):
+      output = {
+        "fn_pred": float(z_states_inferred[user][-1][2]),
+        "sim_state": float(z_states_sim[user]),
+        "user_age": int(users_age[user]),
+        "contacts": [],
+      }
 
-    for row in datadump[user]:
-      if row[0] < 0:
-        break
-      assert row[3] <= 1024
-      output['contacts'].append([
-        int(row[0]),  # timestep
-        int(row[1]),  # sender
-        int(row[2]),  # age
-        int(row[3]),  # pinf
-      ])
+      for row in datadump[user]:
+        if row[0] < 0:
+          break
+        assert row[3] <= 1024
+        output['contacts'].append([
+          int(row[0]),  # timestep
+          int(row[1]),  # sender
+          int(row[2]),  # age
+          int(row[3]),  # pinf
+        ])
 
-    with open(fname, 'a') as f:
       f.write(json.dumps(output) + "\n")

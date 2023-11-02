@@ -67,11 +67,11 @@ def make_inference_func(
     eps_orig = copy.copy(epsilon_dp)
 
     d_term = np.log(1/delta_dp)
-    a_rdp = 1 + (
-      d_term + np.sqrt(d_term) * np.sqrt(d_term+4*epsilon_dp)) / (2*epsilon_dp)
+    a_rdp = 1 + (d_term + np.sqrt(d_term**2 + d_term*epsilon_dp)) / epsilon_dp
     epsilon_dp = eps_orig - d_term / (a_rdp - 1)
 
     assert epsilon_dp > 0.
+    assert a_rdp > 1.
     assert a_rdp / epsilon_dp > 0.
 
     logger.info((
