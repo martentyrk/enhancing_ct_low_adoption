@@ -23,6 +23,7 @@ echo "Subsampled to match positive samples:" `wc -l ${dirname}/negative.jlconcat
 
 # Concatenate datasets
 cat ${dirname}/negative.jlconcat.shuf.subsampled ${dirname}/positive.jlconcat.shuf > ${dirname}/all.jlconcat.shuf
+shuf ${dirname}/all.jlconcat.shuf > ${dirname}/all.jlconcat.shuf.shuf
 
 # Remove shuffled files
 rm ${dirname}/positive.jlconcat.shuf
@@ -37,5 +38,5 @@ num_test=`echo "0.2 * ${num_samples}" | bc | awk '{print int($1)}'`
 # Maybe make output directory
 [ -d ${dirname_out} ] || mkdir ${dirname_out}
 
-head -n ${num_train} ${dirname}/all.jlconcat.shuf > ${dirname_out}/train.jl
-tail -n ${num_test} ${dirname}/all.jlconcat.shuf > ${dirname_out}/test.jl
+head -n ${num_train} ${dirname}/all.jlconcat.shuf.shuf > ${dirname_out}/train.jl
+tail -n ${num_test} ${dirname}/all.jlconcat.shuf.shuf > ${dirname_out}/test.jl
