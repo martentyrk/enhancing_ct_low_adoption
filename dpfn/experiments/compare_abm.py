@@ -334,8 +334,9 @@ def compare_abm(
         #     sim.get_states_today(),
         #     contacts_age, users_age, trace_dir, num_users, t_now)
         if t_now > 10:
+          user_free = (user_quarantine_ends < t_now)
           util_dataset.dump_features_graph(
-            contacts_now, observations_now, z_states_inferred,
+            contacts_now, observations_now, z_states_inferred, user_free,
             sim.get_states_today(), users_age, trace_dir, num_users,
             num_time_steps, t_now)
 
@@ -786,7 +787,7 @@ if __name__ == "__main__":
 
   tags.append("local" if (os.getenv('SLURM_JOB_ID') is None) else "slurm")
 
-  do_wandb = True
+  do_wandb = ('carbon' not in socket.gethostname())
   if do_wandb:
     runner_global = wandb.init(
       project="dpfn",
@@ -795,14 +796,12 @@ if __name__ == "__main__":
       tags=tags,
       config=config_wandb,
     )
-
     config_wandb = config.clean_hierarchy(dict(runner_global.config))
-    config_wandb = util_experiments.set_noisy_test_params(config_wandb)
-    config_wandb = util_experiments.convert_log_params(config_wandb)
-    logger.info(config_wandb)
   else:
     runner_global = util_wandb.WandbDummy()
-    config_wandb = None
+  config_wandb = util_experiments.set_noisy_test_params(config_wandb)
+  config_wandb = util_experiments.convert_log_params(config_wandb)
+  logger.info(config_wandb)
 
   logger.info(f"Logger filename {LOGGER_FILENAME}")
   logger.info(f"Saving to results_dir_global {results_dir_global}")

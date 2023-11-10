@@ -5,6 +5,8 @@
 #SBATCH --time=20:00:00
 #SBATCH --job-name=regr
 #SBATCH --constraint=cpunode
+#SBATCH --mail-type=FAIL
+#SBATCH --mail-user=romijndersrob@gmail.com
 
 source "/var/scratch/${USER}/projects/dpfn/scripts/preamble.sh"
 

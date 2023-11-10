@@ -108,6 +108,7 @@ def dump_features_graph(
     contacts_now: np.ndarray,
     observations_now: np.ndarray,
     z_states_inferred: np.ndarray,
+    user_free: np.ndarray,
     z_states_sim: np.ndarray,
     users_age: np.ndarray,
     trace_dir: str,
@@ -127,28 +128,43 @@ def dump_features_graph(
   # Try to dump the dataset
   dirname = os.path.join(trace_dir, 'test_dump')
   os.makedirs(dirname, exist_ok=True)
-  fname = os.path.join(dirname, f'day_{t_now}.jl')
+  fname_pos = os.path.join(dirname, f'positive_{t_now:05d}.jl')
+  fname_neg = os.path.join(dirname, f'negative_{t_now:05d}.jl')
+
+  user_positive = np.logical_or(
+    z_states_sim == 1, z_states_sim == 2)
 
   # TODO(rob) This dump depends on JSON library. We can make this way faster
   # with something like protobuf or TFRecord.
-  with open(fname, 'w') as f:
-    for user in range(num_users):
-      output = {
-        "fn_pred": float(z_states_inferred[user][-1][2]),
-        "sim_state": float(z_states_sim[user]),
-        "user_age": int(users_age[user]),
-        "contacts": [],
-      }
+  num_ignored = 0
+  with open(fname_pos, 'w') as fpos:
+    with open(fname_neg, 'w') as fneg:
+      for user in range(num_users):
+        # Don't collect features on quarantined users
+        if user_free[user] == 0:
+          num_ignored += 1
+          continue
 
-      for row in datadump[user]:
-        if row[0] < 0:
-          break
-        assert row[3] <= 1024
-        output['contacts'].append([
-          int(row[0]),  # timestep
-          int(row[1]),  # sender
-          int(row[2]),  # age
-          int(row[3]),  # pinf
-        ])
+        output = {
+          "fn_pred": float(z_states_inferred[user][-1][2]),
+          "sim_state": int(z_states_sim[user]),
+          "user_age": int(users_age[user]),
+          "contacts": [],
+        }
 
-      f.write(json.dumps(output) + "\n")
+        for row in datadump[user]:
+          if row[0] < 0:
+            break
+          assert row[3] <= 1024
+          output['contacts'].append([
+            int(row[0]),  # timestep
+            int(row[1]),  # sender
+            int(row[2]),  # age
+            int(row[3]),  # pinf
+          ])
+
+        if user_positive[user]:
+          fpos.write(json.dumps(output) + "\n")
+        else:
+          fneg.write(json.dumps(output) + "\n")
+  print(f"Ignored {num_ignored} out of {num_users} users")

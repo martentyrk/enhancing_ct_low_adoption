@@ -6,6 +6,8 @@
 #SBATCH --job-name=dpfn
 #SBATCH --constraint=cpunode
 #\ #SBATCH --partition=fatq
+#SBATCH --mail-type=FAIL
+#SBATCH --mail-user=romijndersrob@gmail.com
 
 source "/var/scratch/${USER}/projects/dpfn/scripts/preamble.sh"
 
