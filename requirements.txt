@@ -19,5 +19,3 @@ six
 tqdm
 wandb
 covasim
-crisp
-opencv-python
