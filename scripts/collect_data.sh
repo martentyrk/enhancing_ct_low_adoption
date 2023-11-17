@@ -1,6 +1,6 @@
 #!/bin/bash
 
-dirname='results/trace_run_prequential/intermediate_graph_abm_02__model_ABM01/test_dump'
+dirname='results/trace_run_prequential/intermediate_graph_abm_02__model_ABM01/test_with_obs_123/'
 dirname_out=${dirname}_out
 
 # Concatenate and shuffle train and validation sets
@@ -30,13 +30,9 @@ rm ${dirname}/positive.jlconcat.shuf
 rm ${dirname}/negative.jlconcat.shuf
 rm ${dirname}/negative.jlconcat.shuf.subsampled
 
-# Split train and testset
-num_samples=`wc -l ${dirname}/all.jlconcat.shuf | awk '{print $1}'`
-num_train=`echo "0.8 * ${num_samples}" | bc | awk '{print int($1)}'`
-num_test=`echo "0.2 * ${num_samples}" | bc | awk '{print int($1)}'`
-
 # Maybe make output directory
 [ -d ${dirname_out} ] || mkdir ${dirname_out}
 
-head -n ${num_train} ${dirname}/all.jlconcat.shuf.shuf > ${dirname_out}/train.jl
-tail -n ${num_test} ${dirname}/all.jlconcat.shuf.shuf > ${dirname_out}/test.jl
+# Copy to dir output
+cp ${dirname}/all.jlconcat.shuf.shuf ${dirname_out}/all.jl
+rm ${dirname}/all.jlconcat.shuf.shuf
