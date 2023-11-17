@@ -3,13 +3,6 @@ import argparse
 import copy
 import covasim as cv
 import numpy as np
-from dpfn.config import config
-from dpfn.experiments import (
-  prequential, util_experiments, util_covasim, util_dataset)
-from dpfn import LOGGER_FILENAME, logger
-from dpfn import simulator
-from dpfn import util
-from dpfn import util_wandb
 import numba
 import os
 import psutil
@@ -21,7 +14,16 @@ import time
 import tqdm
 import traceback
 from typing import Any, Dict, Optional
+import warnings
 import wandb
+
+from dpfn.config import config
+from dpfn.experiments import (
+  prequential, util_experiments, util_covasim, util_dataset)
+from dpfn import LOGGER_FILENAME, logger
+from dpfn import simulator
+from dpfn import util
+from dpfn import util_wandb
 
 
 def make_inference_func(
@@ -84,22 +86,7 @@ def make_inference_func(
   # Construct Geometric distro's for E and I states
 
   do_random_quarantine = False
-  if inference_method == "bp":
-    inference_func = util_experiments.wrap_belief_propagation(
-      num_users=num_users,
-      alpha=alpha,
-      beta=beta,
-      probab0=p0,
-      probab1=p1,
-      param_g=g,
-      param_h=h,
-      epsilon_dp=epsilon_dp,
-      a_rdp=a_rdp,
-      clip_lower=clip_lower,
-      clip_upper=clip_upper,
-      quantization=quantization,
-      trace_dir=trace_dir)
-  elif inference_method == "fn":
+  if inference_method == "fn":
     inference_func = util_experiments.wrap_fact_neigh_inference(
       num_users=num_users,
       alpha=alpha,
@@ -134,39 +121,7 @@ def make_inference_func(
       quantization=quantization,
       trace_dir=trace_dir,
       dedup_contacts=dedup_contacts)
-  elif inference_method == "bpcpp":
-    inference_func = util_experiments.wrap_bp_cpp(
-      num_users=num_users,
-      alpha=alpha,
-      beta=beta,
-      probab0=p0,
-      probab1=p1,
-      g_param=g,
-      h_param=h,
-      dp_method=dp_method,
-      rho_rdp=epsilon_dp,
-      delta_dp=delta_dp,
-      a_rdp=a_rdp,
-      clip_lower=clip_lower,
-      clip_upper=clip_upper,
-      quantization=quantization,
-      trace_dir=trace_dir)
-  elif inference_method == "gibbs":
-    if epsilon_dp > 0:
-      assert a_rdp < 0
-      assert delta_dp < 0
-      assert clip_lower > 0
 
-    inference_func = util_experiments.wrap_gibbs_inference(
-      num_users=num_users,
-      g_param=g,
-      h_param=h,
-      clip_lower=clip_lower,
-      epsilon_dp=epsilon_dp,
-      alpha=alpha,
-      beta=beta,
-      probab_0=p0,
-      probab_1=p1)
   elif inference_method == "random":
     inference_func = None
     do_random_quarantine = True
@@ -442,13 +397,15 @@ def compare_abm(
 
   time_spent = time.time() - t0
   logger.info(f"With {num_rounds} rounds, PIR {pir:5.2f}")
-  results = {
-    "time_spent": time_spent,
-    "pir_mean": pir,
-    "pcr": np.max(critical_rates),
-    "total_drate": total_drate,
-    "recall": np.nanmean(recalls[10:]),
-    "precision": np.nanmean(precisions[10:])}
+  with warnings.catch_warnings():
+    warnings.simplefilter("ignore", category=RuntimeWarning)
+    results = {
+      "time_spent": time_spent,
+      "pir_mean": pir,
+      "pcr": np.max(critical_rates),
+      "total_drate": total_drate,
+      "recall": np.nanmean(recalls[10:]),
+      "precision": np.nanmean(precisions[10:])}
   runner.log(results)
 
   # Overwrite every experiment, such that code could be pre-empted
@@ -559,8 +516,8 @@ def compare_policy_covasim(
       for layerkey in contacts.keys():
         ones_vec = np.ones_like(contacts[layerkey]['p1'])
         contacts_add.append(np.stack((
-          contacts[layerkey]['p1'],
-          contacts[layerkey]['p2'],
+          contacts[layerkey]['p1'], #p1 stands for "sources"
+          contacts[layerkey]['p2'], #p2 stands for "targets"
           sim.t*ones_vec,
           ones_vec,
           ), axis=1))
@@ -701,16 +658,18 @@ def compare_policy_covasim(
 
   time_spent = time.time() - t0
   logger.info(f"With {num_rounds} rounds, PIR {pir:5.2f}")
-  results = {
-    "time_spent": time_spent,
-    "pir_mean": pir,
-    "pcr": peak_crit_rate,
-    "total_drate": total_drate,
-    "loadavg5": loadavg5,
-    "loadavg15": loadavg15,
-    "swap_use": swap_use,
-    "recall": np.nanmean(analysis.recalls[10:]),
-    "precision": np.nanmean(analysis.precisions[10:])}
+  with warnings.catch_warnings():
+    warnings.simplefilter("ignore", category=RuntimeWarning)
+    results = {
+      "time_spent": time_spent,
+      "pir_mean": pir,
+      "pcr": peak_crit_rate,
+      "total_drate": total_drate,
+      "loadavg5": loadavg5,
+      "loadavg15": loadavg15,
+      "swap_use": swap_use,
+      "recall": np.nanmean(analysis.recalls[10:]),
+      "precision": np.nanmean(analysis.precisions[10:])}
   runner.log(results)
 
   return results
@@ -739,7 +698,8 @@ if __name__ == "__main__":
   parser.add_argument('--dump_traces', action='store_true')
 
   # TODO make a better heuristic for this:
-  num_threads = max((util.get_cpu_count()-1, 1))
+  # num_threads = max((util.get_cpu_count()-1, 1))
+  num_threads = 4
   numba.set_num_threads(num_threads)
   logger.info(f"SLURM env N_TASKS: {os.getenv('SLURM_NTASKS')}")
   logger.info(f"Start with {num_threads} threads")
@@ -810,7 +770,8 @@ if __name__ == "__main__":
   logger.info(f"slurm_name: {os.getenv('SLURM_JOB_NAME')}")
   logger.info(f"slurm_ntasks: {os.getenv('SLURM_NTASKS')}")
 
-  util_experiments.make_git_log()
+  # This line prints all git differences etc. No need for now.
+  # util_experiments.make_git_log()
 
   if 'carbon' not in socket.gethostname():
     wandb.mark_preempting()

@@ -2,30 +2,31 @@
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=CPUS
 #SBATCH --ntasks=NTASKS
-#SBATCH --time=96:00:00
-#SBATCH --job-name=dpfn
-#SBATCH --constraint=cpunode
-#\ #SBATCH --partition=fatq
-#SBATCH --mail-type=FAIL
-#SBATCH --mail-user=romijndersrob@gmail.com
+#SBATCH --time=00:40:00
+#SBATCH --job-name=marten_sweep
+#SBATCH --partition=rome
+#SBATCH --mem=8000
+#SBATCH --output=sweep_%A.out
 
-source "/var/scratch/${USER}/projects/dpfn/scripts/preamble.sh"
+source activate thesis
+source scripts/preamble.sh
+
+export SWEEPID=WANDBSWEEP
+
+module load 2022
+module load GSL/2.7-GCC-11.3.0
+module load SWIG/4.0.2-GCCcore-11.3.0
 
 echo `pwd`
 echo "PYTHON: `which python`"
 echo "WANDB: `which wandb`"
-echo "SWEEP: $SWEEP, $SLURM_JOB_ID"
-
-MESSAGE="`date "+%Y-%m-%d__%H-%M-%S"` \t ${SLURM_JOB_ID} \t ${SLURM_JOB_NAME} \t ${SWEEP}  \t "
-sed -i "1i$MESSAGE" "/var/scratch/${USER}/projects/dpfn/jobs.txt"
+echo "SWEEP: ${SWEEPID}, $SLURM_JOB_ID"
 
 echo 'Starting'
 
-export SWEEPID=$SWEEP
-
 for i in {1..NTASKS}
 do
-   wandb agent "${WANDBUSERNAME}/dpfn-dpfn_experiments/$SWEEP" &
+   wandb agent "martentyrk/dpfn-dpfn_experiments/${SWEEPID}" &
 done
 
 wait

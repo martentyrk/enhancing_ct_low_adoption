@@ -175,15 +175,28 @@ class ABMSimulator():
     # 0-based indexes!
     return self._day_current
 
+  
+  
   def step(self, num_steps: int = 1):
     """Advances the simulator by num_steps days.
 
     Contacts from OpenABM will be appended to the list of contacts.
     """
     self.sim.steps(num_steps)
+    # an array of 1 and 0, where 1 denotes that user uses the app.
+    app_users = np.array(covid19.get_app_users(self.model.model.c_model))
+    print(app_users[:50])
+    print(app_users.shape)
+    app_users_ids = np.non_zero(app_users)
+    print(app_users_ids[:50])
+    
     contacts_incoming = np.array(covid19.get_contacts_daily(
       self.model.model.c_model, self._day_current), dtype=np.int32)
+    
+    print(contacts_incoming[:50])
+    print(contacts_incoming.shape)
 
+    #contacts incoming is 4dim [userID, interaction_individual_index, t_day, interaction type]
     # TODO: use these features
     contacts_incoming[:, 3] = 1
     contacts_incoming[:, 2] = self.get_current_day() - self._day_start_window
