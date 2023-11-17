@@ -338,7 +338,7 @@ def compare_abm(
           util_dataset.dump_features_graph(
             contacts_now, observations_now, z_states_inferred, user_free,
             sim.get_states_today(), users_age, trace_dir, num_users,
-            num_time_steps, t_now)
+            num_time_steps, t_now, int(rng_seed))
 
     else:
       z_states_inferred = np.zeros((num_users, num_days, 4))
