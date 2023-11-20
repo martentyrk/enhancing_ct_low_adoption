@@ -136,7 +136,7 @@ def make_inference_func(
   else:
     raise ValueError((
       f"Not recognised inference method {inference_method}. Should be one of"
-      f"['random', 'fn', 'dummy', 'dpct', 'bp', 'gibbs', 'fncpp', 'bpcpp']"
+      f"['random', 'fn', 'dummy', 'dpct']"
     ))
   return inference_func, do_random_quarantine
 
@@ -162,6 +162,9 @@ def compare_abm(
   rng_seed = cfg.get("seed", 123)
 
   fraction_test = cfg["data"]["fraction_test"]
+  
+  app_users_fraction = cfg["data"]["app_users_fraction"]
+  assert app_users_fraction > 0 and app_users_fraction <= 1.0
 
   # Data and simulator params
   num_days_quarantine = cfg["data"]["num_days_quarantine"]
@@ -204,7 +207,7 @@ def compare_abm(
   t0 = time.time()
 
   sim = simulator.ABMSimulator(
-    num_time_steps, num_users, rng_seed)
+    num_time_steps, num_users, app_users_fraction, rng_seed)
   users_age = -1*np.ones((num_users), dtype=np.int32)
 
   logger.info((
@@ -240,9 +243,14 @@ def compare_abm(
     rank_score *= (user_quarantine_ends < t_now)
 
     # Grab tests on the main process
+    test_frac = int(fraction_test * num_users)
+    app_frac = int(app_users_fraction * num_users)
+    num_tests = test_frac if test_frac <= app_frac else app_frac
+    
+    # TODO: see that correct users are decided tests on and observed
     users_to_test = prequential.decide_tests(
       scores_infect=rank_score,
-      num_tests=int(fraction_test * num_users))
+      num_tests=num_tests)
 
     obs_today = sim.get_observations_today(
       users_to_test.astype(np.int32),

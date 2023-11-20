@@ -25,10 +25,12 @@ class ABMSimulator():
       self,
       num_time_steps: int,
       num_users: int,
+      app_users_fraction: int,
       rng_seed: int = 123,
       ) -> None:
     self.num_time_steps = num_time_steps
     self.num_users = num_users
+    self.app_users_fractions = app_users_fraction
     self.rng_seed = rng_seed
 
     self._day_current = 0
@@ -74,9 +76,22 @@ class ABMSimulator():
     params.set_param("n_seed_infection", n_seed)
     params.set_param("days_of_interactions", 7)
     params.set_param("rng_seed", rng_seed)
+    params.set_param("app_turned_on", 1)
+    
+    params.set_param("app_users_fraction_0_9", 0)
+    params.set_param("app_users_fraction_10_19", app_users_fraction)
+    params.set_param("app_users_fraction_20_29", app_users_fraction)
+    params.set_param("app_users_fraction_30_39", app_users_fraction)
+    params.set_param("app_users_fraction_40_49", app_users_fraction)
+    params.set_param("app_users_fraction_50_59", app_users_fraction)
+    params.set_param("app_users_fraction_60_69", app_users_fraction)
+    params.set_param("app_users_fraction_70_79", app_users_fraction)
+    params.set_param("app_users_fraction_80", app_users_fraction)
+    
 
     model_init = abm_model.Model(params)
     self.model = simulation.COVID19IBM(model=model_init)
+
     self.sim = simulation.Simulation(env=self.model, end_time=num_time_steps)
     logger.info("Finished constructing ABM simulator")
 
@@ -146,6 +161,9 @@ class ABMSimulator():
       (self._observations_all, observations_new), axis=0)
     return observations_new
 
+  def get_app_users(self):
+     return np.array(covid19.get_app_users(self.model.model.c_model))
+
   def set_window(self, days_offset: int):
     """Sets the window with days_offset at day0.
 
@@ -176,6 +194,24 @@ class ABMSimulator():
     return self._day_current
 
   
+  def keep_app_users(self, contacts: np.array) -> np.array:
+    """Changes the contacts array in place and returns 
+    it with only members who use the app.
+    
+    Contacts who do not use the app will be filtered out.
+    """
+    
+    # An array of 1s and 0s, where 1 denotes that user uses the app.
+    app_users = self.get_app_users()
+    app_users_ids = np.nonzero(app_users)[0]
+    
+    source_condition = np.isin(contacts[:, 0], app_users_ids)
+    target_condition = np.isin(contacts[:, 1], app_users_ids)
+    final_condition = source_condition | target_condition
+    contacts = contacts[final_condition]
+    
+    
+    return contacts
   
   def step(self, num_steps: int = 1):
     """Advances the simulator by num_steps days.
@@ -183,20 +219,14 @@ class ABMSimulator():
     Contacts from OpenABM will be appended to the list of contacts.
     """
     self.sim.steps(num_steps)
-    # an array of 1 and 0, where 1 denotes that user uses the app.
-    app_users = np.array(covid19.get_app_users(self.model.model.c_model))
-    print(app_users[:50])
-    print(app_users.shape)
-    app_users_ids = np.non_zero(app_users)
-    print(app_users_ids[:50])
     
+    #contacts_incoming has 4 dim [userID, interaction_individual_index, t_day, interaction type]
+    # has a shape of (num_users, 4)
     contacts_incoming = np.array(covid19.get_contacts_daily(
       self.model.model.c_model, self._day_current), dtype=np.int32)
     
-    print(contacts_incoming[:50])
-    print(contacts_incoming.shape)
-
-    #contacts incoming is 4dim [userID, interaction_individual_index, t_day, interaction type]
+    contacts_incoming = self.keep_app_users(contacts=contacts_incoming)
+    
     # TODO: use these features
     contacts_incoming[:, 3] = 1
     contacts_incoming[:, 2] = self.get_current_day() - self._day_start_window
