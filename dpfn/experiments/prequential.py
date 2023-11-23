@@ -130,8 +130,10 @@ def get_evidence_obs(
 
 def decide_tests(
     scores_infect: np.ndarray,
-    num_tests: int) -> np.ndarray:
+    num_tests: int,
+    user_ids: np.ndarray) -> np.ndarray:
   assert num_tests < len(scores_infect)
-
-  users_to_test = np.argsort(scores_infect)[-num_tests:]
+  sort_indeces = np.argsort(scores_infect)
+  # Sort the list of user_ids based on scores, then assign tests to the num tests highest
+  users_to_test = sort_indeces[user_ids][-num_tests:]
   return users_to_test.astype(np.int32)

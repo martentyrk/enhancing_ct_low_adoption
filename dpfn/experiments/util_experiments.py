@@ -6,9 +6,105 @@ import dpfn_util
 import subprocess
 from typing import Any, Dict, Optional, Tuple
 
+def make_inference_func(
+    inference_method: str,
+    num_users: int,
+    cfg: Dict[str, Any],
+    user_ids: np.ndarray,
+    trace_dir: Optional[str] = None
+    ):
+  """Pulls together the inference function with parameters.
+
+  Args:
+    inference_method: string describing the inference method
+    num_users: number of users in this simulation
+    num_time_steps: number of time steps
+    cfg: the configuration dict generated upon init of the experiment
+
+  Returns:
+    the inference function (input: data; output: marginals over SEIR per user)
+  """
+  p0 = cfg["model"]["p0"]
+  p1 = cfg["model"]["p1"]
+  g = cfg["model"]["prob_g"]
+  h = cfg["model"]["prob_h"]
+  alpha = cfg["model"]["alpha"]
+  beta = cfg["model"]["beta"]
+  quantization = cfg["model"]["quantization"]
+  epsilon_dp = cfg["model"]["epsilon_dp"]
+  delta_dp = cfg["model"]["delta_dp"]
+  a_rdp = cfg["model"]["a_rdp"]
+  clip_lower = cfg["model"]["clip_lower"]
+  clip_upper = cfg["model"]["clip_upper"]
+
+  dedup_contacts = cfg["model"]["dedup_contacts"]
+
+  # DP method to use, explanation in constants.py, value of -1 means no DP
+  dp_method = cfg["model"]["dp_method"]
+
+  # Construct dynamics
+  # Construct Geometric distro's for E and I states
+
+  do_random_quarantine = False
+  if inference_method == "fn":
+    inference_func = wrap_fact_neigh_inference(
+      num_users=num_users,
+      user_ids=user_ids,
+      alpha=alpha,
+      beta=beta,
+      probab0=p0,
+      probab1=p1,
+      g_param=g,
+      h_param=h,
+      dp_method=dp_method,
+      epsilon_dp=epsilon_dp,
+      delta_dp=delta_dp,
+      a_rdp=a_rdp,
+      clip_lower=clip_lower,
+      clip_upper=clip_upper,
+      quantization=quantization,
+      trace_dir=trace_dir)
+  elif inference_method == "fncpp":
+    inference_func = wrap_fact_neigh_cpp(
+      num_users=num_users,
+      alpha=alpha,
+      beta=beta,
+      probab0=p0,
+      probab1=p1,
+      g_param=g,
+      h_param=h,
+      dp_method=dp_method,
+      epsilon_dp=epsilon_dp,
+      delta_dp=delta_dp,
+      a_rdp=a_rdp,
+      clip_lower=clip_lower,
+      clip_upper=clip_upper,
+      quantization=quantization,
+      trace_dir=trace_dir,
+      dedup_contacts=dedup_contacts)
+
+  elif inference_method == "random":
+    inference_func = None
+    do_random_quarantine = True
+  elif inference_method == "dummy":
+    inference_func = wrap_dummy_inference(
+      num_users=num_users, trace_dir=trace_dir)
+  elif inference_method == "dpct":
+    assert a_rdp < 0, f"a rdp should be negative ({a_rdp})"
+    assert delta_dp > 0
+    inference_func = wrap_dpct_inference(
+      num_users=num_users, epsilon_dp=epsilon_dp, delta_dp=delta_dp)
+  else:
+    raise ValueError((
+      f"Not recognised inference method {inference_method}. Should be one of"
+      f"['random', 'fn', 'dummy', 'dpct']"
+    ))
+  return inference_func, do_random_quarantine
+
 
 def wrap_fact_neigh_inference(
     num_users: int,
+    user_ids: np.ndarray,
     alpha: float,
     beta: float,
     probab0: float,
@@ -38,6 +134,7 @@ def wrap_fact_neigh_inference(
 
     traces_per_user_fn = inference.fact_neigh(
       num_users=num_users,
+      user_ids=user_ids,
       num_time_steps=num_time_steps,
       observations_all=observations_list,
       contacts_all=contacts_list,

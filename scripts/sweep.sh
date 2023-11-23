@@ -2,10 +2,10 @@
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=CPUS
 #SBATCH --ntasks=NTASKS
-#SBATCH --time=00:40:00
+#SBATCH --time=02:00:00
 #SBATCH --job-name=marten_sweep
 #SBATCH --partition=rome
-#SBATCH --mem=8000
+#SBATCH --mem=9000
 #SBATCH --output=sweep_%A.out
 
 source activate thesis
@@ -26,7 +26,7 @@ echo 'Starting'
 
 for i in {1..NTASKS}
 do
-   wandb agent "martentyrk/dpfn-dpfn_experiments/${SWEEPID}" &
+   wandb agent "martentyrk/dpfn-dpfn/${SWEEPID}" &
 done
 
 wait

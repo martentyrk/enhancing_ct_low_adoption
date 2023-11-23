@@ -12,7 +12,7 @@ import os
 from typing import Any, Iterable, List, Tuple, Union
 
 
-# @numba.njit
+@numba.njit
 def get_past_contacts_fast(
     user_interval: Tuple[int, int],
     contacts: np.ndarray) -> Tuple[np.ndarray, int]:
@@ -137,6 +137,9 @@ def calc_c_z_u(
 
       if user_interval[0] <= user_u < user_interval[1]:
         assert obs[1] < num_days
+        #obs[1] == time obs[2] == test result, 0 = neg; 1 = pos
+        # log_prob_obs gets assigned all possible options that this user might be
+        # in and then the probability for that result being true(?)
         log_prob_obs[user_u - user_interval[0]] += obs_array[obs[1], :, obs[2]]
 
   return log_prob_obs
@@ -242,6 +245,8 @@ def iter_sequences(time_total: int, start_se=True):
         if t0+de == time_total:
           yield (t0, de, 0)
         else:
+          #TODO: Marten: should de not be > 0, otherwise you cant
+          # move to state I?
           i_start = 1 if (t0 > 0 or de > 0 or start_se) else 0
           for di in range(i_start, time_total-t0-de+1):
             if t0+de+di == time_total:
@@ -299,9 +304,11 @@ def enumerate_log_prior_values(
   """Enumerate values of log prior."""
   # TODO: drop the option to start in I or R state
   np.testing.assert_almost_equal(np.sum(params_start), 1.)
-
+  # TODO: Marten, need explanation on this part of code.
   b0, b1, b2 = params[0], params[1], params[2]
 
+  #These are all boolean arrays denoting when something happened
+  # Are these for a single user? which one?
   start_s = reach_s = sequences[:, 0] > 0
   start_e = (1-start_s) * (sequences[:, 1] > 0)
   start_i = (1-start_s) * (1-start_e) * (sequences[:, 2] > 0)
@@ -458,9 +465,10 @@ def precompute_d_penalty_terms_fn(
 
 
 @numba.njit((
-  'UniTuple(float32[:], 2)(float32[:, :], float64, float64, int32[:, :], '
+  'UniTuple(float32[:], 2)(int64[:], float32[:, :], float64, float64, int32[:, :], '
   'int64)'))
 def precompute_d_penalty_terms_fn2(
+    user_ids: np.ndarray,
     q_marginal_infected: np.ndarray,
     p0: float,
     p1: float,
@@ -489,12 +497,23 @@ def precompute_d_penalty_terms_fn2(
   # contacts = [np.int32(x) for x in range(0)]
   for row in past_contacts:
     time_inc = int(row[0])
+    user_id = int(row[1])
+
     if time_inc < 0:
       # past_contacts is padded with -1, so break when contact time is negative
       break
 
     happened[time_inc+1] = 1
-    p_inf_inc = q_marginal_infected[int(row[1])][time_inc]
+    #TODO: Out of bounds error for user based on contacts!!!
+    q_marginal_index = np.where(user_ids == user_id)
+    if q_marginal_index[0].shape[0] != 1:
+      print('Q_marginal index multiple or None!', q_marginal_index)
+      print('user_id for that was:', user_id)
+      print(user_id in user_ids)
+    
+    assert q_marginal_index[0].shape[0] == 1
+    
+    p_inf_inc = q_marginal_infected[q_marginal_index[0][0]][time_inc]
     log_expectations[time_inc+1] += np.log(p_inf_inc*(1-p1) + (1-p_inf_inc))
 
   # Additional penalty term for not terminating, negative by definition

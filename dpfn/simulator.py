@@ -78,7 +78,7 @@ class ABMSimulator():
     params.set_param("rng_seed", rng_seed)
     params.set_param("app_turned_on", 1)
     
-    params.set_param("app_users_fraction_0_9", 0)
+    params.set_param("app_users_fraction_0_9", app_users_fraction)
     params.set_param("app_users_fraction_10_19", app_users_fraction)
     params.set_param("app_users_fraction_20_29", app_users_fraction)
     params.set_param("app_users_fraction_30_39", app_users_fraction)
@@ -162,7 +162,12 @@ class ABMSimulator():
     return observations_new
 
   def get_app_users(self):
-     return np.array(covid19.get_app_users(self.model.model.c_model))
+    """Get the userIDs of users who use the app.
+    
+    An array of 1s and 0s, where 1 denotes that user uses the app.
+    """
+    
+    return np.array(covid19.get_app_users(self.model.model.c_model))
 
   def set_window(self, days_offset: int):
     """Sets the window with days_offset at day0.
@@ -207,7 +212,7 @@ class ABMSimulator():
     
     source_condition = np.isin(contacts[:, 0], app_users_ids)
     target_condition = np.isin(contacts[:, 1], app_users_ids)
-    final_condition = source_condition | target_condition
+    final_condition = source_condition & target_condition
     contacts = contacts[final_condition]
     
     
@@ -226,7 +231,6 @@ class ABMSimulator():
       self.model.model.c_model, self._day_current), dtype=np.int32)
     
     contacts_incoming = self.keep_app_users(contacts=contacts_incoming)
-    
     # TODO: use these features
     contacts_incoming[:, 3] = 1
     contacts_incoming[:, 2] = self.get_current_day() - self._day_start_window

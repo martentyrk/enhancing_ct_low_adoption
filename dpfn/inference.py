@@ -16,6 +16,7 @@ def softmax(x):
 @numba.njit(parallel=True)
 def fn_step_wrapped(
     user_interval: Tuple[int, int],
+    user_ids: np.ndarray,
     seq_array_hot: np.ndarray,
     log_c_z_u: np.ndarray,
     log_A_start: np.ndarray,
@@ -35,6 +36,7 @@ def fn_step_wrapped(
 
   Args:
     user_interval: tuple of (user_start, user_end)
+    user_ids: a list of user id's who are app users
     seq_array_hot: array in [num_time_steps, 4, num_sequences]
     log_c_z_u: array in [num_users_int, num_sequences], C-terms according to
       CRISP paper
@@ -71,13 +73,8 @@ def fn_step_wrapped(
   if clip_lower > 0.0:
     p_infected_matrix = np.maximum(p_infected_matrix, np.float32(clip_lower))
 
-  if dp_method == 6:
-    assert a_rdp < 0
-    p_infected_matrix = util_dp.add_noise_per_message_logit(
-      p_infected_matrix, epsilon_dp, delta_dp, clip_lower, clip_upper)
 
   interval_num_users = user_interval[1] - user_interval[0]
-
   post_exps = np.zeros(
     (interval_num_users, num_time_steps, 4), dtype=np.float32)
   num_days_s = np.sum(seq_array_hot[:, 0], axis=0).astype(np.int32)
@@ -88,47 +85,20 @@ def fn_step_wrapped(
   seq_array_hot = seq_array_hot.astype(np.single)
   num_sequences = seq_array_hot.shape[2]
 
+  #TODO: Marten, Ask for explanation about this part.
   for i in numba.prange(interval_num_users):  # pylint: disable=not-an-iterable
 
-    if (dp_method <= 4) or (dp_method == 6):
-      d_term, d_no_term = util.precompute_d_penalty_terms_fn2(
-        p_infected_matrix,
-        p0=probab0,
-        p1=probab1,
-        past_contacts=past_contacts_array[i],
-        num_time_steps=num_time_steps)
+    d_term, d_no_term = util.precompute_d_penalty_terms_fn2(
+      user_ids=user_ids,
+      q_marginal_infected=p_infected_matrix,
+      p0=probab0,
+      p1=probab1,
+      past_contacts=past_contacts_array[i],
+      num_time_steps=num_time_steps)
 
-    elif dp_method == 5:
-      assert delta_dp < 0
-      assert epsilon_dp > 0
-      assert a_rdp > 0
-      d_term, d_no_term = util.precompute_d_penalty_terms_rdp(
-        p_infected_matrix,
-        p0=probab0,
-        p1=probab1,
-        clip_lower=clip_lower,
-        clip_upper=clip_upper,
-        a_rdp=a_rdp,
-        epsilon_rdp=epsilon_dp,
-        past_contacts=past_contacts_array[i],
-        num_time_steps=num_time_steps)
-
-    elif dp_method == 7:
-      assert a_rdp < 0
-      d_term, d_no_term = util.precompute_d_penalty_terms_dp_gaussian(
-        p_infected_matrix,
-        p0=probab0,
-        p1=probab1,
-        epsilon_dp=epsilon_dp,
-        delta_dp=delta_dp,
-        past_contacts=past_contacts_array[i],
-        num_time_steps=num_time_steps)
-
-    else:
-      raise ValueError("Unknown DP method")
     d_noterm_cumsum = np.cumsum(d_no_term)
 
-    num_days_transit = num_days_s-1
+    num_days_transit = num_days_s - 1
     num_days_transit[num_days_transit < 0] = 0
 
     d_penalties = (
@@ -139,25 +109,6 @@ def fn_step_wrapped(
     # Numba only does matmul with 2D-arrays, so do reshaping below
     # log_c and log_a are described in the CRISP paper (Herbrich et al. 2021)
     log_joint = log_c_z_u[i] + log_A_start + d_penalties
-
-    # Calculate noise for differential privacy
-    if dp_method == 4:
-      assert epsilon_dp > 0
-      assert delta_dp > 0
-
-      num_contacts_min, _ = util_dp.get_num_contacts_min_max(
-        past_contacts_array[i], num_time_steps)
-
-      num_contacts_min = int(max((num_contacts_min, 2)))
-      sensitivity_dp = util_dp.get_sensitivity_log(
-        num_contacts_min, probab0, probab1,
-        clip_lower=clip_lower, clip_upper=clip_upper)
-      assert sensitivity_dp >= 0, "Sensitivity should be positive"
-
-      dp_sigma = (  # Noise standard deviation
-        sensitivity_dp * np.sqrt(2 * np.log(1.25 / delta_dp)) / epsilon_dp)
-
-      log_joint += dp_sigma*np.random.randn(num_sequences)
 
     joint_distr = softmax(log_joint).astype(np.single)
 
@@ -174,6 +125,7 @@ def fn_step_wrapped(
 
 def fact_neigh(
     num_users: int,
+    user_ids: np.ndarray,
     num_time_steps: int,
     observations_all: np.ndarray,
     contacts_all: np.ndarray,
@@ -205,6 +157,7 @@ def fact_neigh(
 
   Args:
     num_users: Number of users to infer latent states
+    user_ids: list of user_ids who are app users
     num_time_steps: Number of time steps to infer latent states
     observations_all: List of all observations
     contacts_all: List of all contacts
@@ -236,6 +189,7 @@ def fact_neigh(
   assert clip_lower < 1
   assert clip_upper > 0
 
+  # Seq Array is the w in CRISP paper which includes (t_0, d_E, d_I)
   seq_array = np.stack(list(
     # TODO: change start_se to True
     util.iter_sequences(time_total=num_time_steps, start_se=False)))
@@ -243,18 +197,29 @@ def fact_neigh(
     seq_array, time_total=num_time_steps), [1, 2, 0]).astype(np.int32)
 
   # log_c and log_a are described in the CRISP paper (Herbrich et al. 2021)
+  # Log_a start returns an array of values for each seq_array option
   log_A_start = util.enumerate_log_prior_values(
     [1-probab_0, probab_0, 0., 0.], [1-probab_0, 1-g_param, 1-h_param],
     seq_array, num_time_steps)
 
+  # obs_array[t, :, i] is about the log-likelihood of the observation being
+  # i=0 or i=1, at time step t.
+  # These values then are timestep dependent and dependent on which state the user
+  # is in. We map the obs_array value to a specific user and make predictions
+  # based on that.
   obs_array = util.make_inf_obs_array(int(num_time_steps), alpha, beta)
+  
   # Precompute log(C) terms, relating to observations
+  # Log_c_z_u has test 
   log_c_z_u = util.calc_c_z_u(
     (0, num_users),
     obs_array,
     observations_all)
 
   q_marginal_infected = np.zeros((num_users, num_time_steps), dtype=np.single)
+  # q_marginal_infected = dict.fromkeys(user_ids, np.zeros((num_time_steps), dtype=np.single))
+  #TODO: Marten, What is post-exp 4 dimensions at the end?
+  # ANS: Most likely probabilites of being in each of the SEIR states.
   post_exp = np.zeros((num_users, num_time_steps, 4), dtype=np.single)
 
   t_preamble1 = time.time() - t_start_preamble
@@ -277,13 +242,13 @@ def fact_neigh(
   t_preamble2 = time.time() - t_start_preamble
   logger.info(
     f"Time spent on preamble1/preamble2 {t_preamble1:.1f}/{t_preamble2:.1f}")
-
   for num_update in range(num_updates):
     if verbose:
       logger.info(f"Num update {num_update}")
 
     post_exp, tstart, t_end = fn_step_wrapped(
       (0, num_users),
+      user_ids,
       seq_array_hot,
       log_c_z_u,
       log_A_start,
@@ -298,7 +263,7 @@ def fact_neigh(
       epsilon_dp=-1.,
       delta_dp=-1.,
       quantization=quantization)
-
+    
     # if np.any(np.isinf(post_exp)):
     #   logger.info(f"post_exp has inf {post_exp}")
     # if np.any(np.isnan(post_exp)):
@@ -306,64 +271,12 @@ def fact_neigh(
     #   users_nan = np.where(
     #     np.sum(np.sum(np.isnan(post_exp), axis=-1), axis=-1))[0]
     #   logger.info(f"At users {repr(users_nan)}")
-
+  
     if verbose:
       logger.info(f"Time for fn_step: {t_end - tstart:.1f} seconds")
+
     q_marginal_infected = post_exp[:, :, 2]
 
   post_exp_collect = post_exp
 
-  if dp_method == 2:
-    assert epsilon_dp > 0.
-    assert delta_dp > 0.
-    assert clip_lower > 0.
-    covidscore = post_exp[:, -1, 2]
-
-    covidscore = np.clip(covidscore, clip_lower, 1.-clip_lower)
-    covidscore = util_dp.add_noise_per_message_logit(
-      covidscore,
-      epsilon_dp=epsilon_dp,
-      delta_dp=delta_dp,
-      clip_lower=clip_lower,
-      clip_upper=clip_lower + probab_1,
-    )
-
-    post_final = np.zeros((num_users, num_time_steps, 4), dtype=np.float32)
-    post_final[:, -1, 2] = covidscore
-
-  elif dp_method == 3:
-    covidscore = util_dp.fn_rdp_mean_noise(
-      q_marginal_infected,
-      user_interval=(0, num_users),
-      past_contacts=past_contacts,
-      p1=probab_1,
-      epsilon_dp=epsilon_dp,
-      delta_dp=delta_dp)
-    # Embed in post_exp_collect
-    post_final = np.zeros((num_users, num_time_steps, 4), dtype=np.float32)
-    post_final[:, -1, 2] = covidscore
-
-  elif dp_method >= 4:
-
-    post_noised, _, _ = fn_step_wrapped(
-      (0, num_users),
-      seq_array_hot,
-      log_c_z_u,
-      log_A_start,
-      q_marginal_infected,
-      num_time_steps,
-      probab_0,
-      probab_1,
-      clip_lower=clip_lower,
-      clip_upper=clip_upper,
-      past_contacts_array=past_contacts,
-      dp_method=dp_method,
-      epsilon_dp=epsilon_dp,
-      delta_dp=delta_dp,
-      a_rdp=a_rdp,
-      quantization=quantization)
-
-    post_final = post_noised
-  else:
-    post_final = post_exp_collect
-  return post_final
+  return post_exp_collect
