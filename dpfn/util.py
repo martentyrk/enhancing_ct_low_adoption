@@ -46,13 +46,13 @@ def get_past_contacts_fast(
 
 
 @numba.njit(
-  'Tuple((int32[:, :, :], int64))(UniTuple(int64, 2), int32[:, :], int64)')
+  'Tuple((int32[:, :, :], int64))(int64[:], int32[:, :], int64)')
 def get_past_contacts_static(
-    user_interval: Tuple[int, int],
+    user_ids: np.ndarray,
     contacts: np.ndarray,
     num_msg: int) -> Tuple[np.ndarray, int]:
   """Returns past contacts as a NumPy array, for easy pickling."""
-  num_users_int = user_interval[1] - user_interval[0]
+  num_users_int = user_ids.shape[0]
 
   if len(contacts) == 0:
     return (-1 * np.ones((num_users_int, 1, 2))).astype(np.int32), 0
@@ -64,10 +64,11 @@ def get_past_contacts_static(
   contacts_counts = np.zeros(num_users_int, dtype=np.int32)
 
   # First find all contacts that are in the interval
+  # TODO: Marten, why did you previously check between intervals?
   for contact in contacts:
     user_v = contact[1]
-    if user_interval[0] <= user_v < user_interval[1]:
-      contact_rel = user_v - user_interval[0]
+    if user_v in user_ids:
+      contact_rel = np.where(user_ids == user_v)[0][0]
       contact_count = contacts_counts[contact_rel] % (num_msg - 1)
       contacts_past[contact_rel, contact_count] = np.array(
         (contact[2], contact[0]), dtype=np.int32)
@@ -504,13 +505,8 @@ def precompute_d_penalty_terms_fn2(
       break
 
     happened[time_inc+1] = 1
-    #TODO: Out of bounds error for user based on contacts!!!
-    q_marginal_index = np.where(user_ids == user_id)
-    if q_marginal_index[0].shape[0] != 1:
-      print('Q_marginal index multiple or None!', q_marginal_index)
-      print('user_id for that was:', user_id)
-      print(user_id in user_ids)
-    
+
+    q_marginal_index = np.where(user_ids == user_id)    
     assert q_marginal_index[0].shape[0] == 1
     
     p_inf_inc = q_marginal_infected[q_marginal_index[0][0]][time_inc]

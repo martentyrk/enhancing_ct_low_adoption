@@ -7,6 +7,7 @@ import socket
 import traceback
 import wandb
 
+from collections import defaultdict
 from config import config
 from experiments import (util_experiments)
 from dpfn import LOGGER_FILENAME, logger
@@ -22,8 +23,7 @@ if __name__ == "__main__":
     description='Compare statistics acrosss inference methods')
   parser.add_argument('--inference_method', type=str, default='fn',
                       choices=[
-                        'fn', 'dummy', 'random', 'bp', 'dpct',
-                        'gibbs', 'fncpp', 'bpcpp'],
+                        'fn', 'dummy', 'random', 'dpct', 'fncpp'],
                       help='Name of the inference method')
   parser.add_argument('--simulator', type=str, default='abm',
                       choices=['abm', 'covasim'],
@@ -72,13 +72,12 @@ if __name__ == "__main__":
   config_model = config.ConfigBase(fname_config_model)
 
   # Start WandB
-  config_wandb = {
-    "config_data_name": configname_data,
-    "config_model_name": configname_model,
-    "cpu_count": util.get_cpu_count(),
-    "data": config_data.to_dict(),
-    "model": config_model.to_dict(),
-  }
+  config_wandb = defaultdict(None)
+  config_wandb['config_data_name'] = configname_data
+  config_wandb['config_model_name'] = configname_model
+  config_wandb['cpu_count'] = util.get_cpu_count()
+  config_wandb['data'] = config_data.to_dict()
+  config_wandb['model'] = config_model.to_dict()
 
   # WandB tags
   tags = [

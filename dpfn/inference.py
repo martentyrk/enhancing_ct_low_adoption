@@ -31,7 +31,7 @@ def fn_step_wrapped(
     epsilon_dp: float = -1.,
     delta_dp: float = -1.,
     a_rdp: float = -1.,
-    quantization: int = -1,):
+    quantization: int = -1):
   """Wraps one step of Factorised Neighbors over a subset of users.
 
   Args:
@@ -227,7 +227,7 @@ def fact_neigh(
 
   num_max_msg = constants.CTC
   past_contacts, max_num_contacts = util.get_past_contacts_static(
-    (0, num_users), contacts_all, num_msg=num_max_msg)
+    user_ids, contacts_all, num_msg=num_max_msg)
 
   if max_num_contacts >= num_max_msg:
     logger.warning(

@@ -25,12 +25,12 @@ class ABMSimulator():
       self,
       num_time_steps: int,
       num_users: int,
-      app_users_fraction: int,
+      app_users_fraction: float,
       rng_seed: int = 123,
       ) -> None:
     self.num_time_steps = num_time_steps
     self.num_users = num_users
-    self.app_users_fractions = app_users_fraction
+    self.app_users_fraction = app_users_fraction
     self.rng_seed = rng_seed
 
     self._day_current = 0
@@ -207,6 +207,10 @@ class ABMSimulator():
     """
     
     # An array of 1s and 0s, where 1 denotes that user uses the app.
+    
+    if self.app_users_fraction == 1.0:
+      return contacts
+    
     app_users = self.get_app_users()
     app_users_ids = np.nonzero(app_users)[0]
     

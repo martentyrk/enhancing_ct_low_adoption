@@ -38,6 +38,10 @@ def compare_abm(
   
   app_users_fraction = cfg["data"]["app_users_fraction"]
   
+  # When doing a sweep, then use parameters from there.
+  if cfg.get('app_users_fraction_wandb'):
+    app_users_fraction = cfg['app_users_fraction_wandb']
+  
   assert app_users_fraction > 0 and app_users_fraction <= 1.0
   assert isinstance(app_users_fraction, float)
 
@@ -58,7 +62,7 @@ def compare_abm(
   app_user_ids = np.nonzero(app_users)[0]
   # How many users there actually are, take that from app_user_ids.
   app_user_frac_num = app_user_ids.shape[0]
-  logger.info(f"The number of app users: {app_user_frac_num}")
+  logger.info(f"Number of app users: {app_user_frac_num}")
   
   inference_func, do_random_quarantine = util_experiments.make_inference_func(
     inference_method, app_user_frac_num, cfg, user_ids=app_user_ids, trace_dir=trace_dir)
@@ -132,8 +136,9 @@ def compare_abm(
       num_tests=num_tests,
       user_ids=app_user_ids)
 
-    # TODO: should users_to_test be app_user_ids instead? 
-    # No, since it will be the same regardless, since we only look at users of app to test in the first
+    # TODO: Marten, should users_to_test be app_user_ids instead? 
+    # No, since it will be the same regardless, since we only look at users 
+    # of app to test in the first place
     obs_today = sim.get_observations_today(
       users_to_test.astype(np.int32),
       p_obs_infected,
@@ -149,15 +154,15 @@ def compare_abm(
       # been done in the sim.step() function.
       contacts_now = sim.get_contacts()
       observations_now = sim.get_observations_all()
-      observations_condition = np.isin(observations_now[:, 0], app_user_ids)
-      observations_now = observations_now[observations_condition]
+      # observations_condition = np.isin(observations_now[:, 0], app_user_ids)
+      # observations_now = observations_now[observations_condition]
       
       logger.info((
         f"Day {t_now}: {contacts_now.shape[0]} contacts, "
         f"{observations_now.shape[0]} obs"))
 
       t_start = time.time()
-      z_states_inferred_temp, contacts_age_temp = inference_func(
+      z_states_inferred_temp, contacts_age = inference_func(
         observations_now,
         contacts_now,
         num_rounds,
@@ -168,13 +173,13 @@ def compare_abm(
       np.testing.assert_array_almost_equal(
         z_states_inferred_temp.shape, [app_user_frac_num, num_days, 4])
       
+      z_states_inferred = np.concatenate((z_states_inferred, np.zeros((num_users, 1, 4))), axis=1)
       # Insert values from predictions to the places where contacts exist.
-      z_states_inferred = np.zeros((num_users, num_days, 4))
       z_states_inferred[app_user_ids] = z_states_inferred_temp
 
-      # TODO: the regular non-c++ FN function returns contacts_age as None. So no need to update. 
+      # TODO: Marten, the regular non-c++ FN function returns contacts_age as None. So no need to update. 
       if inference_method == "fncpp":
-        contacts_age[app_user_ids] = contacts_age_temp
+        contacts_age[app_user_ids] = contacts_age
       else:
         contacts_age = None
       
