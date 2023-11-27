@@ -2,7 +2,7 @@
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=2
 #SBATCH --ntasks=1
-#SBATCH --time=04:00:00
+#SBATCH --time=02:00:00
 #SBATCH --job-name=abm_only_model
 #SBATCH --partition=rome
 #SBATCH --mem=9000

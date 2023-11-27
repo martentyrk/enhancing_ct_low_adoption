@@ -217,7 +217,7 @@ def fact_neigh(
     observations_all)
 
   q_marginal_infected = np.zeros((num_users, num_time_steps), dtype=np.single)
-  # q_marginal_infected = dict.fromkeys(user_ids, np.zeros((num_time_steps), dtype=np.single))
+
   #TODO: Marten, What is post-exp 4 dimensions at the end?
   # ANS: Most likely probabilites of being in each of the SEIR states.
   post_exp = np.zeros((num_users, num_time_steps, 4), dtype=np.single)

@@ -39,11 +39,10 @@ def compare_abm(
   app_users_fraction = cfg["data"]["app_users_fraction"]
   
   # When doing a sweep, then use parameters from there.
-  if cfg.get('app_users_fraction_wandb'):
-    app_users_fraction = cfg['app_users_fraction_wandb']
+  if 'app_users_fraction_wandb' in cfg:
+    app_users_fraction = cfg.get("app_users_fraction_wandb", -1)
   
-  assert app_users_fraction > 0 and app_users_fraction <= 1.0
-  assert isinstance(app_users_fraction, float)
+  assert app_users_fraction >= 0 and app_users_fraction <= 1.0
 
   # Data and simulator params
   num_days_quarantine = cfg["data"]["num_days_quarantine"]
@@ -154,8 +153,8 @@ def compare_abm(
       # been done in the sim.step() function.
       contacts_now = sim.get_contacts()
       observations_now = sim.get_observations_all()
-      # observations_condition = np.isin(observations_now[:, 0], app_user_ids)
-      # observations_now = observations_now[observations_condition]
+      observations_condition = np.isin(observations_now[:, 0], app_user_ids)
+      observations_now = observations_now[observations_condition]
       
       logger.info((
         f"Day {t_now}: {contacts_now.shape[0]} contacts, "
@@ -173,9 +172,11 @@ def compare_abm(
       np.testing.assert_array_almost_equal(
         z_states_inferred_temp.shape, [app_user_frac_num, num_days, 4])
       
-      z_states_inferred = np.concatenate((z_states_inferred, np.zeros((num_users, 1, 4))), axis=1)
-      # Insert values from predictions to the places where contacts exist.
-      z_states_inferred[app_user_ids] = z_states_inferred_temp
+      # # Insert values from predictions to the places where contacts exist.
+      z_states_inferred = np.zeros((num_users, num_days, 4), dtype=np.float32)
+      assert z_states_inferred_temp.dtype == z_states_inferred.dtype
+
+      z_states_inferred[app_user_ids, :, :] = z_states_inferred_temp   
 
       # TODO: Marten, the regular non-c++ FN function returns contacts_age as None. So no need to update. 
       if inference_method == "fncpp":
@@ -304,6 +305,7 @@ def compare_abm(
     quantization=quantization,
     recalls=recalls.tolist(),
     seed=cfg.get("seed", -1),
+    app_users_fraction=app_users_fraction,
   )
 
   time_spent = time.time() - t0

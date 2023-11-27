@@ -506,7 +506,7 @@ def precompute_d_penalty_terms_fn2(
 
     happened[time_inc+1] = 1
 
-    q_marginal_index = np.where(user_ids == user_id)    
+    q_marginal_index = np.where(user_ids == user_id)  
     assert q_marginal_index[0].shape[0] == 1
     
     p_inf_inc = q_marginal_infected[q_marginal_index[0][0]][time_inc]

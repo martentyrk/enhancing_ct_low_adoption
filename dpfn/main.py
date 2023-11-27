@@ -54,19 +54,6 @@ if __name__ == "__main__":
   data_dir = f"dpfn/data/{configname_data}/"
 
   inf_method = args.inference_method
-  # Set up locations to store results
-  experiment_name = 'run_prequential'
-  results_dir_global = (
-    f'results/{experiment_name}/{configname_data}__{configname_model}/')
-
-  util.maybe_make_dir(results_dir_global)
-  if args.dump_traces:
-    trace_dir_global = (
-      f'results/trace_{experiment_name}/{configname_data}__{configname_model}/')
-    util.maybe_make_dir(trace_dir_global)
-    logger.info(f"Dump traces to results_dir_global {trace_dir_global}")
-  else:
-    trace_dir_global = None
 
   config_data = config.ConfigBase(fname_config_data)
   config_model = config.ConfigBase(fname_config_model)
@@ -86,7 +73,7 @@ if __name__ == "__main__":
   tags.append("dump_traces" if args.dump_traces else "nodump")
 
   tags.append("local" if (os.getenv('SLURM_JOB_ID') is None) else "slurm")
-
+  
   do_wandb = ('carbon' not in socket.gethostname())
   if do_wandb:
     runner_global = wandb.init(
@@ -103,13 +90,6 @@ if __name__ == "__main__":
   config_wandb = util_experiments.convert_log_params(config_wandb)
   logger.info(config_wandb)
 
-  logger.info(f"Logger filename {LOGGER_FILENAME}")
-  logger.info(f"Saving to results_dir_global {results_dir_global}")
-  logger.info(f"sweep_id: {os.getenv('SWEEPID')}")
-  logger.info(f"slurm_id: {os.getenv('SLURM_JOB_ID')}")
-  logger.info(f"slurm_name: {os.getenv('SLURM_JOB_NAME')}")
-  logger.info(f"slurm_ntasks: {os.getenv('SLURM_NTASKS')}")
-
   # This line prints all git differences etc. No need for now.
   # util_experiments.make_git_log()
 
@@ -125,7 +105,33 @@ if __name__ == "__main__":
     seed_value = random.randint(0, 999)
   # Random number generator to pass as argument to some imported functions
   arg_rng = np.random.default_rng(seed=seed_value)
+  
+  # Set up locations to store results
+  experiment_name = 'run_abm_prequential_seed'+ str(seed_value)
+  
+  if config_wandb.get('app_users_fraction_wandb'):
+    experiment_name = experiment_name + "_adaption_" + str(config_wandb.get("app_users_fraction_wandb", -1))
+  
+  results_dir_global = (
+    f'results/{experiment_name}/{configname_data}__{configname_model}/')
 
+  util.maybe_make_dir(results_dir_global)
+  if args.dump_traces:
+    trace_dir_global = (
+      f'results/trace_{experiment_name}/{configname_data}__{configname_model}/')
+    util.maybe_make_dir(trace_dir_global)
+    logger.info(f"Dump traces to results_dir_global {trace_dir_global}")
+  else:
+    trace_dir_global = None
+    
+    
+  logger.info(f"Logger filename {LOGGER_FILENAME}")
+  logger.info(f"Saving to results_dir_global {results_dir_global}")
+  logger.info(f"sweep_id: {os.getenv('SWEEPID')}")
+  logger.info(f"slurm_id: {os.getenv('SLURM_JOB_ID')}")
+  logger.info(f"slurm_name: {os.getenv('SLURM_JOB_NAME')}")
+  logger.info(f"slurm_ntasks: {os.getenv('SLURM_NTASKS')}")
+  
   try:
     if args.simulator == "abm":
       comparison_fn = compare_abm
