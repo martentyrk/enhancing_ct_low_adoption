@@ -114,19 +114,27 @@ def dump_features_graph(
     trace_dir: str,
     num_users: int,
     num_time_steps: int,
-    t_now: int):
+    t_now: int,
+    rng_seed: int) -> None:
   """Dump graphs for GNNs."""
   datadump = dpfn_util.fn_features_dump(
     num_workers=1,
     num_users=num_users,
     num_time_steps=num_time_steps,
     q_marginal=z_states_inferred[:, :, 2],
-    observations=observations_now,
     contacts=contacts_now,
     users_age=users_age)
 
+  # Process observations
+  observations_json = [[] for _ in range(num_users)]
+  for observation in observations_now:
+    user = int(observation[0])
+    timestep = int(observation[1])
+    outcome = int(observation[2])
+    observations_json[user].append([timestep, outcome])
+
   # Try to dump the dataset
-  dirname = os.path.join(trace_dir, 'test_dump')
+  dirname = os.path.join(trace_dir, f'test_with_obs_{rng_seed}')
   os.makedirs(dirname, exist_ok=True)
   fname_pos = os.path.join(dirname, f'positive_{t_now:05d}.jl')
   fname_neg = os.path.join(dirname, f'negative_{t_now:05d}.jl')
@@ -149,6 +157,7 @@ def dump_features_graph(
           "fn_pred": float(z_states_inferred[user][-1][2]),
           "sim_state": int(z_states_sim[user]),
           "user_age": int(users_age[user]),
+          "observations": observations_json[user],
           "contacts": [],
         }
 

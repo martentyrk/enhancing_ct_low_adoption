@@ -129,6 +129,7 @@ def compare_abm(
     # Grab tests on the main process
     test_frac = int(fraction_test * num_users)
     num_tests = test_frac if test_frac <= app_user_frac_num else app_user_frac_num
+    logger.info(f"Number of tests: {num_tests}")
     
     users_to_test = prequential.decide_tests(
       scores_infect=rank_score,
@@ -205,7 +206,7 @@ def compare_abm(
           util_dataset.dump_features_graph(
             contacts_now, observations_now, z_states_inferred, user_free,
             sim.get_states_today(), users_age, trace_dir, num_users,
-            num_time_steps, t_now)
+            num_time_steps, t_now, int(rng_seed))
 
     else:
       z_states_inferred = np.zeros((num_users, num_days, 4))
@@ -305,7 +306,7 @@ def compare_abm(
     quantization=quantization,
     recalls=recalls.tolist(),
     seed=cfg.get("seed", -1),
-    app_users_fraction=app_users_fraction,
+    app_users_fraction=app_users_fraction
   )
 
   time_spent = time.time() - t0
