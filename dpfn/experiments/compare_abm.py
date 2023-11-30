@@ -124,13 +124,13 @@ def compare_abm(
 
     # Do not test when user in quarantine
     rank_score *= (user_quarantine_ends < t_now)
-    
+
 
     # Grab tests on the main process
     test_frac = int(fraction_test * num_users)
     num_tests = test_frac if test_frac <= app_user_frac_num else app_user_frac_num
     logger.info(f"Number of tests: {num_tests}")
-    
+
     users_to_test = prequential.decide_tests(
       scores_infect=rank_score,
       num_tests=num_tests,

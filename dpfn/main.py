@@ -37,6 +37,7 @@ if __name__ == "__main__":
                             ' when left undefined'))
   parser.add_argument('--do_diagnosis', action='store_true')
   parser.add_argument('--dump_traces', action='store_true')
+  parser.add_argument('--app_users_fraction', type=float, default=None)
 
   # TODO make a better heuristic for this:
   # num_threads = max((util.get_cpu_count()-1, 1))
@@ -66,6 +67,31 @@ if __name__ == "__main__":
   config_wandb['data'] = config_data.to_dict()
   config_wandb['model'] = config_model.to_dict()
 
+  
+    # Set random seed
+  # seed_value = config_wandb.get("seed", -1)
+  seed_value = 30
+  if seed_value > 0:
+    random.seed(seed_value)
+    np.random.seed(seed_value)
+  else:
+    seed_value = random.randint(0, 999)
+  # Random number generator to pass as argument to some imported functions
+  arg_rng = np.random.default_rng(seed=seed_value)
+  
+  # Set up locations to store results
+  experiment_name = 'run_abm_prequential_seed'+ str(seed_value)
+  
+  if args.app_users_fraction:
+    config_wandb["data"]["app_users_fraction"] = float(args.app_users_fraction)
+    experiment_name = experiment_name + "_adaption_" + str(args.app_users_fraction)
+  
+  if config_wandb.get('app_users_fraction_wandb'):
+    experiment_name = experiment_name + "_adaption_" + str(config_wandb.get("app_users_fraction_wandb", -1))
+  
+  results_dir_global = (
+    f'results/{experiment_name}/{configname_data}_{configname_model}/')
+  
   # WandB tags
   tags = [
     str(args.simulator), inf_method, f"cpu{util.get_cpu_count()}",
@@ -95,25 +121,6 @@ if __name__ == "__main__":
 
   if 'carbon' not in socket.gethostname():
     wandb.mark_preempting()
-
-  # Set random seed
-  seed_value = config_wandb.get("seed", -1)
-  if seed_value > 0:
-    random.seed(seed_value)
-    np.random.seed(seed_value)
-  else:
-    seed_value = random.randint(0, 999)
-  # Random number generator to pass as argument to some imported functions
-  arg_rng = np.random.default_rng(seed=seed_value)
-  
-  # Set up locations to store results
-  experiment_name = 'run_abm_prequential_seed'+ str(seed_value)
-  
-  if config_wandb.get('app_users_fraction_wandb'):
-    experiment_name = experiment_name + "_adaption_" + str(config_wandb.get("app_users_fraction_wandb", -1))
-  
-  results_dir_global = (
-    f'results/{experiment_name}/{configname_data}__{configname_model}/')
 
   util.maybe_make_dir(results_dir_global)
   if args.dump_traces:

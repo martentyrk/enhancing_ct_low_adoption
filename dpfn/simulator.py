@@ -76,7 +76,7 @@ class ABMSimulator():
     params.set_param("n_seed_infection", n_seed)
     params.set_param("days_of_interactions", 7)
     params.set_param("rng_seed", rng_seed)
-    params.set_param("app_turned_on", 1)
+    params.set_param("app_turned_on", 0)
     
     params.set_param("app_users_fraction_0_9", app_users_fraction)
     params.set_param("app_users_fraction_10_19", app_users_fraction)

@@ -132,6 +132,7 @@ def decide_tests(
     scores_infect: np.ndarray,
     num_tests: int,
     user_ids: np.ndarray) -> np.ndarray:
+  
   assert num_tests < len(scores_infect)
   sort_indeces = np.argsort(scores_infect)
   # Sort the list of user_ids based on scores, then assign tests to the num tests highest

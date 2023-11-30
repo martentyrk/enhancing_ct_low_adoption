@@ -63,8 +63,6 @@ def get_past_contacts_static(
 
   contacts_counts = np.zeros(num_users_int, dtype=np.int32)
 
-  # First find all contacts that are in the interval
-  # TODO: Marten, why did you previously check between intervals?
   for contact in contacts:
     user_v = contact[1]
     if user_v in user_ids:
