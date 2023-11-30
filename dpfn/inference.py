@@ -16,7 +16,6 @@ def softmax(x):
 @numba.njit(parallel=True)
 def fn_step_wrapped(
     user_interval: Tuple[int, int],
-    user_ids: np.ndarray,
     seq_array_hot: np.ndarray,
     log_c_z_u: np.ndarray,
     log_A_start: np.ndarray,
@@ -36,7 +35,6 @@ def fn_step_wrapped(
 
   Args:
     user_interval: tuple of (user_start, user_end)
-    user_ids: a list of user id's who are app users
     seq_array_hot: array in [num_time_steps, 4, num_sequences]
     log_c_z_u: array in [num_users_int, num_sequences], C-terms according to
       CRISP paper
@@ -89,7 +87,6 @@ def fn_step_wrapped(
   for i in numba.prange(interval_num_users):  # pylint: disable=not-an-iterable
 
     d_term, d_no_term = util.precompute_d_penalty_terms_fn2(
-      user_ids=user_ids,
       q_marginal_infected=p_infected_matrix,
       p0=probab0,
       p1=probab1,
@@ -125,7 +122,6 @@ def fn_step_wrapped(
 
 def fact_neigh(
     num_users: int,
-    user_ids: np.ndarray,
     num_time_steps: int,
     observations_all: np.ndarray,
     contacts_all: np.ndarray,
@@ -157,7 +153,6 @@ def fact_neigh(
 
   Args:
     num_users: Number of users to infer latent states
-    user_ids: list of user_ids who are app users
     num_time_steps: Number of time steps to infer latent states
     observations_all: List of all observations
     contacts_all: List of all contacts
@@ -227,7 +222,7 @@ def fact_neigh(
 
   num_max_msg = constants.CTC
   past_contacts, max_num_contacts = util.get_past_contacts_static(
-    user_ids, contacts_all, num_msg=num_max_msg)
+    (0, num_users), contacts_all, num_msg=num_max_msg)
 
   if max_num_contacts >= num_max_msg:
     logger.warning(
@@ -248,7 +243,6 @@ def fact_neigh(
 
     post_exp, tstart, t_end = fn_step_wrapped(
       (0, num_users),
-      user_ids,
       seq_array_hot,
       log_c_z_u,
       log_A_start,

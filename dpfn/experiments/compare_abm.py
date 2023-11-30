@@ -64,7 +64,7 @@ def compare_abm(
   logger.info(f"Number of app users: {app_user_frac_num}")
   
   inference_func, do_random_quarantine = util_experiments.make_inference_func(
-    inference_method, app_user_frac_num, cfg, user_ids=app_user_ids, trace_dir=trace_dir)
+    inference_method, num_users, cfg, user_ids=app_user_ids, trace_dir=trace_dir)
 
   # Set conditional distributions for observations
   p_obs_infected = np.array(
@@ -162,7 +162,7 @@ def compare_abm(
         f"{observations_now.shape[0]} obs"))
 
       t_start = time.time()
-      z_states_inferred_temp, contacts_age = inference_func(
+      z_states_inferred, contacts_age = inference_func(
         observations_now,
         contacts_now,
         num_rounds,
@@ -170,22 +170,18 @@ def compare_abm(
         users_age=users_age,
         diagnostic=diagnostic)
       
-      np.testing.assert_array_almost_equal(
-        z_states_inferred_temp.shape, [app_user_frac_num, num_days, 4])
+      np.testing.assert_array_almost_equal(z_states_inferred.shape, [num_users, num_days, 4])
       
-      # # Insert values from predictions to the places where contacts exist.
-      z_states_inferred = np.zeros((num_users, num_days, 4), dtype=np.float32)
-      assert z_states_inferred_temp.dtype == z_states_inferred.dtype
-
-      z_states_inferred[app_user_ids, :, :] = z_states_inferred_temp   
+      # Keep values that are relevant
+      z_states_inferred[app_users == 0] = np.zeros((4))
 
       # TODO: Marten, the regular non-c++ FN function returns contacts_age as None. So no need to update. 
       if inference_method == "fncpp":
-        contacts_age[app_user_ids] = contacts_age
+        contacts_age[app_users] = np.zeros((2))
       else:
         contacts_age = None
       
-      
+
       logger.info(f"Time spent on inference_func {time.time() - t_start:.0f}")
 
       if trace_dir is not None:

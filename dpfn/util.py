@@ -46,13 +46,13 @@ def get_past_contacts_fast(
 
 
 @numba.njit(
-  'Tuple((int32[:, :, :], int64))(int64[:], int32[:, :], int64)')
+  'Tuple((int32[:, :, :], int64))(UniTuple(int64, 2), int32[:, :], int64)')
 def get_past_contacts_static(
-    user_ids: np.ndarray,
+    user_interval: Tuple[int, int],
     contacts: np.ndarray,
     num_msg: int) -> Tuple[np.ndarray, int]:
   """Returns past contacts as a NumPy array, for easy pickling."""
-  num_users_int = user_ids.shape[0]
+  num_users_int = user_interval[1] - user_interval[0]
 
   if len(contacts) == 0:
     return (-1 * np.ones((num_users_int, 1, 2))).astype(np.int32), 0
@@ -63,10 +63,11 @@ def get_past_contacts_static(
 
   contacts_counts = np.zeros(num_users_int, dtype=np.int32)
 
+  # First find all contacts that are in the interval
   for contact in contacts:
     user_v = contact[1]
-    if user_v in user_ids:
-      contact_rel = np.where(user_ids == user_v)[0][0]
+    if user_interval[0] <= user_v < user_interval[1]:
+      contact_rel = user_v - user_interval[0]
       contact_count = contacts_counts[contact_rel] % (num_msg - 1)
       contacts_past[contact_rel, contact_count] = np.array(
         (contact[2], contact[0]), dtype=np.int32)
@@ -464,10 +465,9 @@ def precompute_d_penalty_terms_fn(
 
 
 @numba.njit((
-  'UniTuple(float32[:], 2)(int64[:], float32[:, :], float64, float64, int32[:, :], '
+  'UniTuple(float32[:], 2)(float32[:, :], float64, float64, int32[:, :], '
   'int64)'))
 def precompute_d_penalty_terms_fn2(
-    user_ids: np.ndarray,
     q_marginal_infected: np.ndarray,
     p0: float,
     p1: float,
@@ -496,18 +496,12 @@ def precompute_d_penalty_terms_fn2(
   # contacts = [np.int32(x) for x in range(0)]
   for row in past_contacts:
     time_inc = int(row[0])
-    user_id = int(row[1])
-
     if time_inc < 0:
       # past_contacts is padded with -1, so break when contact time is negative
       break
 
     happened[time_inc+1] = 1
-
-    q_marginal_index = np.where(user_ids == user_id)  
-    assert q_marginal_index[0].shape[0] == 1
-    
-    p_inf_inc = q_marginal_infected[q_marginal_index[0][0]][time_inc]
+    p_inf_inc = q_marginal_infected[int(row[1])][time_inc]
     log_expectations[time_inc+1] += np.log(p_inf_inc*(1-p1) + (1-p_inf_inc))
 
   # Additional penalty term for not terminating, negative by definition

@@ -49,7 +49,6 @@ def make_inference_func(
   if inference_method == "fn":
     inference_func = wrap_fact_neigh_inference(
       num_users=num_users,
-      user_ids=user_ids,
       alpha=alpha,
       beta=beta,
       probab0=p0,
@@ -104,7 +103,6 @@ def make_inference_func(
 
 def wrap_fact_neigh_inference(
     num_users: int,
-    user_ids: np.ndarray,
     alpha: float,
     beta: float,
     probab0: float,
@@ -134,7 +132,6 @@ def wrap_fact_neigh_inference(
 
     traces_per_user_fn = inference.fact_neigh(
       num_users=num_users,
-      user_ids=user_ids,
       num_time_steps=num_time_steps,
       observations_all=observations_list,
       contacts_all=contacts_list,
