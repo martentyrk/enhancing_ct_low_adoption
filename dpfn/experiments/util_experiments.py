@@ -10,7 +10,6 @@ def make_inference_func(
     inference_method: str,
     num_users: int,
     cfg: Dict[str, Any],
-    user_ids: np.ndarray,
     trace_dir: Optional[str] = None
     ):
   """Pulls together the inference function with parameters.

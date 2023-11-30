@@ -64,7 +64,7 @@ def compare_abm(
   logger.info(f"Number of app users: {app_user_frac_num}")
   
   inference_func, do_random_quarantine = util_experiments.make_inference_func(
-    inference_method, num_users, cfg, user_ids=app_user_ids, trace_dir=trace_dir)
+    inference_method, num_users, cfg, trace_dir=trace_dir)
 
   # Set conditional distributions for observations
   p_obs_infected = np.array(

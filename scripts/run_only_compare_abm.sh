@@ -16,4 +16,4 @@ module load 2022
 module load GSL/2.7-GCC-11.3.0
 module load SWIG/4.0.2-GCCcore-11.3.0
 
-srun python3 dpfn/main.py --app_users_fraction 1.0 --inference_method "fn" --simulator abm --config_data intermediate_graph_abm_02 --config_model model_ABM01
+srun python3 dpfn/main.py --app_users_fraction 1.0 --inference_method "fncpp" --simulator abm --config_data intermediate_graph_abm_02 --config_model model_ABM01
