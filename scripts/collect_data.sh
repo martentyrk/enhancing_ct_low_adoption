@@ -29,6 +29,7 @@ shuf ${dirname}/all.jlconcat.shuf > ${dirname}/all.jlconcat.shuf.shuf
 rm ${dirname}/positive.jlconcat.shuf
 rm ${dirname}/negative.jlconcat.shuf
 rm ${dirname}/negative.jlconcat.shuf.subsampled
+rm ${dirname}/all.jlconcat.shuf
 
 # Maybe make output directory
 [ -d ${dirname_out} ] || mkdir ${dirname_out}
