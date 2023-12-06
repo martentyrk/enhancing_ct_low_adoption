@@ -36,3 +36,5 @@ rm ${dirname}/negative.jlconcat.shuf.subsampled
 # Copy to dir output
 cp ${dirname}/all.jlconcat.shuf.shuf ${dirname_out}/all.jl
 rm ${dirname}/all.jlconcat.shuf.shuf
+
+echo 'Final dataset at ' ${dirname_out}/all.jl
