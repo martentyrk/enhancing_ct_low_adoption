@@ -42,6 +42,7 @@ def compare_abm(
   if 'app_users_fraction_wandb' in cfg:
     app_users_fraction = cfg.get("app_users_fraction_wandb", -1)
   
+  logger.info(f"App users fraction: {app_users_fraction}")
   assert app_users_fraction >= 0 and app_users_fraction <= 1.0
 
   # Data and simulator params
@@ -87,7 +88,7 @@ def compare_abm(
   num_tested = np.zeros((num_time_steps), dtype=np.int32)
 
   # Placeholder for tests on first day
-  z_states_inferred = np.zeros((num_users, 1, 4))
+  z_states_inferred = np.zeros((num_users, 1, 4), dtype=np.float32)
   user_quarantine_ends = -1*np.ones((num_users), dtype=np.int32)
   contacts_age = np.zeros((num_users, 2), dtype=np.int32)
 
@@ -173,11 +174,11 @@ def compare_abm(
       np.testing.assert_array_almost_equal(z_states_inferred.shape, [num_users, num_days, 4])
       
       # Keep values that are relevant
-      z_states_inferred[app_users == 0] = np.zeros((4))
+      z_states_inferred[app_users == 0] = np.zeros((4), dtype=np.float32)
 
       # TODO: Marten, the regular non-c++ FN function returns contacts_age as None. So no need to update. 
       if inference_method == "fncpp":
-        contacts_age[app_users] = np.zeros((2))
+        contacts_age[app_users == 0] = np.zeros((2), dtype=np.float32)
       else:
         contacts_age = None
       

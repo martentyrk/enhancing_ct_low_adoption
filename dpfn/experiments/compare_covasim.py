@@ -6,9 +6,8 @@ import threading
 import time
 from typing import Any, Dict, Optional
 import warnings
-
 from dpfn.experiments import (
-  prequential, util_covasim)
+  prequential, util_experiments, prequential, util_covasim)
 from dpfn import logger
 
 def compare_policy_covasim(
@@ -47,7 +46,7 @@ def compare_policy_covasim(
     f"Settings at experiment: {quantization:.0f} quant, at {fraction_test}% "
     f"seed {seed}"))
 
-  inference_func, do_random = make_inference_func(
+  inference_func, do_random = util_experiments.make_inference_func(
     inference_method, num_users, cfg, trace_dir=trace_dir)
 
   sensitivity = 1. - cfg["data"]["alpha"]

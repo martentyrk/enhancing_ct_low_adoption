@@ -2,10 +2,10 @@
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=CPUS
 #SBATCH --ntasks=NTASKS
-#SBATCH --time=01:30:00
+#SBATCH --time=05:00:00
 #SBATCH --job-name=marten_sweep
 #SBATCH --partition=rome
-#SBATCH --mem=9000
+#SBATCH --mem=15000
 #SBATCH --output=sweep_%A.out
 
 source activate thesis

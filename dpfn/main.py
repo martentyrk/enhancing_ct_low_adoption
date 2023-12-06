@@ -66,31 +66,9 @@ if __name__ == "__main__":
   config_wandb['cpu_count'] = util.get_cpu_count()
   config_wandb['data'] = config_data.to_dict()
   config_wandb['model'] = config_model.to_dict()
-
-  
-    # Set random seed
-  # seed_value = config_wandb.get("seed", -1)
-  seed_value = 30
-  if seed_value > 0:
-    random.seed(seed_value)
-    np.random.seed(seed_value)
-  else:
-    seed_value = random.randint(0, 999)
-  # Random number generator to pass as argument to some imported functions
-  arg_rng = np.random.default_rng(seed=seed_value)
-  
-  # Set up locations to store results
-  experiment_name = 'run_abm_prequential_seed'+ str(seed_value)
   
   if args.app_users_fraction:
     config_wandb["data"]["app_users_fraction"] = float(args.app_users_fraction)
-    experiment_name = experiment_name + "_adaption_" + str(args.app_users_fraction)
-  
-  if config_wandb.get('app_users_fraction_wandb'):
-    experiment_name = experiment_name + "_adaption_" + str(config_wandb.get("app_users_fraction_wandb", -1))
-  
-  results_dir_global = (
-    f'results/{experiment_name}/{configname_data}_{configname_model}/')
   
   # WandB tags
   tags = [
@@ -115,6 +93,28 @@ if __name__ == "__main__":
   config_wandb = util_experiments.set_noisy_test_params(config_wandb)
   config_wandb = util_experiments.convert_log_params(config_wandb)
   logger.info(config_wandb)
+  
+     # Set random seed
+  seed_value = config_wandb.get("seed", -1)
+  if seed_value > 0:
+    random.seed(seed_value)
+    np.random.seed(seed_value)
+  else:
+    seed_value = random.randint(0, 999)
+  # Random number generator to pass as argument to some imported functions
+  arg_rng = np.random.default_rng(seed=seed_value)
+  
+  # Set up locations to store results
+  experiment_name = 'run_abm_prequential_seed'+ str(seed_value)
+  
+  if args.app_users_fraction:
+    experiment_name = experiment_name + "_adaption_" + str(args.app_users_fraction)
+  
+  if 'app_users_fraction_wandb' in config_wandb:
+    experiment_name = experiment_name + "_adaption_" + str(config_wandb.get('app_users_fraction_wandb', -1))
+  
+  results_dir_global = (
+    f'results/{experiment_name}/{configname_data}_{configname_model}/')
 
   # This line prints all git differences etc. No need for now.
   # util_experiments.make_git_log()
