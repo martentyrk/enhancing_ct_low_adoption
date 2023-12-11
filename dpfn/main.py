@@ -15,6 +15,8 @@ from dpfn import util
 from dpfn import util_wandb
 from experiments.compare_covasim import compare_policy_covasim
 from experiments.compare_abm import compare_abm
+from experiments.compare_abm_baseline import compare_abm_baseline
+from experiments.compare_abm_age import compare_abm_age
 
 
 if __name__ == "__main__":
@@ -38,6 +40,9 @@ if __name__ == "__main__":
   parser.add_argument('--do_diagnosis', action='store_true')
   parser.add_argument('--dump_traces', action='store_true')
   parser.add_argument('--app_users_fraction', type=float, default=None)
+  parser.add_argument('--modify_contacts', action='store_true')
+  parser.add_argument('--baseline', action='store_true')
+  parser.add_argument('--seed_value', type=int, default=None)
 
   # TODO make a better heuristic for this:
   # num_threads = max((util.get_cpu_count()-1, 1))
@@ -100,12 +105,17 @@ if __name__ == "__main__":
     random.seed(seed_value)
     np.random.seed(seed_value)
   else:
-    seed_value = random.randint(0, 999)
+    if args.seed_value:
+      seed_value = args.seed_value
+    else:
+      seed_value = random.randint(0, 999)
   # Random number generator to pass as argument to some imported functions
   arg_rng = np.random.default_rng(seed=seed_value)
   
   # Set up locations to store results
-  experiment_name = 'run_abm_prequential_seed'+ str(seed_value)
+  experiment_name = 'run_abm_seed'+ str(seed_value)
+  if args.baseline:
+    experiment_name = 'run_abm_mean_seed'+ str(seed_value)
   
   if args.app_users_fraction:
     experiment_name = experiment_name + "_adaption_" + str(args.app_users_fraction)
@@ -130,18 +140,18 @@ if __name__ == "__main__":
     logger.info(f"Dump traces to results_dir_global {trace_dir_global}")
   else:
     trace_dir_global = None
-    
-    
+
+  
   logger.info(f"Logger filename {LOGGER_FILENAME}")
   logger.info(f"Saving to results_dir_global {results_dir_global}")
   logger.info(f"sweep_id: {os.getenv('SWEEPID')}")
   logger.info(f"slurm_id: {os.getenv('SLURM_JOB_ID')}")
   logger.info(f"slurm_name: {os.getenv('SLURM_JOB_NAME')}")
   logger.info(f"slurm_ntasks: {os.getenv('SLURM_NTASKS')}")
-  
+
   try:
     if args.simulator == "abm":
-      comparison_fn = compare_abm
+      comparison_fn = compare_abm_baseline if args.baseline else compare_abm
     elif args.simulator == "covasim":
       comparison_fn = compare_policy_covasim
     else:
@@ -155,7 +165,8 @@ if __name__ == "__main__":
       results_dir=results_dir_global,
       arg_rng=arg_rng,
       trace_dir=trace_dir_global,
-      do_diagnosis=args.do_diagnosis
+      do_diagnosis=args.do_diagnosis,
+      modify_contacts=args.modify_contacts
       )
 
   except Exception as e:

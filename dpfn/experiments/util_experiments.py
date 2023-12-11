@@ -10,6 +10,7 @@ def make_inference_func(
     inference_method: str,
     num_users: int,
     cfg: Dict[str, Any],
+    user_ids: np.ndarray,
     trace_dir: Optional[str] = None
     ):
   """Pulls together the inference function with parameters.
@@ -48,6 +49,7 @@ def make_inference_func(
   if inference_method == "fn":
     inference_func = wrap_fact_neigh_inference(
       num_users=num_users,
+      user_ids=user_ids,
       alpha=alpha,
       beta=beta,
       probab0=p0,
@@ -61,7 +63,8 @@ def make_inference_func(
       clip_lower=clip_lower,
       clip_upper=clip_upper,
       quantization=quantization,
-      trace_dir=trace_dir)
+      trace_dir=trace_dir,
+      )
   elif inference_method == "fncpp":
     inference_func = wrap_fact_neigh_cpp(
       num_users=num_users,
@@ -102,6 +105,7 @@ def make_inference_func(
 
 def wrap_fact_neigh_inference(
     num_users: int,
+    user_ids:np.ndarray,
     alpha: float,
     beta: float,
     probab0: float,
@@ -124,13 +128,15 @@ def wrap_fact_neigh_inference(
       contacts_list: np.ndarray,
       num_updates: int,
       num_time_steps: int,
+      infection_prior: float,
+      user_age_pinf_mean:np.ndarray,
       users_age: Optional[np.ndarray] = None,
       diagnostic: Optional[Any] = None
       ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
-    del users_age
 
     traces_per_user_fn = inference.fact_neigh(
       num_users=num_users,
+      user_ids=user_ids,
       num_time_steps=num_time_steps,
       observations_all=observations_list,
       contacts_all=contacts_list,
@@ -140,10 +146,9 @@ def wrap_fact_neigh_inference(
       probab_1=probab1,  # Probability of transmission given a contact
       g_param=g_param,  # Dynamics parameter for E -> I transition
       h_param=h_param,  # Dynamics parameter for I -> R transition
-      dp_method=dp_method,  # Integer to choose an experimental dp method
-      epsilon_dp=epsilon_dp,  # epsilon parameter for Differential Privacy
-      delta_dp=delta_dp,  # delta parameter for Differential Privacy
-      a_rdp=a_rdp,  # alpha parameter for Renyi Differential Privacy
+      infection_prior=infection_prior,
+      user_age_pinf_mean=user_age_pinf_mean,
+      users_age=users_age,
       clip_lower=clip_lower,  # Lower bound for clipping, depends on method
       clip_upper=clip_upper,  # Upper bound for clipping, depends on method
       quantization=quantization,
@@ -151,8 +156,10 @@ def wrap_fact_neigh_inference(
       num_updates=num_updates,
       verbose=False,
       trace_dir=trace_dir,
-      diagnostic=diagnostic)
+      diagnostic=diagnostic,
+      )
     return traces_per_user_fn, None
+
   return fact_neigh_wrapped
 
 

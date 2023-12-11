@@ -16,7 +16,8 @@ def compare_policy_covasim(
     runner,
     results_dir: str,
     trace_dir: Optional[str] = None,
-    do_diagnosis: bool = False):
+    do_diagnosis: bool = False,
+    modify_contacts: bool = False):
   """Compares different inference algorithms on the supplied contact graph."""
   del do_diagnosis
 

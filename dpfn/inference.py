@@ -16,6 +16,7 @@ def softmax(x):
 @numba.njit(parallel=True)
 def fn_step_wrapped(
     user_interval: Tuple[int, int],
+    user_ids:np.ndarray,
     seq_array_hot: np.ndarray,
     log_c_z_u: np.ndarray,
     log_A_start: np.ndarray,
@@ -24,12 +25,11 @@ def fn_step_wrapped(
     probab0: float,
     probab1: float,
     past_contacts_array: np.ndarray,
+    infection_prior: float,
+    user_age_pinf_mean:np.ndarray,
+    users_age:np.ndarray,
     clip_lower: float = -1.,
     clip_upper: float = 10000.,
-    dp_method: int = -1,
-    epsilon_dp: float = -1.,
-    delta_dp: float = -1.,
-    a_rdp: float = -1.,
     quantization: int = -1):
   """Wraps one step of Factorised Neighbors over a subset of users.
 
@@ -88,6 +88,10 @@ def fn_step_wrapped(
 
     d_term, d_no_term = util.precompute_d_penalty_terms_fn2(
       q_marginal_infected=p_infected_matrix,
+      user_ids=user_ids,
+      infection_prior=infection_prior,
+      user_age_pinf_mean=user_age_pinf_mean,
+      users_age=users_age,
       p0=probab0,
       p1=probab1,
       past_contacts=past_contacts_array[i],
@@ -122,6 +126,7 @@ def fn_step_wrapped(
 
 def fact_neigh(
     num_users: int,
+    user_ids:np.ndarray,
     num_time_steps: int,
     observations_all: np.ndarray,
     contacts_all: np.ndarray,
@@ -131,18 +136,18 @@ def fact_neigh(
     h_param: float,
     alpha: float,
     beta: float,
+    infection_prior: float,
+    user_age_pinf_mean:np.ndarray,
+    users_age:np.ndarray,
     clip_lower: float = -1.,
     clip_upper: float = 10000.,
     quantization: int = -1,
     users_stale: Optional[np.ndarray] = None,
     num_updates: int = 5,
-    dp_method: int = -1,
-    epsilon_dp: float = -1.,
-    delta_dp: float = -1.,
-    a_rdp: float = -1.,
     verbose: bool = False,
     trace_dir: Optional[str] = None,
-    diagnostic: Optional[Any] = None) -> np.ndarray:
+    diagnostic: Optional[Any] = None,
+    ) -> np.ndarray:
   """Inferes latent states using Factorised Neighbor method.
 
   Uses Factorised Neighbor approach from
@@ -243,6 +248,7 @@ def fact_neigh(
 
     post_exp, tstart, t_end = fn_step_wrapped(
       (0, num_users),
+      user_ids,
       seq_array_hot,
       log_c_z_u,
       log_A_start,
@@ -250,12 +256,12 @@ def fact_neigh(
       num_time_steps,
       probab_0,
       probab_1,
+      infection_prior=infection_prior,
+      user_age_pinf_mean=user_age_pinf_mean,
+      users_age=users_age,
       clip_lower=-1.,
       clip_upper=10000.,
       past_contacts_array=past_contacts,
-      dp_method=-1,
-      epsilon_dp=-1.,
-      delta_dp=-1.,
       quantization=quantization)
     
     # if np.any(np.isinf(post_exp)):
