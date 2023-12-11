@@ -138,3 +138,31 @@ def decide_tests(
   # Sort the list of user_ids based on scores, then assign tests to the num tests highest
   users_to_test = sort_indeces[user_ids][-num_tests:]
   return users_to_test.astype(np.int32)
+
+
+def generate_app_users(num_users: int, users_ages: np.ndarray, app_users_fraction: np.float32):
+  '''
+  From the population randomly pick a subset of people to be app users from each age group
+  
+  Returns a binary array where 1 denotes that at this index individual is an app user and 0 denotes
+  that they are not using the app.
+  '''
+  if app_users_fraction == 1.0:
+    return np.ones((num_users), dtype=np.int32)
+  
+  population_array = np.arange(0, num_users)
+  app_user_ids_binary = np.zeros((num_users), dtype=np.int32)
+  user_age_groups = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8])
+
+  app_user_ids = np.array([], dtype=np.int32)
+  for age in user_age_groups:
+      age_group_filtered = population_array[np.argwhere(users_ages == age)].flatten()          
+      amount_per_group = int(np.ceil(app_users_fraction * age_group_filtered.shape[0]))
+      choose_age_users = np.random.choice(age_group_filtered, amount_per_group)
+      app_user_ids = np.append(app_user_ids, choose_age_users)
+    
+  app_user_ids = np.sort(app_user_ids)
+  
+  
+  app_user_ids_binary[app_user_ids] = 1
+  return app_user_ids_binary

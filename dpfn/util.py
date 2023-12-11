@@ -839,3 +839,4 @@ def root_find_a_rdp(
   # Find lowest multiplier
   idx = np.argmin(mult_values)
   return a_values[idx], rho_values[idx]
+  

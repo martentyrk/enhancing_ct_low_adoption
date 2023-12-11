@@ -25,18 +25,17 @@ class ABMSimulator():
       self,
       num_time_steps: int,
       num_users: int,
-      app_users_fraction: float,
       rng_seed: int = 123,
       modify_contacts: bool = False,
       ) -> None:
     self.num_time_steps = num_time_steps
     self.num_users = num_users
-    self.app_users_fraction = app_users_fraction
     self.rng_seed = rng_seed
     self.modify_contacts = modify_contacts
+    self.app_users_fraction = 1.0
 
     self._day_current = 0
-
+    self.app_users = np.array([], dtype=np.int32)
     # Note that contacts are offset with self._day_start_window and contacts
     # prior to self._day_start_window have been discarded.
     self._day_start_window = 0
@@ -80,16 +79,6 @@ class ABMSimulator():
     params.set_param("rng_seed", rng_seed)
     params.set_param("app_turned_on", 0)
     
-    params.set_param("app_users_fraction_0_9", app_users_fraction)
-    params.set_param("app_users_fraction_10_19", app_users_fraction)
-    params.set_param("app_users_fraction_20_29", app_users_fraction)
-    params.set_param("app_users_fraction_30_39", app_users_fraction)
-    params.set_param("app_users_fraction_40_49", app_users_fraction)
-    params.set_param("app_users_fraction_50_59", app_users_fraction)
-    params.set_param("app_users_fraction_60_69", app_users_fraction)
-    params.set_param("app_users_fraction_70_79", app_users_fraction)
-    params.set_param("app_users_fraction_80", app_users_fraction)
-    
 
     model_init = abm_model.Model(params)
     self.model = simulation.COVID19IBM(model=model_init)
@@ -97,6 +86,13 @@ class ABMSimulator():
     self.sim = simulation.Simulation(env=self.model, end_time=num_time_steps)
     logger.info("Finished constructing ABM simulator")
 
+  def set_app_users(self, app_users):
+    self.app_users = app_users
+  
+  def set_app_users_fraction(self, app_users_fraction):
+    self.app_users_fraction = app_users_fraction
+  
+  
   def get_states_today(self) -> np.ndarray:
     """Returns the states an np.ndarray in size [num_users].
 

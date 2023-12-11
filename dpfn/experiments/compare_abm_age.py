@@ -57,7 +57,12 @@ def compare_abm_age(
   diagnostic = runner if do_diagnosis else None
 
   sim = simulator.ABMSimulator(
-    num_time_steps, num_users, app_users_fraction, rng_seed, modify_contacts)
+    num_time_steps, num_users, rng_seed, modify_contacts=modify_contacts)
+  sim.set_app_users_fraction(app_users_fraction=app_users_fraction)
+  
+    
+  app_users = prequential.generate_app_users(num_users=num_users, users_ages = sim.get_age_users(), app_users_fraction=app_users_fraction)
+  sim.set_app_users(app_users)
   
   users_age = -1*np.ones((num_users), dtype=np.int32)
   
@@ -65,6 +70,7 @@ def compare_abm_age(
   app_user_ids = np.nonzero(app_users)[0]
   # How many users there actually are, take that from app_user_ids.
   app_user_frac_num = app_user_ids.shape[0]
+  
   user_age_groups = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8])
   user_age_pinf_mean = np.zeros((9), dtype=np.float64)
   logger.info(f"Number of app users: {app_user_frac_num}")
