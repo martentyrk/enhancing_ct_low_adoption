@@ -1,6 +1,9 @@
-# Protect Your Score: Contact Tracing With Differential Privacy Guarantees
+# Protect Your Score
 
-This repo contains accompanying code for the anonymous submission titled "Protect Your Score"
+This repo contains accompanying code for the AAAI 2023 paper:
+'Protect Your Score: Contact Tracing with Differential Privacy Guarantees'.
+
+The library is named DPFN, after the decentralized algorithm that we introduce.
 
 ## Typical usage
 
@@ -10,16 +13,16 @@ For ABM:
 ```
 python3 dpfn/experiments/compare_abm.py \
     --inference_method "fn" \
-    --experiment_setup "prequential" \
     --config_data intermediate_graph_abm_02 \
     --config_model model_ABM01
 ```
 
 For COVASIM:
 ```
-python3 dpfn/experiments/compare_covasim.py \
+python3 dpfn/experiments/compare_abm.py \
     --inference_method "fn" \
     --config_data intermediate_graph_cv_02 \
+    --simulator=covasim \
     --config_model model_CV01
 ```
 
@@ -28,6 +31,13 @@ These configs can be found in dpfn/config/model_*.ini. For example, in that conf
 one can change the epsilon and delta for Differential Privacy, or change the model
 parameters. In dpfn/config/graph_*.ini, one can change the simulator parameters
 like fraction_test or num_users.
+
+Inference method 'fn' will run Factorised Neighbors and, depending on the other
+configs, this experiment will be DP. We are in the process of open-sourcing a
+C++ implementation of DPFN, whereby inference will be about 2x faster. Also,
+memory issues for large scale experiments are resolved. In case the compilation
+of the CPP util library does not work, one can simply remove any link to the 'fncpp'
+inference method and you're able to run everything in python.
 
 The most used experimental setup would be 'prequential'. This indicates the simulation
 whose results can be found throughout the paper. Prequential is slang for sequential
@@ -44,12 +54,13 @@ Utility functions for calculating differential privacy terms are in util.py and 
 The naming of variables in this code generally follows two works:
 Herbrich et al. 2020, "Crisp", Romijnders et al. 2023, "No time to waste"
 
-The two main simulations on OpenABM and COVASIM are run with dpfn/experiments/compare_abm.py
-and dpfn/experiments/compare_covasim.py
-
+The two main simulations on OpenABM and COVASIM are run with dpfn/experiments/compare_abm.py. This file
+contains the main for-loop that runs the simulation and logs metrics. At the start of each experiment,
+the most recent git-commit and git-diff is logged for better reproducibility.
 
 Different versions for obtaining a differentially private covidscore are numbered like
-dp1, dp2, ..., dp7. These are explained in constants.py.
+dp1, dp2, ..., dp7. These are explained in constants.py. The results for DPFN correspond to
+dp_method=5.
 An important parameter in the config is `noisy_test` as this controls the False Positive Rate
 and False Negative Rate of the tests for covid. We distinguish between levels -1, 0, 1, 2, 3, 4.
 Levels 0,1,2,3 correspond to the levels used in the paper. Level 4 has FPR=FNR=1/2 which turns the
@@ -132,4 +143,8 @@ $ wandb agent "${WANDBUSERNAME}/dpfn-dpfn_experiments/$SWEEP"
 
 ## Attribution
 
-This readme is anonymous for double-blind review.
+The starting point for this repo was a fork of [our earlier project](https://github.com/QUVA-Lab/nttw).
+
+This work is financially supported by Qualcomm Technologies Inc., the University of Amsterdam and the allowance Top consortia for Knowledge and Innovation (TKIs) from the Netherlands Ministry of Economic Affairs and Climate Policy.
+
+All communication may go to romijndersrob@gmail.com or r.romijnders@uva.nl.
