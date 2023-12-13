@@ -152,10 +152,10 @@ def dump_features_graph(
         if user_free[user] == 0:
           num_ignored += 1
           continue
-
+        #Each row is a json file
         output = {
           "fn_pred": float(z_states_inferred[user][-1][2]),
-          "sim_state": int(z_states_sim[user]),
+          "sim_state": int(z_states_sim[user]), #in constants.py
           "user_age": int(users_age[user]),
           "observations": observations_json[user],
           "contacts": [],
@@ -168,10 +168,11 @@ def dump_features_graph(
           output['contacts'].append([
             int(row[0]),  # timestep
             int(row[1]),  # sender
-            int(row[2]),  # age
-            int(row[3]),  # pinf
+            int(row[2]),  # age (age groups)
+            int(row[3]),  # pinf 
+            #TODO: Add location here as well?
           ])
-
+        #in pytorch its json.loads
         if user_positive[user]:
           fpos.write(json.dumps(output) + "\n")
         else:

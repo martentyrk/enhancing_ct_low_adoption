@@ -158,7 +158,7 @@ def generate_app_users(num_users: int, users_ages: np.ndarray, app_users_fractio
   for age in user_age_groups:
       age_group_filtered = population_array[np.argwhere(users_ages == age)].flatten()          
       amount_per_group = int(np.ceil(app_users_fraction * age_group_filtered.shape[0]))
-      choose_age_users = np.random.choice(age_group_filtered, amount_per_group)
+      choose_age_users = np.random.choice(age_group_filtered, amount_per_group, replace=False)
       app_user_ids = np.append(app_user_ids, choose_age_users)
     
   app_user_ids = np.sort(app_user_ids)

@@ -11,6 +11,7 @@ def make_inference_func(
     num_users: int,
     cfg: Dict[str, Any],
     user_ids: np.ndarray,
+    non_app_user_ids: np.ndarray,
     trace_dir: Optional[str] = None
     ):
   """Pulls together the inference function with parameters.
@@ -50,16 +51,13 @@ def make_inference_func(
     inference_func = wrap_fact_neigh_inference(
       num_users=num_users,
       user_ids=user_ids,
+      non_app_user_ids=non_app_user_ids,
       alpha=alpha,
       beta=beta,
       probab0=p0,
       probab1=p1,
       g_param=g,
       h_param=h,
-      dp_method=dp_method,
-      epsilon_dp=epsilon_dp,
-      delta_dp=delta_dp,
-      a_rdp=a_rdp,
       clip_lower=clip_lower,
       clip_upper=clip_upper,
       quantization=quantization,
@@ -106,6 +104,7 @@ def make_inference_func(
 def wrap_fact_neigh_inference(
     num_users: int,
     user_ids:np.ndarray,
+    non_app_user_ids:np.ndarray,
     alpha: float,
     beta: float,
     probab0: float,
@@ -114,10 +113,6 @@ def wrap_fact_neigh_inference(
     h_param: float,
     clip_lower: float,
     clip_upper: float,
-    dp_method: int = -1,
-    epsilon_dp: float = -1.,
-    delta_dp: float = -1.,
-    a_rdp: float = -1.,
     quantization: int = -1,
     trace_dir: Optional[str] = None,
     ):
@@ -130,13 +125,14 @@ def wrap_fact_neigh_inference(
       num_time_steps: int,
       infection_prior: float,
       user_age_pinf_mean:np.ndarray,
-      users_age: Optional[np.ndarray] = None,
+      non_app_users_age: Optional[np.ndarray] = None,
       diagnostic: Optional[Any] = None
       ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
 
     traces_per_user_fn = inference.fact_neigh(
       num_users=num_users,
-      user_ids=user_ids,
+      app_user_ids=user_ids,
+      non_app_user_ids=non_app_user_ids,
       num_time_steps=num_time_steps,
       observations_all=observations_list,
       contacts_all=contacts_list,
@@ -148,7 +144,7 @@ def wrap_fact_neigh_inference(
       h_param=h_param,  # Dynamics parameter for I -> R transition
       infection_prior=infection_prior,
       user_age_pinf_mean=user_age_pinf_mean,
-      users_age=users_age,
+      non_app_users_age=non_app_users_age,
       clip_lower=clip_lower,  # Lower bound for clipping, depends on method
       clip_upper=clip_upper,  # Upper bound for clipping, depends on method
       quantization=quantization,

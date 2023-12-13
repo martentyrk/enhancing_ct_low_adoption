@@ -465,14 +465,10 @@ def precompute_d_penalty_terms_fn(
 
 
 @numba.njit((
-  'UniTuple(float32[:], 2)(float32[:, :], int64[:], float32, float64[:], int32[:], float64, float64, int32[:, :], '
+  'UniTuple(float32[:], 2)(float32[:, :], float64, float64, int32[:, :], '
   'int64)'))
 def precompute_d_penalty_terms_fn2(
     q_marginal_infected: np.ndarray,
-    user_ids: np.ndarray,
-    infection_prior: float,
-    user_age_pinf_mean:np.ndarray,
-    users_age:np.ndarray,
     p0: float,
     p1: float,
     past_contacts: np.ndarray,
@@ -485,8 +481,6 @@ def precompute_d_penalty_terms_fn2(
   # Make num_time_steps+1 longs, such that penalties are 0 when t0==0
   d_term = np.zeros((num_time_steps+1), dtype=np.float32)
   d_no_term = np.zeros((num_time_steps+1), dtype=np.float32)
-  do_user_age_pinf = not np.all(user_age_pinf_mean == -1.)
-  user_ids_set = set(user_ids)
 
   if len(past_contacts) == 0:
     return d_term, d_no_term
@@ -502,24 +496,15 @@ def precompute_d_penalty_terms_fn2(
   # contacts = [np.int32(x) for x in range(0)]
   for row in past_contacts:
     time_inc = int(row[0])
-    current_user = int(row[1])
     if time_inc < 0:
       # past_contacts is padded with -1, so break when contact time is negative
       break
 
     happened[time_inc+1] = 1
-    
-    if infection_prior != -1. and current_user not in user_ids_set:
-      p_inf_inc = infection_prior
-    elif do_user_age_pinf and current_user not in user_ids_set:
-      age_group = users_age[current_user]
-      p_inf_inc = user_age_pinf_mean[age_group]
-    else:
-      p_inf_inc = q_marginal_infected[current_user][time_inc]  
-      
-  
+    p_inf_inc = q_marginal_infected[int(row[1])][time_inc]
     log_expectations[time_inc+1] += np.log(p_inf_inc*(1-p1) + (1-p_inf_inc))
-
+    if log_expectations[time_inc + 1] == None:
+      print(time_inc + 1)
   # Additional penalty term for not terminating, negative by definition
   d_no_term = log_expectations
   # Additional penalty term for not terminating, usually positive

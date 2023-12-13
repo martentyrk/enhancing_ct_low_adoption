@@ -1,5 +1,5 @@
 """Inference methods for contact-graphs."""
-from dpfn import constants, logger, util, util_dp
+from dpfn import constants, logger, util
 import numba
 import numpy as np
 import os  # pylint: disable=unused-import
@@ -16,7 +16,6 @@ def softmax(x):
 @numba.njit(parallel=True)
 def fn_step_wrapped(
     user_interval: Tuple[int, int],
-    user_ids:np.ndarray,
     seq_array_hot: np.ndarray,
     log_c_z_u: np.ndarray,
     log_A_start: np.ndarray,
@@ -25,9 +24,6 @@ def fn_step_wrapped(
     probab0: float,
     probab1: float,
     past_contacts_array: np.ndarray,
-    infection_prior: float,
-    user_age_pinf_mean:np.ndarray,
-    users_age:np.ndarray,
     clip_lower: float = -1.,
     clip_upper: float = 10000.,
     quantization: int = -1):
@@ -88,10 +84,6 @@ def fn_step_wrapped(
 
     d_term, d_no_term = util.precompute_d_penalty_terms_fn2(
       q_marginal_infected=p_infected_matrix,
-      user_ids=user_ids,
-      infection_prior=infection_prior,
-      user_age_pinf_mean=user_age_pinf_mean,
-      users_age=users_age,
       p0=probab0,
       p1=probab1,
       past_contacts=past_contacts_array[i],
@@ -126,7 +118,8 @@ def fn_step_wrapped(
 
 def fact_neigh(
     num_users: int,
-    user_ids:np.ndarray,
+    app_user_ids: np.ndarray,
+    non_app_user_ids:np.ndarray,
     num_time_steps: int,
     observations_all: np.ndarray,
     contacts_all: np.ndarray,
@@ -138,7 +131,7 @@ def fact_neigh(
     beta: float,
     infection_prior: float,
     user_age_pinf_mean:np.ndarray,
-    users_age:np.ndarray,
+    non_app_users_age:np.ndarray,
     clip_lower: float = -1.,
     clip_upper: float = 10000.,
     quantization: int = -1,
@@ -170,11 +163,6 @@ def fact_neigh(
     quantization: number of levels for quantization. Negative number indicates
       no use of quantization.
     num_updates: Number of rounds to update using Factorised Neighbor algorithm
-    dp_method: DP method to use, explanation in constants.py, value of -1 means
-      no differential privacy applied
-    epsilon_dp: Epsilon for differential privacy
-    delta_dp: Delta for differential privacy
-    a_rdp: alpha parameter for Renyi Differential Privacy
     verbose: set to true to get more verbose output
 
   Returns:
@@ -217,9 +205,14 @@ def fact_neigh(
     observations_all)
 
   q_marginal_infected = np.zeros((num_users, num_time_steps), dtype=np.single)
-
-  #TODO: Marten, What is post-exp 4 dimensions at the end?
-  # ANS: Most likely probabilites of being in each of the SEIR states.
+  if infection_prior != -1.:
+    q_marginal_infected[non_app_user_ids, -1] = infection_prior
+  elif not np.all(user_age_pinf_mean == -1.):
+    user_age_groups = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8])
+    for age in user_age_groups:
+      age_group_ids = non_app_user_ids[np.where(non_app_users_age == age)[0]]
+      q_marginal_infected[age_group_ids, -1] = user_age_pinf_mean[age]
+      
   post_exp = np.zeros((num_users, num_time_steps, 4), dtype=np.single)
 
   t_preamble1 = time.time() - t_start_preamble
@@ -248,7 +241,6 @@ def fact_neigh(
 
     post_exp, tstart, t_end = fn_step_wrapped(
       (0, num_users),
-      user_ids,
       seq_array_hot,
       log_c_z_u,
       log_A_start,
@@ -256,9 +248,6 @@ def fact_neigh(
       num_time_steps,
       probab_0,
       probab_1,
-      infection_prior=infection_prior,
-      user_age_pinf_mean=user_age_pinf_mean,
-      users_age=users_age,
       clip_lower=-1.,
       clip_upper=10000.,
       past_contacts_array=past_contacts,
@@ -275,7 +264,7 @@ def fact_neigh(
     if verbose:
       logger.info(f"Time for fn_step: {t_end - tstart:.1f} seconds")
 
-    q_marginal_infected = post_exp[:, :, 2]
+    q_marginal_infected[app_user_ids, :] = post_exp[app_user_ids, :, 2]
 
   post_exp_collect = post_exp
 

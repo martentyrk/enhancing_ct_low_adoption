@@ -21,7 +21,9 @@ def compare_abm(
     arg_rng: int,
     trace_dir: Optional[str] = None,
     do_diagnosis: bool = False,
-    modify_contacts: bool=False):
+    modify_contacts: bool=False,
+    run_mean_baseline: bool=False,
+    run_age_baseline: bool=False):
   """Compares different inference algorithms on the supplied contact graph."""
   num_users = cfg["data"]["num_users"]
   num_time_steps = cfg["data"]["num_time_steps"]
@@ -46,6 +48,14 @@ def compare_abm(
   logger.info(f"App users fraction: {app_users_fraction}")
   assert app_users_fraction >= 0 and app_users_fraction <= 1.0
 
+  
+  if run_mean_baseline:
+    logger.info('Running mean baseline')
+  elif run_age_baseline:
+    logger.info('Running age baseline')
+  else:
+    logger.info('Running vanilla factorized neighbors')
+
   # Data and simulator params
   num_days_quarantine = cfg["data"]["num_days_quarantine"]
   t_start_quarantine = cfg["data"]["t_start_quarantine"]
@@ -57,22 +67,25 @@ def compare_abm(
 
   sim = simulator.ABMSimulator(
     num_time_steps, num_users, rng_seed, modify_contacts=modify_contacts)
+  
   users_age = -1*np.ones((num_users), dtype=np.int32)
   sim.set_app_users_fraction(app_users_fraction=app_users_fraction)
-  
-  infection_prior = -1.
-  user_age_pinf_mean = -1.*np.ones((9))
-    
   app_users = prequential.generate_app_users(num_users=num_users, users_ages = sim.get_age_users(), app_users_fraction=app_users_fraction)
   sim.set_app_users(app_users)
   
   app_user_ids = np.nonzero(app_users)[0]
+  non_app_user_ids = np.where(app_users == 0)[0]
   # How many users there actually are, take that from app_user_ids.
   app_user_frac_num = app_user_ids.shape[0]
   logger.info(f"Number of app users: {app_user_frac_num}")
   
+  # Variables for baselines.
+  user_age_groups = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8])
+  user_age_pinf_mean = -1.*np.ones((9), dtype=np.float32)
+  infection_prior = -1.
+  
   inference_func, do_random_quarantine = util_experiments.make_inference_func(
-    inference_method, num_users, cfg, user_ids=app_user_ids, trace_dir=trace_dir)
+    inference_method, num_users, cfg, user_ids=app_user_ids, non_app_user_ids=non_app_user_ids, trace_dir=trace_dir)
 
   # Set conditional distributions for observations
   p_obs_infected = np.array(
@@ -111,6 +124,8 @@ def compare_abm(
     sim.step()
     if t_now == 1:
       users_age = sim.get_age_users()
+      app_users_age = users_age[app_users == 1]
+      non_app_users_age = users_age[app_users == 0]
 
     # Number of days to use for inference
     num_days = min((t_now + 1, num_days_window))
@@ -169,6 +184,15 @@ def compare_abm(
         f"Day {t_now}: {contacts_now.shape[0]} contacts, "
         f"{observations_now.shape[0]} obs"))
 
+      if run_mean_baseline:
+        infection_prior = np.mean(z_states_inferred[app_user_ids, -1, 2])  
+        assert infection_prior.dtype == np.float32
+      
+      elif run_age_baseline:
+        for age_group in user_age_groups:
+          mean_of_group = np.mean(z_states_inferred[app_user_ids[np.argwhere(app_users_age == age_group)], -1, 2])
+          user_age_pinf_mean[age_group] = mean_of_group
+        
       
       t_start = time.time()
       z_states_inferred, contacts_age = inference_func(
@@ -176,7 +200,7 @@ def compare_abm(
         contacts_now,
         num_rounds,
         num_days,
-        users_age=users_age,
+        non_app_users_age=non_app_users_age,
         diagnostic=diagnostic,
         infection_prior=infection_prior,
         user_age_pinf_mean=user_age_pinf_mean)
