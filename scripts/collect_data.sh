@@ -1,6 +1,6 @@
 #!/bin/bash
 
-dirname='results/trace_run_prequential/intermediate_graph_abm_02__model_ABM01/test_with_obs_123/'
+dirname='results_temp/trace_high_mem_run_abm_seed30_adaption_0.8/intermediate_graph_abm_02__model_ABM01/test_with_obs_30'
 dirname_out=${dirname}_out
 
 # Concatenate and shuffle train and validation sets

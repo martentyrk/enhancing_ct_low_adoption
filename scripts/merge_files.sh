@@ -1,13 +1,13 @@
 #!/bin/bash
 
-merged_file_name="train.jl"
+merged_file_name="train_all_users.jl"
 
 # Check if merged_file.txt already exists and delete if it does
 if [ -f "$merged_file_name" ]; then
     rm "$merged_file_name"
 fi
 
-dirname='/home/mturk/dpfn/results/trace_high_mem_run_abm_seed30_adaption_0.4/'
+dirname='results_temp/train_data'
 dirname_out=${dirname}_out
 
 cd "$dirname"
@@ -21,10 +21,10 @@ fi
 # Loop through all files in the specified directory
 for file in *; do
     # Check if the file is a regular file and not the script itself
-    if [ -f "$file" ] && [ "$file" != "$merged_file" ]; then
+    if [ "$file" != "$merged_file_name" ]; then
         # Append the content of the file to merged_file.txt
-        cat "$file" >> "$merged_file"
+        cat "$file" >> "$merged_file_name"
     fi
 done
 
-echo "All files in $DIRECTORY have been merged into $merged_file."
+echo "All files in $DIRECTORY have been merged into $merged_file_name."
