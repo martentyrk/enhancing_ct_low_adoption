@@ -33,6 +33,7 @@ def make_features_graph(data):
 
 
   # Column 0 is the timestep
+  data['user_age'] /= 10
   contacts[:, 1] /= 10  # Column 1 is the age
   contacts[:, 2] /= 1024  # Column 2 is the pinf according to FN
   edge_attributes = []
@@ -49,7 +50,7 @@ def make_features_graph(data):
   return ({
     'fn_pred': torch.tensor(data['fn_pred'], dtype=torch.float32),
     'user': torch.tensor(data['user'], dtype=torch.int32),
-    'user_age': torch.tensor(data['user_age'], dtype=torch.int32),
+    'user_age': torch.tensor(data['user_age'], dtype=torch.float32),
     'contacts': contacts,
     'outcome': np.float32(data['sim_state'] == 2 or data['sim_state'] == 1)
   }, single_contact_edges, edge_attributes)
@@ -78,24 +79,27 @@ if __name__ == "__main__":
           except NoContacts:
             continue
           
-          single_dataframe = pd.DataFrame([single_user])
-          
-          labels = single_dataframe[['outcome']]
-          y = labels.to_numpy()
-          
-          node_features = single_dataframe[['fn_pred', 'user_age']]
-          for contact in single_user['contacts']:
-            temp_contact_dataframe = pd.DataFrame({'fn_pred': [contact[2]], 'user_age': [contact[1]]})
-            node_features = pd.concat([node_features, temp_contact_dataframe], ignore_index=True)
-              
-          single_edge_index = torch.tensor(single_edge_index, dtype=torch.long).contiguous()
-          data_single = Data(x=node_features.to_numpy(), edge_index=single_edge_index, y=y, edge_attr=single_edge_attr)
+          #Labels
+          y = single_user['outcome']
 
+          # Initialize node_features with the target user who is affected.
+          node_features = np.array([single_user['fn_pred'], single_user['user_age']])
+
+          for contact in single_user['contacts']:
+            # Add all contacts, ordering does not matter since these contacts in the current
+            # graph are permutation invariant. Only node that has a fixed position
+            # is the first one.
+            node_features = np.vstack([node_features, np.array([contact[2], contact[1]])])
+
+          single_edge_index = torch.tensor(single_edge_index, dtype=torch.long).contiguous()
+          data_single = Data(x=node_features, edge_index=single_edge_index, y=y, edge_attr=single_edge_attr)
+          del single_edge_index # Free up some memory.
           data_list.append(data_single)
           
   
   logger.info('Processing complete, saving file.')
   #Save file
   torch.save(collate(data_list), str(args.path + '/only_app_users_data.pt'))
+  logger.info('File saved!')
   
   
