@@ -236,7 +236,7 @@ def compare_abm(
           user_free = (user_quarantine_ends < t_now)
           util_dataset.dump_features_graph(
             contacts_now, observations_now, z_states_inferred, user_free,
-            sim.get_states_today(), users_age, trace_dir, num_users,
+            sim.get_states_today(), users_age, app_users, trace_dir, num_users,
             num_time_steps, t_now, int(rng_seed))
 
     else:

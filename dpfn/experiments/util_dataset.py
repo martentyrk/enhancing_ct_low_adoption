@@ -111,6 +111,7 @@ def dump_features_graph(
     user_free: np.ndarray,
     z_states_sim: np.ndarray,
     users_age: np.ndarray,
+    app_users: np.ndarray,
     trace_dir: str,
     num_users: int,
     num_time_steps: int,
@@ -149,12 +150,13 @@ def dump_features_graph(
     with open(fname_neg, 'w') as fneg:
       for user in range(num_users):
         # Don't collect features on quarantined users
-        if user_free[user] == 0:
+        if user_free[user] == 0 or app_users[user] == 0:
           num_ignored += 1
           continue
         #Each row is a json file
         output = {
           "fn_pred": float(z_states_inferred[user][-1][2]),
+          "user": int(user),
           "sim_state": int(z_states_sim[user]), #in constants.py
           "user_age": int(users_age[user]),
           "observations": observations_json[user],
@@ -170,7 +172,7 @@ def dump_features_graph(
             int(row[1]),  # sender
             int(row[2]),  # age (age groups)
             int(row[3]),  # pinf 
-            #TODO: Add location here as well?
+            int(row[4]),  # interaction type
           ])
         #in pytorch its json.loads
         if user_positive[user]:

@@ -76,7 +76,7 @@ if __name__ == "__main__":
   
   if args.app_users_fraction:
     config_wandb["data"]["app_users_fraction"] = float(args.app_users_fraction)
-  
+
   # WandB tags
   tags = [
     str(args.simulator), inf_method, f"cpu{util.get_cpu_count()}",
@@ -139,7 +139,7 @@ if __name__ == "__main__":
   util.maybe_make_dir(results_dir_global)
   if args.dump_traces:
     trace_dir_global = (
-      f'results/trace_{experiment_name}/{configname_data}__{configname_model}/')
+      f'results/trace_high_mem_{experiment_name}/{configname_data}__{configname_model}/')
     util.maybe_make_dir(trace_dir_global)
     logger.info(f"Dump traces to results_dir_global {trace_dir_global}")
   else:

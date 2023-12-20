@@ -234,7 +234,6 @@ class ABMSimulator():
     
     contacts_incoming = self.keep_app_users(contacts=contacts_incoming)
     # TODO: use these features
-    contacts_incoming[:, 3] = 1
     contacts_incoming[:, 2] = self.get_current_day() - self._day_start_window
 
     self._contacts = np.concatenate((
