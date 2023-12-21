@@ -1,8 +1,6 @@
 import argparse
 import numpy as np
 import os
-import random
-import pandas as pd
 from dpfn import logger
 import json
 import torch
@@ -49,7 +47,6 @@ def make_features_graph(data):
   
   return ({
     'fn_pred': torch.tensor(data['fn_pred'], dtype=torch.float32),
-    'user': torch.tensor(data['user'], dtype=torch.int32),
     'user_age': torch.tensor(data['user_age'], dtype=torch.float32),
     'contacts': contacts,
     'outcome': np.float32(data['sim_state'] == 2 or data['sim_state'] == 1)
@@ -88,7 +85,7 @@ if __name__ == "__main__":
           for contact in single_user['contacts']:
             # Add all contacts, ordering does not matter since these contacts in the current
             # graph are permutation invariant. Only node that has a fixed position
-            # is the first one.
+            # is the first one and should be at index = 0.
             node_features = np.vstack([node_features, np.array([contact[2], contact[1]])])
 
           single_edge_index = torch.tensor(single_edge_index, dtype=torch.long).contiguous()
