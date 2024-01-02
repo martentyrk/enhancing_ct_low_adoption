@@ -11,6 +11,7 @@ jobs.txt
 log/*
 wandb/
 results/
+results_temp/
 sweep/
 notebooks/
 
