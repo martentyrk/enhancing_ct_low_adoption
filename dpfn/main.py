@@ -138,8 +138,10 @@ if __name__ == "__main__":
 
   util.maybe_make_dir(results_dir_global)
   if args.dump_traces:
+    # trace_dir_global = (
+    #   f'results/trace_high_mem_{experiment_name}/{configname_data}__{configname_model}/')
     trace_dir_global = (
-      f'results/trace_high_mem_{experiment_name}/{configname_data}__{configname_model}/')
+      f'../../../../scratch-shared/mturk/datadump/trace_high_mem_{experiment_name}')
     util.maybe_make_dir(trace_dir_global)
     logger.info(f"Dump traces to results_dir_global {trace_dir_global}")
   else:

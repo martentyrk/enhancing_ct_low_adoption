@@ -6,7 +6,6 @@ import json
 import torch
 import constants
 from torch_geometric.data import Data
-from torch_geometric.data.in_memory_dataset import collate
 
 NUM_FEATURES_PER_CONTACT = 4
 
@@ -57,7 +56,7 @@ if __name__ == "__main__":
 
   parser = argparse.ArgumentParser(
     description='Compare statistics acrosss inference methods')
-  parser.add_argument('--path', type=str, default="results_temp/train_data/final")
+  parser.add_argument('--path', type=str, default="dpfn/data/val_app_users/partial")
   
   args = parser.parse_args()
 
@@ -96,7 +95,7 @@ if __name__ == "__main__":
   
   logger.info('Processing complete, saving file.')
   #Save file
-  torch.save(collate(data_list), str(args.path + '/only_app_users_data.pt'))
+  torch.save(data_list, str(args.path + '/processed_data_list.pt'))
   logger.info('File saved!')
   
   

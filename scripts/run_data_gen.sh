@@ -6,9 +6,9 @@
 #SBATCH --job-name=abm_only_model
 #SBATCH --partition=rome
 #SBATCH --mem=9000
-#SBATCH --output=abm_only%A.out
+#SBATCH --output=data_gen%A.out
 
 source activate thesis
 source scripts/preamble.sh
 
-srun python3 dpfn/dataset_manipulations.py
+srun python3 dpfn/dataset_generator.py --path dpfn/data/train_app_users/partial

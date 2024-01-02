@@ -1,8 +1,8 @@
 #!/bin/bash
 
-dirname='results_temp/trace_high_mem_run_abm_seed30_adaption_0.8/intermediate_graph_abm_02__model_ABM01/test_with_obs_30'
+dirname='../../../../scratch-shared/mturk/datadump/trace_high_mem_run_abm_seed40_adaption_0.5/test_with_obs_40'
 dirname_out=${dirname}_out
-
+file_out='all_40_0.5.jl'
 # Concatenate and shuffle train and validation sets
 cat ${dirname}/positive_*.jl > ${dirname}/positive.jlconcat
 cat ${dirname}/negative_*.jl > ${dirname}/negative.jlconcat
@@ -35,7 +35,7 @@ rm ${dirname}/all.jlconcat.shuf
 [ -d ${dirname_out} ] || mkdir ${dirname_out}
 
 # Copy to dir output
-cp ${dirname}/all.jlconcat.shuf.shuf ${dirname_out}/all.jl
+cp ${dirname}/all.jlconcat.shuf.shuf ${dirname_out}/${file_out}
 rm ${dirname}/all.jlconcat.shuf.shuf
 
-echo 'Final dataset at ' ${dirname_out}/all.jl
+echo 'Final dataset at ' ${dirname_out}/${file_out}
