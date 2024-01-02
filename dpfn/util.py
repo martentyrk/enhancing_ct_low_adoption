@@ -503,7 +503,8 @@ def precompute_d_penalty_terms_fn2(
     happened[time_inc+1] = 1
     p_inf_inc = q_marginal_infected[int(row[1])][time_inc]
     log_expectations[time_inc+1] += np.log(p_inf_inc*(1-p1) + (1-p_inf_inc))
-
+    if log_expectations[time_inc + 1] == None:
+      print(time_inc + 1)
   # Additional penalty term for not terminating, negative by definition
   d_no_term = log_expectations
   # Additional penalty term for not terminating, usually positive
@@ -823,3 +824,4 @@ def root_find_a_rdp(
   # Find lowest multiplier
   idx = np.argmin(mult_values)
   return a_values[idx], rho_values[idx]
+  

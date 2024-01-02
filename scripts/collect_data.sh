@@ -1,8 +1,8 @@
 #!/bin/bash
 
-dirname='results/trace_run_prequential/intermediate_graph_abm_02__model_ABM01/test_with_obs_123/'
+dirname='../../../../scratch-shared/mturk/datadump/trace_high_mem_run_abm_seed40_adaption_0.5/test_with_obs_40'
 dirname_out=${dirname}_out
-
+file_out='all_40_0.5.jl'
 # Concatenate and shuffle train and validation sets
 cat ${dirname}/positive_*.jl > ${dirname}/positive.jlconcat
 cat ${dirname}/negative_*.jl > ${dirname}/negative.jlconcat
@@ -29,10 +29,13 @@ shuf ${dirname}/all.jlconcat.shuf > ${dirname}/all.jlconcat.shuf.shuf
 rm ${dirname}/positive.jlconcat.shuf
 rm ${dirname}/negative.jlconcat.shuf
 rm ${dirname}/negative.jlconcat.shuf.subsampled
+rm ${dirname}/all.jlconcat.shuf
 
 # Maybe make output directory
 [ -d ${dirname_out} ] || mkdir ${dirname_out}
 
 # Copy to dir output
-cp ${dirname}/all.jlconcat.shuf.shuf ${dirname_out}/all.jl
+cp ${dirname}/all.jlconcat.shuf.shuf ${dirname_out}/${file_out}
 rm ${dirname}/all.jlconcat.shuf.shuf
+
+echo 'Final dataset at ' ${dirname_out}/${file_out}

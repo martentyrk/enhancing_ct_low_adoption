@@ -38,6 +38,10 @@ if __name__ == "__main__":
   parser.add_argument('--do_diagnosis', action='store_true')
   parser.add_argument('--dump_traces', action='store_true')
   parser.add_argument('--app_users_fraction', type=float, default=None)
+  parser.add_argument('--modify_contacts', action='store_true')
+  parser.add_argument('--age_baseline', action='store_true')
+  parser.add_argument('--mean_baseline', action='store_true')
+  parser.add_argument('--seed_value', type=int, default=None)
 
   # TODO make a better heuristic for this:
   # num_threads = max((util.get_cpu_count()-1, 1))
@@ -48,6 +52,9 @@ if __name__ == "__main__":
 
   args = parser.parse_args()
 
+  #Both baselines should not be used at the same time.
+  assert sum([args.age_baseline, args.mean_baseline]) <= 1
+  
   configname_data = args.config_data
   configname_model = args.config_model
   fname_config_data = f"dpfn/config/{configname_data}.ini"
@@ -69,7 +76,7 @@ if __name__ == "__main__":
   
   if args.app_users_fraction:
     config_wandb["data"]["app_users_fraction"] = float(args.app_users_fraction)
-  
+
   # WandB tags
   tags = [
     str(args.simulator), inf_method, f"cpu{util.get_cpu_count()}",
@@ -100,17 +107,24 @@ if __name__ == "__main__":
     random.seed(seed_value)
     np.random.seed(seed_value)
   else:
-    seed_value = random.randint(0, 999)
+    if args.seed_value:
+      seed_value = args.seed_value
+    else:
+      seed_value = random.randint(0, 999)
   # Random number generator to pass as argument to some imported functions
   arg_rng = np.random.default_rng(seed=seed_value)
   
   # Set up locations to store results
-  experiment_name = 'run_abm_prequential_seed'+ str(seed_value)
+  if args.mean_baseline:
+    experiment_name = 'run_abm_mean_seed'+ str(seed_value)
+  elif args.age_baseline:
+    experiment_name = 'run_abm_age_seed'+ str(seed_value)
+  else:
+    experiment_name = 'run_abm_seed'+ str(seed_value)
   
   if args.app_users_fraction:
     experiment_name = experiment_name + "_adaption_" + str(args.app_users_fraction)
-  
-  if 'app_users_fraction_wandb' in config_wandb:
+  elif 'app_users_fraction_wandb' in config_wandb:
     experiment_name = experiment_name + "_adaption_" + str(config_wandb.get('app_users_fraction_wandb', -1))
   
   results_dir_global = (
@@ -124,21 +138,23 @@ if __name__ == "__main__":
 
   util.maybe_make_dir(results_dir_global)
   if args.dump_traces:
+    # trace_dir_global = (
+    #   f'results/trace_high_mem_{experiment_name}/{configname_data}__{configname_model}/')
     trace_dir_global = (
-      f'results/trace_{experiment_name}/{configname_data}__{configname_model}/')
+      f'../../../../scratch-shared/mturk/datadump/trace_high_mem_{experiment_name}')
     util.maybe_make_dir(trace_dir_global)
     logger.info(f"Dump traces to results_dir_global {trace_dir_global}")
   else:
     trace_dir_global = None
-    
-    
+
+  
   logger.info(f"Logger filename {LOGGER_FILENAME}")
   logger.info(f"Saving to results_dir_global {results_dir_global}")
   logger.info(f"sweep_id: {os.getenv('SWEEPID')}")
   logger.info(f"slurm_id: {os.getenv('SLURM_JOB_ID')}")
   logger.info(f"slurm_name: {os.getenv('SLURM_JOB_NAME')}")
   logger.info(f"slurm_ntasks: {os.getenv('SLURM_NTASKS')}")
-  
+
   try:
     if args.simulator == "abm":
       comparison_fn = compare_abm
@@ -155,7 +171,10 @@ if __name__ == "__main__":
       results_dir=results_dir_global,
       arg_rng=arg_rng,
       trace_dir=trace_dir_global,
-      do_diagnosis=args.do_diagnosis
+      do_diagnosis=args.do_diagnosis,
+      modify_contacts=args.modify_contacts,
+      run_mean_baseline=args.mean_baseline,
+      run_age_baseline=args.age_baseline,
       )
 
   except Exception as e:
