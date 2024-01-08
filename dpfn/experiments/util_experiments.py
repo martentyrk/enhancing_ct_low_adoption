@@ -203,16 +203,22 @@ def wrap_fact_neigh_cpp(
         np.concatenate((datadump, obs_mat), axis=1))
       model.eval()
 
-      num_samples = num_users
+      batch_size = 1024
+      num_batches = 1 + (num_users // batch_size)
+      output_pred = np.zeros((num_users), dtype=np.float32)
       with torch.no_grad():
-        output = model(
-          tensor_input[:num_samples], fn_pred=post_exp[:num_samples, -1, 2])
-        output = output.numpy()
-      logger.info(f"Output shape {output.shape}")
-      logger.info(f"Output min/max {np.min(output)} {np.max(output)}")
+        for num_batch in range(num_batches):
+          idx_start = num_batch*batch_size
+          idx_end = min((num_users, (num_batch+1)*batch_size))
+          output = model(
+            tensor_input[idx_start:idx_end],
+            fn_pred=post_exp[idx_start:idx_end, -1, 2])
+          output_pred[idx_start:idx_end] = output.numpy()
+      logger.info(f"Output shape {output_pred.shape}")
+      logger.info(f"Output min/max {np.min(output_pred)} {np.max(output_pred)}")
 
       post_exp = np.zeros((num_users, num_time_steps, 4), dtype=np.float32)
-      post_exp[:, -1, 2] = output
+      post_exp[:, -1, 2] = output_pred
 
     if dp_method == 2:
       assert epsilon_dp > 0.
