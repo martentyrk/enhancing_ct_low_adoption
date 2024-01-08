@@ -2,7 +2,7 @@
 import crisp
 import numba
 import numpy as np
-from dpfn import inference, logger, belief_propagation, util
+from dpfn import constants, inference, logger, belief_propagation, util
 import dpfn_util
 import subprocess
 from typing import Any, Dict, Optional, Tuple
@@ -158,24 +158,8 @@ def wrap_fact_neigh_cpp(
     assert post_exp.shape == (num_users, num_time_steps, 4)
     contacts_age = np.reshape(contacts_age, (2, num_users)).T
 
-    if dp_method == 2:
-      assert epsilon_dp > 0.
-      assert delta_dp > 0.
-      assert a_rdp < 0
-      covidscore = post_exp[:, -1, 2]
-
-      c_upper = np.min((clip_upper, 1.))
-      c_lower = np.max((clip_lower, 0.))
-
-      sensitivity = probab1*(c_upper - c_lower)
-      sigma = (sensitivity / epsilon_dp) * np.sqrt(2 * np.log(1.25 / delta_dp))
-
-      covidscore += sigma*np.random.randn(num_users)
-
-      post_exp = np.zeros((num_users, num_time_steps, 4), dtype=np.float32)
-      post_exp[:, -1, 2] = np.clip(covidscore, c_lower, c_upper)
-
-    if dp_method == 8 and num_time_steps >= 3:
+    # TODO(rob): fix training dpgnn for early time steps
+    if dp_method == 8 and num_time_steps >= 9:
       # Do neural augmentation
       datadump = dpfn_util.fn_features_dump(
         num_workers=1,
@@ -189,6 +173,13 @@ def wrap_fact_neigh_cpp(
       datadump = datadump.astype(np.float32)
       datadump[:, :, 1] /= 1024
 
+      assert datadump.shape == (num_users, constants.CTC, 2)
+      assert datadump[0, -1, 0] < 0, "Last contact should be -1"
+
+      # TODO: remove  these tests later
+      assert np.all(datadump[:, :, 1] <= 1)
+      assert np.all(datadump[:, :, 0] <= 14)
+
       # Observation matrix
       obs_mat = -1*np.ones((num_users, 14, 2), dtype=np.float32)
       num_obs_per_user = np.zeros((num_users), dtype=np.int32)
@@ -199,6 +190,9 @@ def wrap_fact_neigh_cpp(
 
         obs_mat[user, num_obs_per_user[user]] = np.array([timestep, outcome])
         num_obs_per_user[user] += 1
+
+      assert np.all(obs_mat[:, :, 0] <= 14)
+      assert np.all(obs_mat[:, :, 1] <= 1)
 
       import torch  # pylint: disable=import-outside-toplevel
       from dpfn.experiments import util_dpgnn  # pylint: disable=import-outside-toplevel
@@ -219,6 +213,23 @@ def wrap_fact_neigh_cpp(
 
       post_exp = np.zeros((num_users, num_time_steps, 4), dtype=np.float32)
       post_exp[:, -1, 2] = output
+
+    if dp_method == 2:
+      assert epsilon_dp > 0.
+      assert delta_dp > 0.
+      assert a_rdp < 0
+      covidscore = post_exp[:, -1, 2]
+
+      c_upper = np.min((clip_upper, 1.))
+      c_lower = np.max((clip_lower, 0.))
+
+      sensitivity = probab1*(c_upper - c_lower)
+      sigma = (sensitivity / epsilon_dp) * np.sqrt(2 * np.log(1.25 / delta_dp))
+
+      covidscore += sigma*np.random.randn(num_users)
+
+      post_exp = np.zeros((num_users, num_time_steps, 4), dtype=np.float32)
+      post_exp[:, -1, 2] = np.clip(covidscore, c_lower, c_upper)
 
     return post_exp, contacts_age
   return fact_neigh_cpp
