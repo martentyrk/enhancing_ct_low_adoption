@@ -220,7 +220,7 @@ def wrap_fact_neigh_cpp(
       post_exp = np.zeros((num_users, num_time_steps, 4), dtype=np.float32)
       post_exp[:, -1, 2] = output_pred
 
-    if dp_method == 2:
+    if (dp_method == 2) or (dp_method == 8):
       assert epsilon_dp > 0.
       assert delta_dp > 0.
       assert a_rdp < 0
@@ -236,6 +236,26 @@ def wrap_fact_neigh_cpp(
 
       post_exp = np.zeros((num_users, num_time_steps, 4), dtype=np.float32)
       post_exp[:, -1, 2] = np.clip(covidscore, c_lower, c_upper)
+
+    # if dp_method == 8:
+    #   assert epsilon_dp > 0.
+    #   assert delta_dp > 0.
+    #   assert a_rdp < 0
+    #   covidscore = post_exp[:, -1, 2]
+
+    #   c_upper = np.min((clip_upper, 1.))
+    #   c_lower = np.max((clip_lower, 0.))
+
+    #   num_contacts = np.sum(datadump[:, :, 0] > 0, axis=1)
+    #   num_contacts = np.maximum(num_contacts, 1)
+
+    #   sensitivity = probab1*(c_upper - c_lower) + 0.04 / num_contacts
+    #   sigma = (sensitivity / epsilon_dp) * np.sqrt(2 * np.log(1.25 / delta_dp))
+
+    #   covidscore += sigma*np.random.randn(num_users)
+
+    #   post_exp = np.zeros((num_users, num_time_steps, 4), dtype=np.float32)
+    #   post_exp[:, -1, 2] = np.clip(covidscore, c_lower, c_upper)
 
     return post_exp, contacts_age
   return fact_neigh_cpp
