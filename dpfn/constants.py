@@ -21,6 +21,7 @@ from typing import Tuple, Union
 #         in the logit domain;
 # DP=7, corresponds to using the Gaussian mechanism in log-domain when doing FN
 #         (note that this method introduces a bias in the covidscore);
+# DP=8, corresponds to using the neural augmentation module;
 
 # Number of contacts to save per time window. Setting this value too small
 # means that many contacts will be discarded (which implies that the predictions

@@ -108,8 +108,8 @@ def wrap_fact_neigh_cpp(
     dedup_contacts: int = 0,
     ):
   """Wraps the inference function that runs FN from pybind."""
-  assert (dp_method < 0) or (dp_method == 5) or (dp_method == 2), (
-    "Not implemented for dp_method > 0")
+  assert (dp_method < 0) or (dp_method in [2, 5, 8]), (
+    f"Not implemented for dp_method {dp_method}, only [2, 5, 8]")
   del trace_dir
 
   num_workers = util.get_cpu_count()
@@ -174,6 +174,52 @@ def wrap_fact_neigh_cpp(
 
       post_exp = np.zeros((num_users, num_time_steps, 4), dtype=np.float32)
       post_exp[:, -1, 2] = np.clip(covidscore, c_lower, c_upper)
+
+    if dp_method == 8 and num_time_steps >= 3:
+      # Do neural augmentation
+      datadump = dpfn_util.fn_features_dump(
+        num_workers=1,
+        num_users=num_users,
+        num_time_steps=num_time_steps,
+        q_marginal=post_exp[:, :, 2],
+        contacts=contacts_list,
+        users_age=users_age)
+      # Datadump is a ndarray in [num_users, CTC, 4]
+      datadump = datadump[:, :, 0:4:3]  # Select only timestep and pinf
+      datadump = datadump.astype(np.float32)
+      datadump[:, :, 1] /= 1024
+
+      # Observation matrix
+      obs_mat = -1*np.ones((num_users, 14, 2), dtype=np.float32)
+      num_obs_per_user = np.zeros((num_users), dtype=np.int32)
+      for obs in observations_list:
+        user = int(obs[0])
+        timestep = int(obs[1])
+        outcome = int(obs[2])
+
+        obs_mat[user, num_obs_per_user[user]] = np.array([timestep, outcome])
+        num_obs_per_user[user] += 1
+
+      import torch  # pylint: disable=import-outside-toplevel
+      from dpfn.experiments import util_dpgnn  # pylint: disable=import-outside-toplevel
+
+      model = util_dpgnn.get_dpgnn_model()
+
+      tensor_input = torch.from_numpy(
+        np.concatenate((datadump, obs_mat), axis=1))
+      model.eval()
+
+      num_samples = num_users
+      with torch.no_grad():
+        output = model(
+          tensor_input[:num_samples], fn_pred=post_exp[:num_samples, -1, 2])
+        output = output.numpy()
+      logger.info(f"Output shape {output.shape}")
+      logger.info(f"Output min/max {np.min(output)} {np.max(output)}")
+
+      post_exp = np.zeros((num_users, num_time_steps, 4), dtype=np.float32)
+      post_exp[:, -1, 2] = output
+
     return post_exp, contacts_age
   return fact_neigh_cpp
 
