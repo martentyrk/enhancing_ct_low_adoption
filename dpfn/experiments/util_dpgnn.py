@@ -4,7 +4,7 @@ import functools
 
 
 @functools.lru_cache(maxsize=1)
-def get_dpgnn_model():
+def get_dpgnn_model(model_fpath):
   """Get the neural network model for DPGNN."""
   # Load pytorch model
   import torch  # pylint: disable=import-outside-toplevel
@@ -15,13 +15,13 @@ def get_dpgnn_model():
     'model_type': 2, 'num_epochs': 40, 'num_features': 2, 'num_layers': 8,
     'probab1': 0.04, 'seed': 70, 'spectral_norm_decay': 1,
     'upper_spectral_norm': 1, 'batch_size': 256, 'weight_decay': 1e-09,
-    'configname': 'graph', 'cpu_count': 40}
+    'configname': 'graph', 'cpu_count': 40, 'num_power_iterations': 1}
   model = util_model.SplitGraphNetwork(cfg)
 
   # Load state dict here
-  fname = (
-    'results/dpgnn_models/20240107_n43cxfbu_model.pth')
+  fname = f'results/dpgnn_models/{model_fpath}'
 
   model.load_state_dict(torch.load(fname, map_location=torch.device('cpu')))
+  model.eval()
   logger.info(model)
   return model

@@ -106,6 +106,7 @@ def wrap_fact_neigh_cpp(
     quantization: int = -1,
     trace_dir: Optional[str] = None,
     dedup_contacts: int = 0,
+    model_fpath: Optional[str] = None,
     ):
   """Wraps the inference function that runs FN from pybind."""
   assert (dp_method < 0) or (dp_method in [2, 5, 8]), (
@@ -197,11 +198,10 @@ def wrap_fact_neigh_cpp(
       import torch  # pylint: disable=import-outside-toplevel
       from dpfn.experiments import util_dpgnn  # pylint: disable=import-outside-toplevel
 
-      model = util_dpgnn.get_dpgnn_model()
+      model = util_dpgnn.get_dpgnn_model(model_fpath=model_fpath)
 
       tensor_input = torch.from_numpy(
         np.concatenate((datadump, obs_mat), axis=1))
-      model.eval()
 
       batch_size = 1024
       num_batches = 1 + (num_users // batch_size)
@@ -220,7 +220,7 @@ def wrap_fact_neigh_cpp(
       post_exp = np.zeros((num_users, num_time_steps, 4), dtype=np.float32)
       post_exp[:, -1, 2] = output_pred
 
-    if (dp_method == 2) or (dp_method == 8):
+    if dp_method in (2, 8):
       assert epsilon_dp > 0.
       assert delta_dp > 0.
       assert a_rdp < 0
@@ -250,7 +250,7 @@ def wrap_fact_neigh_cpp(
     #   num_contacts = np.maximum(num_contacts, 1)
 
     #   sensitivity = probab1*(c_upper - c_lower) + 0.04 / num_contacts
-    #   sigma = (sensitivity / epsilon_dp) * np.sqrt(2 * np.log(1.25 / delta_dp))
+    #   sigma = (sensitivity / epsilon_dp)*np.sqrt(2 * np.log(1.25 / delta_dp))
 
     #   covidscore += sigma*np.random.randn(num_users)
 

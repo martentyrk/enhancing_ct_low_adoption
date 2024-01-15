@@ -133,7 +133,8 @@ def make_inference_func(
       clip_upper=clip_upper,
       quantization=quantization,
       trace_dir=trace_dir,
-      dedup_contacts=dedup_contacts)
+      dedup_contacts=dedup_contacts,
+      model_fpath=cfg["model"]["model_fpath"])
   elif inference_method == "bpcpp":
     inference_func = util_experiments.wrap_bp_cpp(
       num_users=num_users,
