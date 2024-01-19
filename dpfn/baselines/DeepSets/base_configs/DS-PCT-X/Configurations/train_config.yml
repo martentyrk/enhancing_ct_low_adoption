@@ -10,8 +10,9 @@ data:
     shuffle: true
     stream: true
   paths:
-    train: ./data/train
-    validate: ./data/val
+    train: data/train_app_users/partial
+    validate: data/val_app_users/partial
+    test: data/test_app_users/partial
   validation_loader_kwargs:
     num_datasets_to_select: null
 losses:

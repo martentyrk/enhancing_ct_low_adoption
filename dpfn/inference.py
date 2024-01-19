@@ -205,7 +205,7 @@ def fact_neigh(
     observations_all)
 
   q_marginal_infected = np.zeros((num_users, num_time_steps), dtype=np.single)
-  if infection_prior != -1.:
+  if infection_prior > -1.:
     q_marginal_infected[non_app_user_ids, -1] = infection_prior
   elif not np.all(user_age_pinf_mean == -1.):
     user_age_groups = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8])

@@ -10,7 +10,7 @@ data:
     relative_days: true
     shuffle: true
   paths:
-    train: /home/nrahaman/python/covi-simulator/exp/neodr0/train
-    validate: /home/nrahaman/python/covi-simulator/exp/neodr0/val
+    train: /home/mturk/dpfn/dpfn/data/train_app_users/partial/
+    validate: /home/mturk/dpfn/dpfn/data/val_app_users/partial/
   validation_loader_kwargs:
     num_datasets_to_select: null

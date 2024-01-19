@@ -6,7 +6,7 @@ import random
 import socket
 import traceback
 import wandb
-
+import json
 from collections import defaultdict
 from config import config
 from experiments import (util_experiments)
@@ -41,6 +41,8 @@ if __name__ == "__main__":
   parser.add_argument('--modify_contacts', action='store_true')
   parser.add_argument('--age_baseline', action='store_true')
   parser.add_argument('--mean_baseline', action='store_true')
+  parser.add_argument('--static_baseline', action='store_true')
+  parser.add_argument('--static_baseline_path', type=str, default='dpfn/data/static_age_baseline_results')
   parser.add_argument('--seed_value', type=int, default=None)
 
   # TODO make a better heuristic for this:
@@ -115,10 +117,12 @@ if __name__ == "__main__":
   arg_rng = np.random.default_rng(seed=seed_value)
   
   # Set up locations to store results
-  if args.mean_baseline:
-    experiment_name = 'run_abm_mean_seed'+ str(seed_value)
+  if args.static_baseline:
+    experiment_name = 'run_abm_static_age_seed_'+ str(seed_value)
+  elif args.mean_baseline:
+    experiment_name = 'run_abm_mean_collect_seed_'+ str(seed_value)
   elif args.age_baseline:
-    experiment_name = 'run_abm_age_seed'+ str(seed_value)
+    experiment_name = 'run_abm_age_seed_'+ str(seed_value)
   else:
     experiment_name = 'run_abm_seed'+ str(seed_value)
   
@@ -155,6 +159,29 @@ if __name__ == "__main__":
   logger.info(f"slurm_name: {os.getenv('SLURM_JOB_NAME')}")
   logger.info(f"slurm_ntasks: {os.getenv('SLURM_NTASKS')}")
 
+  static_baseline_value = -1.0
+
+  if args.static_baseline:
+    if sum([args.age_baseline, args.mean_baseline]) != 1:
+      raise ValueError('At least age_baseline or mean_baseline need to be selected.')
+    overall_baseline = []
+    
+    for subdir, dirs, files in os.walk(args.static_baseline_path):
+      for file in files:
+        if file.split('.')[-1] == 'jl':
+          filename = os.path.join(subdir, file)
+          f = open(filename)
+          static_values_dict = json.load(f)
+    
+          mean_baseline_value = static_values_dict['run_mean_baseline']
+          if mean_baseline_value > 0:
+            overall_baseline.append(mean_baseline_value)
+          else:
+            age_baseline_values = static_values_dict['running_mean_age_groups']
+            overall_baseline.append(age_baseline_values)
+            
+    static_baseline_value = np.mean(np.array(overall_baseline), axis=0, dtype=np.float32)
+  
   try:
     if args.simulator == "abm":
       comparison_fn = compare_abm
@@ -175,6 +202,7 @@ if __name__ == "__main__":
       modify_contacts=args.modify_contacts,
       run_mean_baseline=args.mean_baseline,
       run_age_baseline=args.age_baseline,
+      static_baseline_value=static_baseline_value,
       )
 
   except Exception as e:

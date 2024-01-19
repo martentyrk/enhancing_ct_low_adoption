@@ -5,6 +5,7 @@ import os
 import psutil
 from sklearn import metrics
 import time
+from typing import Union
 import tqdm
 from typing import Any, Dict, Optional
 import warnings
@@ -23,7 +24,8 @@ def compare_abm(
     do_diagnosis: bool = False,
     modify_contacts: bool=False,
     run_mean_baseline: bool=False,
-    run_age_baseline: bool=False):
+    run_age_baseline: bool=False,
+    static_baseline_value: Union[np.ndarray, float]=-1.):
   """Compares different inference algorithms on the supplied contact graph."""
   num_users = cfg["data"]["num_users"]
   num_time_steps = cfg["data"]["num_time_steps"]
@@ -81,8 +83,11 @@ def compare_abm(
   
   # Variables for baselines.
   user_age_groups = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8])
-  user_age_pinf_mean = -1.*np.ones((9), dtype=np.float32)
+  user_age_pinf_mean = -1. * np.ones((9), dtype=np.float32)
   infection_prior = -1.
+  
+  running_mean = 0.0
+  running_mean_age_groups = np.zeros((9), dtype=np.float32)
   
   inference_func, do_random_quarantine = util_experiments.make_inference_func(
     inference_method, num_users, cfg, user_ids=app_user_ids, non_app_user_ids=non_app_user_ids, trace_dir=trace_dir)
@@ -186,12 +191,19 @@ def compare_abm(
 
       if run_mean_baseline:
         infection_prior = np.mean(z_states_inferred[app_user_ids, -1, 2])  
+        if static_baseline_value > 0:
+          infection_prior = static_baseline_value
+        running_mean += infection_prior
         assert infection_prior.dtype == np.float32
       
       elif run_age_baseline:
-        for age_group in user_age_groups:
-          mean_of_group = np.mean(z_states_inferred[app_user_ids[np.argwhere(app_users_age == age_group)], -1, 2])
-          user_age_pinf_mean[age_group] = mean_of_group
+        if np.all(static_baseline_value > 0):
+          user_age_pinf_mean = static_baseline_value
+        else:
+          for age_group in user_age_groups:
+            mean_of_group = np.mean(z_states_inferred[app_user_ids[np.argwhere(app_users_age == age_group)], -1, 2])
+            user_age_pinf_mean[age_group] = mean_of_group
+        running_mean_age_groups = np.sum((running_mean_age_groups, user_age_pinf_mean), axis = 0)
         
       
       t_start = time.time()
@@ -311,7 +323,17 @@ def compare_abm(
 
   time_pir, pir = np.argmax(infection_rates), np.max(infection_rates)
   total_drate = sim.get_death_rate()
-
+  
+  # We need to deduct -1 because the first time a value gets added we add 0 to the sum,
+  # which does not account for the total accumulation of the mean.
+  if run_mean_baseline:
+    logger.info('Running_mean currently at: ' + str(running_mean))
+    running_mean = running_mean / (num_time_steps - 1)
+    logger.info('After division with: '+str(num_time_steps-1) + ' results are ' + str(running_mean))
+    
+  elif run_age_baseline:
+    running_mean_age_groups = running_mean_age_groups / (num_time_steps - 1)
+  
   logger.info((
     f"At day {time_pir} peak infection rate is {pir:.5f} "
     f"and total death rate is {total_drate:.5f}"))
@@ -337,7 +359,9 @@ def compare_abm(
     quantization=quantization,
     recalls=recalls.tolist(),
     seed=cfg.get("seed", -1),
-    app_users_fraction=app_users_fraction
+    app_users_fraction=float(app_users_fraction),
+    run_mean_baseline=float(running_mean),
+    running_mean_age_groups=running_mean_age_groups.tolist(),
   )
 
   time_spent = time.time() - t0

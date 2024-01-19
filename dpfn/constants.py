@@ -61,3 +61,7 @@ Contact = Union[Tuple[int, int, int, int], np.ndarray]
 
 # (user_u, timestep, outcome)
 Observation = Union[Tuple[int, int, int], np.ndarray]
+
+# Number of classes to make predictions with
+# Healthy or sick
+NUM_CLASSES = 2
