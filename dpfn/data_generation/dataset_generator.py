@@ -4,6 +4,7 @@ from dpfn import logger
 import torch
 import argparse
 from torch_geometric.data import InMemoryDataset, Data
+from torch_geometric.utils import add_self_loops
 from pathlib import Path
 
 
@@ -126,48 +127,21 @@ def make_features_graph(data):
   }, torch.tensor(np.array([[],[]])), observations)
   else:
     # Remove sender information
-    contacts = np.concatenate((contacts[:, 0:1], contacts[:, 2:]), axis=1)
-    observations_column = np.full((contacts.shape[0], 1), -1)
-    contacts = np.column_stack((contacts, observations_column))
-    
-    #Add the observation data to places where timesteps match.
-    # for obs in observations:
-    #   timestep, outcome = obs
-    #   mask = contacts[:, 0] == timestep
-    #   contacts[mask, 4] = outcome
-      
+    contacts = np.concatenate((contacts[:, 0:1], contacts[:, 2:]), axis=1)      
       
     contacts = torch.tensor(contacts, dtype=torch.float32)
     num_contacts = len(contacts)
 
-
-  
-
-  # Concatenate the contacts and observations
-  #TODO: what to do here?
-  # contacts = torch.cat((contacts, observations), dim=0)
-
-
-  # Column 0 is the timestep
-  
+  # Column 0 is the timestep  
   contacts[:, 1] /= 10  # Column 1 is the age
   contacts[:, 2] /= 1024  # Column 2 is the pinf according to FN
-  # edge_attributes = []
 
   edges_source = np.arange(1, num_contacts + 1)
   edges_target = [0] * num_contacts
   
-  
-  
-  #Edge attributes = timestep, interaction type
-  # edge_attributes = contacts[:num_contacts, [0, 3]]
-  # edge_attributes = torch.nn.functional.pad(
-  #     edge_attributes, [0, 0, 0, constants.CTC-len(edge_attributes) + 1],
-  #     mode='constant', value=-1.)
-  
   single_contact_edges = np.vstack([edges_source, edges_target])
   single_contact_edges = torch.tensor(single_contact_edges)
-  # single_contact_edges, _ = add_self_loops(single_contact_edges)
+  single_contact_edges, _ = add_self_loops(single_contact_edges)
   # single_contact_edges = torch.nn.functional.pad(
   #     single_contact_edges, [0, constants.CTC-edges_source.shape[0] + 1, 0, 0],
   #     mode='constant', value=-1)
