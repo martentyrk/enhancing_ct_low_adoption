@@ -53,7 +53,7 @@ if __name__ == "__main__":
   logger.info(f"Start with {num_threads} threads")
 
   args = parser.parse_args()
-
+  
   #Both baselines should not be used at the same time.
   assert sum([args.age_baseline, args.mean_baseline]) <= 1
   
@@ -145,7 +145,7 @@ if __name__ == "__main__":
     # trace_dir_global = (
     #   f'results/trace_high_mem_{experiment_name}/{configname_data}__{configname_model}/')
     trace_dir_global = (
-      f'../../../../scratch-shared/mturk/datadump/trace_high_mem_{experiment_name}')
+      f'../../../../scratch-shared/mturk/datadump_long/trace_high_mem_{experiment_name}')
     util.maybe_make_dir(trace_dir_global)
     logger.info(f"Dump traces to results_dir_global {trace_dir_global}")
   else:

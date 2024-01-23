@@ -50,7 +50,7 @@ class ABMInMemoryDataset(InMemoryDataset):
 
     def process(self):
         data_list=[]
-
+        interaction_type_counter = np.zeros(3)
         jl_pths = [pth for pth in Path(self.root).iterdir()
                     if pth.suffix == '.jl']
         
@@ -72,6 +72,9 @@ class ABMInMemoryDataset(InMemoryDataset):
                   # Features for a single node [fn_pred, age, time, interaction type, target user or not]
                   node_features = np.array([single_user['fn_pred'], single_user['user_age'], -1, -1, 1])
                   if len(single_user['contacts'] > 0):
+                      interaction_types = single_user['contacts'][:, 3]
+                      counts = np.bincount(interaction_types, minlength=3)
+                      interaction_type_counter += counts
                       contact_features = np.concatenate((single_user['contacts'][:, [2, 1, 0, 3]], np.zeros((single_user['contacts'].shape[0], 1))),axis = 1)
                       node_features = np.concatenate((node_features.reshape(1, node_features.shape[0]), contact_features), axis=0)
                   
@@ -89,12 +92,13 @@ class ABMInMemoryDataset(InMemoryDataset):
 
                   data_list.append(data_single)
 
+        interaction_percentages = interaction_type_counter / np.sum(interaction_type_counter)
         logger.info('Processing complete, saving file.')
+        logger.info(f'The dataset contains {interaction_percentages[0]} of the 0 (household) interaction type')
+        logger.info(f'The dataset contains {interaction_percentages[1]} of the 1 (workplace) interaction type')
+        logger.info(f'The dataset contains {interaction_percentages[2]} of the 2 (random) interaction type')
         self.save(data_list, self.processed_paths[0])
-        
 
-        
-        
 
 def make_features_graph(data):
   """Converts the JSON to the graph features."""
@@ -142,9 +146,6 @@ def make_features_graph(data):
   single_contact_edges = np.vstack([edges_source, edges_target])
   single_contact_edges = torch.tensor(single_contact_edges)
   single_contact_edges, _ = add_self_loops(single_contact_edges)
-  # single_contact_edges = torch.nn.functional.pad(
-  #     single_contact_edges, [0, constants.CTC-edges_source.shape[0] + 1, 0, 0],
-  #     mode='constant', value=-1)
   
   return ({
     'fn_pred': torch.tensor(data['fn_pred'], dtype=torch.float32),

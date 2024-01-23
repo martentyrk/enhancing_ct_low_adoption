@@ -231,19 +231,8 @@ def compare_abm(
 
       logger.info(f"Time spent on inference_func {time.time() - t_start:.0f}")
 
-      if trace_dir is not None:
-        # if t_now == 15:
-        #   fname = os.path.join(trace_dir, "contacts_10k.npy")
-        #   np.save(fname, contacts_now)
-        #   fname = os.path.join(trace_dir, "observations_10k.npy")
-        #   np.save(fname, observations_now)
 
-        # Dump graphs to train with a GNN
-        # if t_now > 10:
-        #   util_dataset.dump_features_flat(
-        #     contacts_now, observations_now, z_states_inferred,
-        #     sim.get_states_today(),
-        #     contacts_age, users_age, trace_dir, num_users, t_now)
+      if trace_dir is not None:
         if t_now > 10:
           user_free = (user_quarantine_ends < t_now)
           util_dataset.dump_features_graph(

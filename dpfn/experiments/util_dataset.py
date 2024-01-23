@@ -103,7 +103,6 @@ def dump_features_flat(
 
           f.write(json.dumps(dataset[user]) + "\n")
 
-
 def dump_features_graph(
     contacts_now: np.ndarray,
     observations_now: np.ndarray,
@@ -167,12 +166,14 @@ def dump_features_graph(
           if row[0] < 0:
             break
           assert row[3] <= 1024
+          
           output['contacts'].append([
             int(row[0]),  # timestep
             int(row[1]),  # sender
             int(row[2]),  # age (age groups)
             int(row[3]),  # pinf 
             int(row[4]),  # interaction type
+            int(app_users[row[1]] == 1), # app user status
           ])
         #in pytorch its json.loads
         if user_positive[user]:

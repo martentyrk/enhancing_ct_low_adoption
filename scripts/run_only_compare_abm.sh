@@ -16,4 +16,6 @@ module load 2022
 module load GSL/2.7-GCC-11.3.0
 module load SWIG/4.0.2-GCCcore-11.3.0
 
-srun python3 dpfn/main.py --app_users_fraction 0.4 --mean_baseline --seed_value 30 --inference_method "fn" --simulator abm --config_data intermediate_graph_abm_02 --config_model model_ABM01
+srun python3 dpfn/main.py --dump_traces --seed_value 69 --name=data_gen_100k_long --config_data=intermediate_graph_abm_02 --seed_value 30 --simulator=abm --inference_method=fn
+
+# srun python3 dpfn/main.py --app_users_fraction 0.4 --mean_baseline --seed_value 30 --inference_method "fn" --simulator abm --config_data intermediate_graph_abm_02 --config_model model_ABM01
