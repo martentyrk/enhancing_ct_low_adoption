@@ -1,8 +1,17 @@
 #!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --time=00:03:00
+#SBATCH --job-name=data_collection
+#SBATCH --partition=rome
+#SBATCH --mem=64000
+#SBATCH --output=data_collection%A.out
 
-dirname='../../../../scratch-shared/mturk/datadump/trace_high_mem_run_abm_seed40_adaption_0.5/test_with_obs_40'
+seed=40
+adoption_rate=0.8
+dirname="../../../../scratch-shared/mturk/datadump_long/trace_high_mem_run_abm_seed${seed}_adaption_${adoption_rate}/test_with_obs_${seed}"
 dirname_out=${dirname}_out
-file_out='all_40_0.5.jl'
+file_out="all_${seed}_${adoption_rate}.jl"
 # Concatenate and shuffle train and validation sets
 cat ${dirname}/positive_*.jl > ${dirname}/positive.jlconcat
 cat ${dirname}/negative_*.jl > ${dirname}/negative.jlconcat

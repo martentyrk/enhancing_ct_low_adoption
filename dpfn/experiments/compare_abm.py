@@ -13,6 +13,8 @@ from dpfn.experiments import (
   prequential, util_experiments, util_dataset)
 from dpfn import logger
 from dpfn import simulator
+import torch
+from experiments.util_dataset import create_dataset
 
 def compare_abm(
     inference_method: str,
@@ -25,7 +27,9 @@ def compare_abm(
     modify_contacts: bool=False,
     run_mean_baseline: bool=False,
     run_age_baseline: bool=False,
-    static_baseline_value: Union[np.ndarray, float]=-1.):
+    static_baseline_value: Union[np.ndarray, float]=-1.,
+    dl_model=None
+    ):
   """Compares different inference algorithms on the supplied contact graph."""
   num_users = cfg["data"]["num_users"]
   num_time_steps = cfg["data"]["num_time_steps"]
@@ -230,8 +234,6 @@ def compare_abm(
       
 
       logger.info(f"Time spent on inference_func {time.time() - t_start:.0f}")
-
-
       if trace_dir is not None:
         if t_now > 10:
           user_free = (user_quarantine_ends < t_now)
@@ -239,7 +241,27 @@ def compare_abm(
             contacts_now, observations_now, z_states_inferred, user_free,
             sim.get_states_today(), users_age, app_users, trace_dir, num_users,
             num_time_steps, t_now, int(rng_seed))
+      
+      ##TODO
+      if dl_model:
 
+        user_free = (user_quarantine_ends < t_now)
+        incorporated_users = app_users & user_free
+        
+        z_states_timesteps = t_now if t_now < 3 else 3
+        z_states_inferred_last_days = z_states_inferred[:, -z_states_timesteps:, :]
+        
+        model_data = util_dataset.inplace_features_graph_creation(
+          contacts_now, observations_now, z_states_inferred_last_days, user_free,
+          users_age, app_users, num_users,
+          num_time_steps
+        )
+        dataset = create_dataset(model_data)
+        
+        dl_model.eval()
+        with torch.no_grad():
+          predictions = dl_model(dataset).squeeze(1)
+        
     else:
       z_states_inferred = np.zeros((num_users, num_days, 4))
 

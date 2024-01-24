@@ -15,6 +15,8 @@ from dpfn import util
 from dpfn import util_wandb
 from experiments.compare_covasim import compare_policy_covasim
 from experiments.compare_abm import compare_abm
+from experiments.model_utils import get_model
+import torch
 
 
 if __name__ == "__main__":
@@ -44,6 +46,11 @@ if __name__ == "__main__":
   parser.add_argument('--static_baseline', action='store_true')
   parser.add_argument('--static_baseline_path', type=str, default='dpfn/data/static_age_baseline_results')
   parser.add_argument('--seed_value', type=int, default=None)
+  parser.add_argument('--model', 
+                      type=str, 
+                      help="Type of deep learning model to apply to FN",
+                      default=None,
+                      choices=['gcn'])
 
   # TODO make a better heuristic for this:
   # num_threads = max((util.get_cpu_count()-1, 1))
@@ -87,7 +94,7 @@ if __name__ == "__main__":
 
   tags.append("local" if (os.getenv('SLURM_JOB_ID') is None) else "slurm")
   
-  do_wandb = ('carbon' not in socket.gethostname())
+  do_wandb = 'int' not in socket.gethostname()
   if do_wandb:
     runner_global = wandb.init(
       project="dpfn",
@@ -102,6 +109,13 @@ if __name__ == "__main__":
   config_wandb = util_experiments.set_noisy_test_params(config_wandb)
   config_wandb = util_experiments.convert_log_params(config_wandb)
   logger.info(config_wandb)
+  # Prepare model if model given
+  
+  if args.model:
+    dl_model = get_model(args.model)
+    dl_model.load_state_dict(torch.load(f"dpfn/config/{args.model}.pt"))
+  else:
+    dl_model = None
   
      # Set random seed
   seed_value = config_wandb.get("seed", -1)
@@ -123,6 +137,8 @@ if __name__ == "__main__":
     experiment_name = 'run_abm_mean_collect_seed_'+ str(seed_value)
   elif args.age_baseline:
     experiment_name = 'run_abm_age_seed_'+ str(seed_value)
+  elif args.model:
+    experiment_name = 'run_abm_age_seed_model' + str(args.model) + '_seed_' + str(seed_value)
   else:
     experiment_name = 'run_abm_seed'+ str(seed_value)
   
@@ -137,13 +153,11 @@ if __name__ == "__main__":
   # This line prints all git differences etc. No need for now.
   # util_experiments.make_git_log()
 
-  if 'carbon' not in socket.gethostname():
+  if do_wandb:
     wandb.mark_preempting()
 
   util.maybe_make_dir(results_dir_global)
   if args.dump_traces:
-    # trace_dir_global = (
-    #   f'results/trace_high_mem_{experiment_name}/{configname_data}__{configname_model}/')
     trace_dir_global = (
       f'../../../../scratch-shared/mturk/datadump_long/trace_high_mem_{experiment_name}')
     util.maybe_make_dir(trace_dir_global)
@@ -203,6 +217,7 @@ if __name__ == "__main__":
       run_mean_baseline=args.mean_baseline,
       run_age_baseline=args.age_baseline,
       static_baseline_value=static_baseline_value,
+      dl_model = dl_model,
       )
 
   except Exception as e:

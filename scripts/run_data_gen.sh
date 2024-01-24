@@ -11,4 +11,4 @@
 source activate thesis
 source scripts/preamble.sh
 
-srun python3 dpfn/data_generation/dataset_generator.py --path dpfn/data/train_app_users
+srun python3 dpfn/data_generation/dataset_gen_graph.py --path dpfn/data/data_all_users/test --include_non_users
