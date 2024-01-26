@@ -56,6 +56,7 @@ if __name__ == "__main__":
     # TODO make a better heuristic for this:
     # num_threads = max((util.get_cpu_count()-1, 1))
     num_threads = 16
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     numba.set_num_threads(num_threads)
     logger.info(f"SLURM env N_TASKS: {os.getenv('SLURM_NTASKS')}")
     logger.info(f"Start with {num_threads} threads")
@@ -114,8 +115,10 @@ if __name__ == "__main__":
     # Prepare model if model given
 
     if args.model:
-        dl_model = get_model(args.model)
-        dl_model.load_state_dict(torch.load(f"dpfn/config/{args.model}.pt"))
+        logger.info(f'Running with the deep model: {str(args.model)}')
+
+        dl_model = get_model(args.model).to(device)
+        dl_model.load_state_dict(torch.load(f"dpfn/config/dl_configs/gcn_graph_0005_all_users.pth", map_location=torch.device(device)))
         dl_model.eval()
     else:
         dl_model = None
@@ -141,7 +144,7 @@ if __name__ == "__main__":
     elif args.age_baseline:
         experiment_name = 'run_abm_age_seed_' + str(seed_value)
     elif args.model:
-        experiment_name = 'run_abm_age_seed_model' + \
+        experiment_name = 'run_abm_seed_model' + \
             str(args.model) + '_seed_' + str(seed_value)
     else:
         experiment_name = 'run_abm_seed' + str(seed_value)

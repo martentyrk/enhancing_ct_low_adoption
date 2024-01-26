@@ -57,6 +57,8 @@ def compare_abm(
     logger.info(f"App users fraction: {app_users_fraction}")
     assert app_users_fraction >= 0 and app_users_fraction <= 1.0
 
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
     if run_mean_baseline:
         logger.info('Running mean baseline')
     elif run_age_baseline:
@@ -251,13 +253,13 @@ def compare_abm(
 
             # TODO
             if dl_model:
-
+                logger.info('Deep learning predictions')
                 user_free = (user_quarantine_ends < t_now)
                 incorporated_users = app_users & user_free
-
+                incorporated_user_ids = np.nonzero(incorporated_users)[0]
+                
                 z_states_timesteps = t_now if t_now < pred_days else pred_days
-                z_states_inferred_last_days = z_states_inferred[:, -
-                                                                z_states_timesteps:, :]
+                z_states_inferred_last_days = z_states_inferred[:, -z_states_timesteps:, :]
 
                 model_data = util_dataset.inplace_features_graph_creation(
                     contacts_now, observations_now, z_states_inferred_last_days, user_free,
@@ -270,11 +272,13 @@ def compare_abm(
 
                 all_preds = []
                 for data in train_loader:
+                    data = data.to(device)
                     with torch.no_grad():
                         predictions = dl_model(data).squeeze(1)
-                    all_preds.extend(predictions)
+                    all_preds.extend(predictions.cpu().numpy())
 
-                z_states_inferred[incorporated_users, -1, 2] = all_preds
+                
+                z_states_inferred[incorporated_user_ids, -1, 2] = all_preds
 
         else:
             z_states_inferred = np.zeros((num_users, num_days, 4))

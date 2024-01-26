@@ -1,11 +1,12 @@
 #!/bin/bash
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=CPUS
+#SBATCH --gpus=1
 #SBATCH --ntasks=NTASKS
-#SBATCH --time=10:00:00
+#SBATCH --time=07:00:00
 #SBATCH --job-name=marten_sweep
-#SBATCH --partition=rome
-#SBATCH --mem=128000
+#SBATCH --partition=gpu
+#SBATCH --mem=64000
 #SBATCH --output=sweep_%A.out
 
 source activate thesis
