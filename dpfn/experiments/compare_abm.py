@@ -489,11 +489,11 @@ def compare_policy_covasim(
   quantization = cfg["model"]["quantization"]
   num_rounds = cfg["model"]["num_rounds"]
 
-  seed = cfg.get("seed", 123)
+  rng_seed = cfg.get("seed", 123)
 
   logger.info((
     f"Settings at experiment: {quantization:.0f} quant, at {fraction_test}% "
-    f"seed {seed}"))
+    f"seed {rng_seed}"))
 
   inference_func, do_random = make_inference_func(
     inference_method, num_users, cfg, trace_dir=trace_dir)
@@ -600,12 +600,6 @@ def compare_policy_covasim(
       # assert 0 <= obs_rel[:, 1].min() <= sim.t, (
       #   f"Earliest obs {obs_rel[:, 1].min()} is before {sim.t}")
 
-      if trace_dir and sim.t == 15:
-        fname = os.path.join(trace_dir, f"contacts_{sim.t}.npz")
-        np.savez(
-          fname, contacts=contacts_rel, observations=obs_rel)
-        logger.info(f"Dumped traces to {fname}")
-
       # Add +1 so the model predicts one day into the future
       t_start = time.time()
       pred, contacts_age = inference_func(
@@ -624,6 +618,22 @@ def compare_policy_covasim(
           policy_weight_01 * contacts_age[:, 1] / 10
           + policy_weight_02 * contacts_age[:, 0] / 10
           + policy_weight_03 * users_age / 10)
+
+      if trace_dir is not None and sim.t > 10:
+        user_free = np.logical_not(sim.people.isolated)
+
+        # Get states today
+        # Exposed is superset of infectious, but this is overwritten below
+        states_today = np.zeros((num_users))
+        states_today[sim.people.exposed] = 1
+        states_today[sim.people.infectious] = 2
+        states_today[sim.people.dead] = 3
+        states_today[sim.people.recovered] = 3
+
+        util_dataset.dump_features_graph(
+          contacts_rel, obs_rel, pred, user_free,
+          states_today, users_age, trace_dir, num_users,
+          num_time_steps, sim.t, int(rng_seed))
 
       # Track some metrics here:
       states_today = 3*np.ones(num_users, dtype=np.int32)
@@ -662,7 +672,7 @@ def compare_policy_covasim(
     analyzers=util_covasim.StoreSEIR(num_days=num_time_steps, label='analysis'))
 
   # COVASIM run() runs the entire simulation, including the initialization
-  sim.set_seed(seed=seed)
+  sim.set_seed(seed=rng_seed)
   sim.run(reset_seed=True)
 
   analysis = sim.get_analyzer('analysis')
