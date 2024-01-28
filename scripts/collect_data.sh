@@ -20,13 +20,20 @@ echo "Start concatenation"
 cat ${dirname}/positive_*.jl > ${dirname}/positive.jlconcat
 cat ${dirname}/negative_*.jl > ${dirname}/negative.jlconcat
 
-echo "Start shuffling"
+echo "Positive samples": `wc -l ${dirname}/positive.jlconcat`
+echo "Negative samples": `wc -l ${dirname}/negative.jlconcat`
 
+# Subsample 1% of lines. Check manually that this is ok!
+cat ${dirname}/negative.jlconcat | awk 'BEGIN {srand()} !/^$/ { if (rand() <= .01) print $0}' > ${dirname}/negative_sub.jlconcat
+echo "Negative samples after subsampling": `wc -l ${dirname}/negative_sub.jlconcat`
+
+echo "Start shuffling"
 shuf ${dirname}/positive.jlconcat > ${dirname}/positive.jlconcat.shuf
-shuf ${dirname}/negative.jlconcat > ${dirname}/negative.jlconcat.shuf
+shuf ${dirname}/negative_sub.jlconcat > ${dirname}/negative.jlconcat.shuf
 
 rm ${dirname}/positive.jlconcat
 rm ${dirname}/negative.jlconcat
+rm ${dirname}/negative_sub.jlconcat
 
 echo "Positive samples": `wc -l ${dirname}/positive.jlconcat.shuf`
 echo "Negative samples": `wc -l ${dirname}/negative.jlconcat.shuf`
