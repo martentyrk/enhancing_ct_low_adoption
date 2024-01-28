@@ -634,6 +634,14 @@ def compare_policy_covasim(
         states_today[sim.people.dead] = 3
         states_today[sim.people.recovered] = 3
 
+        rate_user_free = np.mean(user_free)
+        rate_infection = np.mean(np.logical_or(
+          states_today == 1, states_today == 2))
+        rate_diagnosed = np.mean(sim.people.diagnosed)
+        logger.info((
+          f"Day {sim.t}: {rate_user_free:.2f} free, "
+          f"{rate_infection:.2f} infection, {rate_diagnosed:.2f} diagnosed"))
+
         util_dataset.dump_features_graph(
           contacts_rel, obs_rel, pred, user_free,
           states_today, users_age, trace_dir, num_users,
