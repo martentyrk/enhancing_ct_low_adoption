@@ -2,7 +2,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
-#SBATCH --time=00:03:00
+#SBATCH --time=03:00:00
 #SBATCH --job-name=data_collection
 #SBATCH --constraint=cpunode
 #SBATCH --mail-type=FAIL
