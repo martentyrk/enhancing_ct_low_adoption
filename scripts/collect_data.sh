@@ -1,6 +1,16 @@
 #!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --time=00:03:00
+#SBATCH --job-name=data_collection
+#SBATCH --constraint=cpunode
+#SBATCH --mail-type=FAIL
+#SBATCH --mail-user=romijndersrob@gmail.com
 
-dirname='results/trace_run_prequential/intermediate_graph_abm_02__model_ABM01/test_with_obs_123/'
+
+#To run, do sbatch scripts/collect_data_cluster.sh
+dirname='var/scratch/rromijnd/projects/dpfn/results/trace_run_prequential/intermediate_graph_cv_01__model_CV01/test_with_obs_30'
 dirname_out=${dirname}_out
 
 # Concatenate and shuffle train and validation sets
