@@ -483,6 +483,7 @@ def compare_policy_covasim(
   policy_weight_01 = cfg["model"]["policy_weight_01"]
   policy_weight_02 = cfg["model"]["policy_weight_02"]
   policy_weight_03 = cfg["model"]["policy_weight_03"]
+  std_rank_noise = cfg["data"]["std_rank_noise"]
   t_start_quarantine = cfg["data"]["t_start_quarantine"]
 
   num_days_window = cfg["model"]["num_days_window"]
@@ -618,6 +619,9 @@ def compare_policy_covasim(
           policy_weight_01 * contacts_age[:, 1] / 10
           + policy_weight_02 * contacts_age[:, 0] / 10
           + policy_weight_03 * users_age / 10)
+
+      if std_rank_noise > 0:
+        rank_score += std_rank_noise * np.random.randn(num_users)
 
       if trace_dir is not None and sim.t > 10:
         user_free = np.logical_not(sim.people.isolated)
