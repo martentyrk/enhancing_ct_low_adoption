@@ -208,6 +208,7 @@ def compare_abm(
   rng_seed = cfg.get("seed", 123)
 
   fraction_test = cfg["data"]["fraction_test"]
+  fraction_loss_followup = cfg["data"]["fraction_loss_followup"]
 
   # Data and simulator params
   num_days_quarantine = cfg["data"]["num_days_quarantine"]
@@ -346,6 +347,14 @@ def compare_abm(
 
     # Users that test positive go into quarantine
     users_to_quarantine = obs_today[np.where(obs_today[:, 2] > 0)[0], 0]
+
+    if fraction_loss_followup > 0 and len(users_to_quarantine) > 0:
+      assert fraction_loss_followup < 1
+      # Users that should go in quarantine, but are lost to followup
+      num_users_to_quarantine = len(users_to_quarantine)
+      num_subsample = int((1.-fraction_loss_followup) * num_users_to_quarantine)
+      users_to_quarantine = np.random.choice(
+        users_to_quarantine, num_subsample, replace=False)
 
     # Only run quarantines after a warmup period
     if t_now < t_start_quarantine:
