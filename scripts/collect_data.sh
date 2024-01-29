@@ -10,7 +10,7 @@
 
 
 #To run, do sbatch scripts/collect_data_cluster.sh
-dirname='/var/scratch/rromijnd/projects/dpfn/results/trace_run_prequential/intermediate_graph_cv_01__model_CV01/test_with_obs_30'
+dirname='/var/scratch/rromijnd/projects/dpfn/results/trace_run_prequential/intermediate_graph_cv_01__model_CV01/test_with_obs_DSEED'
 dirname_out=${dirname}_out
 echo "dirname_out will be ${dirname_out}"
 
