@@ -632,16 +632,15 @@ def compare_policy_covasim(
       if std_rank_noise > 0:
         rank_score += std_rank_noise * np.random.randn(num_users)
 
+      # Track some metrics here:
+      # Exposed is superset of infectious, but this is overwritten below
+      states_today = 3*np.ones(num_users, dtype=np.int32)
+      states_today[sim.people.exposed] = 2
+      states_today[sim.people.infectious] = 1
+      states_today[sim.people.susceptible] = 0
+
       if trace_dir is not None and sim.t > 10:
         user_free = np.logical_not(sim.people.isolated)
-
-        # Get states today
-        # Exposed is superset of infectious, but this is overwritten below
-        states_today = np.zeros((num_users))
-        states_today[sim.people.exposed] = 1
-        states_today[sim.people.infectious] = 2
-        states_today[sim.people.dead] = 3
-        states_today[sim.people.recovered] = 3
 
         rate_user_free = np.mean(user_free)
         rate_infection = np.mean(np.logical_or(
@@ -652,15 +651,17 @@ def compare_policy_covasim(
           f"{rate_infection:.4f} infection, {rate_diagnosed:.4f} diagnosed"))
 
         util_dataset.dump_features_graph(
-          contacts_rel, obs_rel, pred, user_free,
-          states_today, users_age, trace_dir, num_users,
-          num_time_steps, sim.t, int(rng_seed))
-
-      # Track some metrics here:
-      states_today = 3*np.ones(num_users, dtype=np.int32)
-      states_today[sim.people.exposed] = 2
-      states_today[sim.people.infectious] = 1
-      states_today[sim.people.susceptible] = 0
+          contacts_now=contacts_rel,
+          observations_now=obs_rel,
+          z_states_inferred=pred,
+          user_free=user_free,
+          z_states_sim=states_today,
+          users_age=users_age,
+          trace_dir=trace_dir,
+          num_users=num_users,
+          num_time_steps=num_time_steps,
+          t_now=sim.t,
+          rng_seed=int(rng_seed))
 
       p_at_state = pred[range(num_users), -1, states_today]
       history['likelihoods_state'][sim.t] = np.mean(np.log(p_at_state+1E-9))
