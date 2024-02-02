@@ -1,21 +1,15 @@
-"""
-version 1.0
-date 2021/02/04
-"""
-import numpy as np
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn import global_add_pool, Sequential
-from torch_geometric.nn.conv import GCNConv
+from torch_geometric.nn.conv import GraphConv
 
-class GCN(nn.Module):
+class GraphCN(nn.Module):
     def __init__(self, num_features, nhid=64, dropout=0.1, n_layers = 1):
-        super(GCN, self).__init__()
+        super(GraphCN, self).__init__()
         
         gcn_layers = [
             (nn.Dropout(dropout), 'x -> x'),
-            (GCNConv(num_features, nhid), 'x, edge_index -> x'),
+            (GraphConv(num_features, nhid, aggr='max'), 'x, edge_index -> x'),
             (nn.ReLU(inplace=True), 'x -> x')
         ]
         

@@ -36,7 +36,7 @@ class ABMInMemoryDataset(InMemoryDataset):
 
     def process(self):
         data_list=[]
-
+        non_app_user_counter = 0
         jl_pths = [pth for pth in Path(self.root).iterdir()
                     if pth.suffix == '.jl']
         
@@ -48,10 +48,10 @@ class ABMInMemoryDataset(InMemoryDataset):
                     line_data = json.loads(line.rstrip('\n'))
                     
                     try:
-                        single_user, single_edge_index, observations = make_features_graph(line_data, self.include_non_users)
+                        single_user, single_edge_index, observations, non_app_users = make_features_graph(line_data, self.include_non_users)
                     except NoContacts:
                         continue
-                    
+                    non_app_user_counter += non_app_users
                     #Labels
                     y = single_user['outcome']
                     
@@ -67,7 +67,6 @@ class ABMInMemoryDataset(InMemoryDataset):
                     if len(observations) > 0:
                         # Reorder observations to match other node features
                         # new orderding = [outcome, -1 (age), time, -1 (interaction type), 0 (not target user), 1 (observation type), -1 (app users)]
-                        
                         obs_features = observations[:, [1, 4, 0, 5, 2, 3, 6]]
                         node_features = np.concatenate((node_features, obs_features), axis=0)
                     
@@ -79,7 +78,8 @@ class ABMInMemoryDataset(InMemoryDataset):
                     )
 
                     data_list.append(data_single)
-
+              
+        logger.info(f'Out of all the contacts in this dataset, there were {non_app_user_counter} non app users')
         logger.info('Processing complete, saving file.')
         self.save(data_list, self.processed_paths[0])
         
@@ -101,19 +101,21 @@ def make_features_graph(data, include_non_users:bool):
         observations = np.array([])
     else:
         # observations = torch.tensor(observations, dtype=torch.float32)
-        observations = np.concatenate((observations, np.zeros((observations.shape[0], 1))), axis=1)
-        observations = np.concatenate((observations, np.ones((observations.shape[0], 1))), axis=1)
-        observations = np.concatenate((observations, -1. * np.ones((observations.shape[0], 3))), axis=1)
+        observations = np.concatenate(
+            (observations, np.zeros((observations.shape[0], 1))), axis=1)
+        observations = np.concatenate(
+            (observations, np.ones((observations.shape[0], 1))), axis=1)
+        observations = np.concatenate(
+            (observations, -1. * np.ones((observations.shape[0], 3))), axis=1)
         
   
     if len(contacts) == 0:
-        # contacts = -1 * torch.ones(size=(constants.CTC, NUM_FEATURES_PER_CONTACT), dtype=torch.float32)
         return ({
         'fn_pred': torch.tensor(data['fn_pred'], dtype=torch.float32),
         'user_age': torch.tensor(data['user_age'], dtype=torch.float32),
         'contacts': contacts,
         'outcome': torch.tensor(data['sim_state'] == 2 or data['sim_state'] == 1, dtype=torch.float32)
-    }, torch.tensor(np.array([[],[]])), observations)
+    }, torch.tensor(np.array([[],[]])), observations, 0)
     else:
         # Remove sender information
         contacts = np.concatenate((contacts[:, 0:1], contacts[:, 2:]), axis=1)    
@@ -125,13 +127,16 @@ def make_features_graph(data, include_non_users:bool):
     contacts[:, 1] /= 10  # Column 1 is the age
     contacts[:, 2] /= 1024  # Column 2 is the pinf according to FN
     
-    if include_non_users:
+    non_app_users = 0
+    
         # We know timestep and interaction type, other values will be set to -1.
-        app_users_mask = contacts[:, -1] == 1
-        contacts[~app_users_mask, 1] = -1.
-        contacts[~app_users_mask, 2] = -1.
+    app_users_mask = contacts[:, -1] == 1
+    contacts[~app_users_mask, 1] = -1.
+    contacts[~app_users_mask, 2] = -1.
+
+    non_app_users = contacts.shape[0] - np.nonzero(app_users_mask.numpy())[0].shape[0]
         
-    # edge_attributes = []
+        
     num_contacts = len(contacts)
     num_observations = len(observations)
     edges_source = np.arange(1, num_contacts + 1 + num_observations)
@@ -146,18 +151,18 @@ def make_features_graph(data, include_non_users:bool):
         'user_age': torch.tensor(data['user_age'], dtype=torch.float32),
         'contacts': contacts,
         'outcome': int(data['sim_state'] == 2 or data['sim_state'] == 1)
-    }, single_contact_edges, observations)
+    }, single_contact_edges, observations, non_app_users)
   
   
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(
         description='Compare statistics acrosss inference methods')
-    parser.add_argument('--path', type=str, default="dpfn/data/data_all_users/train")
+    parser.add_argument('--path', type=str, default="dpfn/data/data_all_users/frac_0.6/val")
     parser.add_argument('--include_non_users', action='store_true')
     
     args = parser.parse_args()
     logger.info('Initializing ABMInMemoryDataset with path: %s', str(args.path))
-    dataset = ABMInMemoryDataset(args.path, args.include_non_users)
+    dataset = ABMInMemoryDataset(args.path, True)
     
     logger.info('File saved!')

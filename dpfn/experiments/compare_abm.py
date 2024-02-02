@@ -123,6 +123,8 @@ def compare_abm(
 
     # Placeholder for tests on first day
     z_states_inferred = np.zeros((num_users, 1, 4), dtype=np.float32)
+    state_preds = np.zeros((num_users, 1), dtype=np.float32)
+    
     user_quarantine_ends = -1*np.ones((num_users), dtype=np.int32)
     contacts_age = np.zeros((num_users, 2), dtype=np.int32)
 
@@ -149,8 +151,11 @@ def compare_abm(
 
         # For each day, t_now, only receive obs up to and including 't_now-1'
         assert sim.get_current_day() == t_now
-        rank_score = (
-            z_states_inferred[:, -1, 1] + z_states_inferred[:, -1, 2])
+        # rank_score = (
+        #     z_states_inferred[:, -1, 1] + z_states_inferred[:, -1, 2])
+        # rank_score = state_preds[:, 0] + z_states_inferred[:, -1, 1]
+        rank_score = z_states_inferred[:, -1, 1:3].sum(axis=1) + state_preds[:, 0]
+        # rank_score = state_preds[:, 0]
 
         if np.any(np.abs(
                 [policy_weight_01, policy_weight_02, policy_weight_03]) > 1E-9):
@@ -245,11 +250,13 @@ def compare_abm(
                 f"Time spent on inference_func {time.time() - t_start:.0f}")
             if trace_dir is not None:
                 if t_now > 10:
+                    logger.info("Dumping features")
+                    infection_prior_now = np.mean(z_states_inferred[app_user_ids, -1, 2])
                     user_free = (user_quarantine_ends < t_now)
                     util_dataset.dump_features_graph(
                         contacts_now, observations_now, z_states_inferred, user_free,
                         sim.get_states_today(), users_age, app_users, trace_dir, num_users,
-                        num_time_steps, t_now, int(rng_seed))
+                        num_time_steps, t_now, int(rng_seed), infection_prior, infection_prior_now)
 
             # TODO
             if dl_model:
@@ -266,9 +273,11 @@ def compare_abm(
                     users_age, app_users, num_users,
                     num_time_steps
                 )
+
                 dataset = create_dataset(model_data)
+
                 train_loader = DataLoader(
-                    dataset, batch_size=512, shuffle=False)
+                    dataset, batch_size=1024, shuffle=False)
 
                 all_preds = []
                 for data in train_loader:
@@ -277,8 +286,10 @@ def compare_abm(
                         predictions = dl_model(data).squeeze(1)
                     all_preds.extend(predictions.cpu().numpy())
 
+                #Reset statistics, since the incorporated users can change.
+                state_preds = np.zeros((num_users, 1), dtype=np.float32)
+                state_preds[incorporated_user_ids, 0] = all_preds
                 
-                z_states_inferred[incorporated_user_ids, -1, 2] = all_preds
 
         else:
             z_states_inferred = np.zeros((num_users, num_days, 4))
@@ -333,7 +344,10 @@ def compare_abm(
             positive = np.logical_or(states_today == 1, states_today == 2)
             # TODO: change rank_score to be just predictions?
             # TODO: can also use p_inf as predictions, keep everything else
-            rank_score = z_states_inferred[:, -1, 1:3].sum(axis=1)
+            # rank_score = z_states_inferred[:, -1, 1:3].sum(axis=1)
+            # rank_score = state_preds[:, 0] + z_states_inferred[:, -1, 1]
+            rank_score = z_states_inferred[:, -1, 1:3].sum(axis=1) + state_preds[:, 0]
+            # rank_score = state_preds[:, 0]
             ave_precision[t_now] = metrics.average_precision_score(
                 y_true=positive, y_score=rank_score)
         else:

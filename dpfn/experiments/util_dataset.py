@@ -121,7 +121,9 @@ def dump_features_graph(
         num_users: int,
         num_time_steps: int,
         t_now: int,
-        rng_seed: int) -> None:
+        rng_seed: int,
+        infection_prior: float = -1.,
+        infection_prior_now: float = -1.) -> None:
     """Dump graphs for GNNs."""
     datadump = dpfn_util.fn_features_dump(
         num_workers=1,
@@ -162,6 +164,8 @@ def dump_features_graph(
                     "user_age": int(users_age[user]),
                     "observations": observations_json[user],
                     "contacts": [],
+                    "infection_prior": float(infection_prior),
+                    "infection_prior_now": float(infection_prior_now),
                 }
 
                 for row in datadump[user]:
@@ -252,13 +256,13 @@ class NoContacts(Exception):
     """Custom exception for no contacts in a data row."""
 
 
-def create_dataset(data):
+def create_dataset(data, infection_prior:int = None):
     data_list = []
 
     for single_data in data:
         try:
             single_user, single_edge_index, observations = make_features_graph(
-                single_data, True)
+                single_data, True, infection_prior)
         except NoContacts:
             continue
 
@@ -292,13 +296,12 @@ def create_dataset(data):
     return data_list
 
 
-def make_features_graph(data, include_non_users: bool):
+def make_features_graph(data, include_non_users: bool, infection_prior: int= None):
     """Converts the JSON to the graph features."""
     # Contacts object: [timestep, sender, age (age groups), pinf, interaction type, app_user (1 or 0)]
     contacts = np.array(data['contacts'], dtype=np.int64)
 
     # Normalize user data
-    # TODO: check if this turns into float
     data['user_age'] /= 10
 
     # Observations object: [timestep, result]
@@ -315,7 +318,6 @@ def make_features_graph(data, include_non_users: bool):
             (observations, -1. * np.ones((observations.shape[0], 3))), axis=1)
 
     if len(contacts) == 0:
-        # contacts = -1 * torch.ones(size=(constants.CTC, NUM_FEATURES_PER_CONTACT), dtype=torch.float32)
         return ({
             'fn_pred': torch.tensor(data['fn_pred'], dtype=torch.float32),
             'user_age': torch.tensor(data['user_age'], dtype=torch.float32),
@@ -334,8 +336,11 @@ def make_features_graph(data, include_non_users: bool):
     if include_non_users:
         # We know timestep and interaction type, other values will be set to -1.
         app_users_mask = contacts[:, -1] == 1
-        contacts[~app_users_mask, 1] = -1.
-        contacts[~app_users_mask, 2] = -1.
+        contacts[~app_users_mask, 1] = -1. # Setting age to -1.
+        if infection_prior is not None:
+            contacts[~app_users_mask, 2] = torch.tensor(infection_prior, dtype=torch.float)
+        else:
+            contacts[~app_users_mask, 2] = -1. # Setting pinf to -1.
 
     # edge_attributes = []
     num_contacts = len(contacts)

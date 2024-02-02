@@ -51,7 +51,19 @@ if __name__ == "__main__":
                         type=str,
                         help="Type of deep learning model to apply to FN",
                         default=None,
-                        choices=['gcn'])
+                        choices=['gcn', 'graphcn'])
+    parser.add_argument('--model_name', 
+                        type=str,
+                        default='gcn_all_users_0.6_max_graphconv.pth',
+                        help='The model state dict that will be used to load the model')
+    parser.add_argument('--n_layers',
+                        type=int,
+                        default=1,
+                        help='Number of layers in the deep learning model.')
+    parser.add_argument('--num_users',
+                        type=int,
+                        default=None)
+
 
     # TODO make a better heuristic for this:
     # num_threads = max((util.get_cpu_count()-1, 1))
@@ -81,9 +93,13 @@ if __name__ == "__main__":
     config_wandb = defaultdict(None)
     config_wandb['config_data_name'] = configname_data
     config_wandb['config_model_name'] = configname_model
+    config_wandb['dl_model_name'] = args.model_name
     config_wandb['cpu_count'] = util.get_cpu_count()
     config_wandb['data'] = config_data.to_dict()
     config_wandb['model'] = config_model.to_dict()
+
+    if args.num_users:
+        config_wandb['data']['num_users'] = args.num_users
 
     if args.app_users_fraction:
         config_wandb["data"]["app_users_fraction"] = float(
@@ -113,26 +129,29 @@ if __name__ == "__main__":
     config_wandb = util_experiments.convert_log_params(config_wandb)
     logger.info(config_wandb)
     # Prepare model if model given
-
+    
     if args.model:
         logger.info(f'Running with the deep model: {str(args.model)}')
 
-        dl_model = get_model(args.model).to(device)
-        dl_model.load_state_dict(torch.load(f"dpfn/config/dl_configs/gcn_graph_0005_all_users.pth", map_location=torch.device(device)))
+        dl_model = get_model(args.model, n_layers=args.n_layers).to(device)
+        dl_model.load_state_dict(torch.load(f"dpfn/config/dl_configs/" + args.model_name, map_location=torch.device(device)))
         dl_model.eval()
     else:
         dl_model = None
 
         # Set random seed
     seed_value = config_wandb.get("seed", -1)
-    if seed_value > 0:
-        random.seed(seed_value)
-        np.random.seed(seed_value)
-    else:
+    if seed_value < 0:
         if args.seed_value:
             seed_value = args.seed_value
         else:
             seed_value = random.randint(0, 999)
+        
+        
+    random.seed(seed_value)
+    np.random.seed(seed_value)
+    torch.manual_seed(seed_value)
+    torch.cuda.manual_seed(seed_value)
     # Random number generator to pass as argument to some imported functions
     arg_rng = np.random.default_rng(seed=seed_value)
 
@@ -144,7 +163,11 @@ if __name__ == "__main__":
     elif args.age_baseline:
         experiment_name = 'run_abm_age_seed_' + str(seed_value)
     elif args.model:
-        experiment_name = 'run_abm_seed_model' + \
+        if args.num_users == 10000:
+            input_str = '10k'
+        else:
+            input_str = '100k'
+        experiment_name = f'{input_str}_run_abm_seed_model' + \
             str(args.model) + '_seed_' + str(seed_value)
     else:
         experiment_name = 'run_abm_seed' + str(seed_value)
@@ -168,7 +191,7 @@ if __name__ == "__main__":
     util.maybe_make_dir(results_dir_global)
     if args.dump_traces:
         trace_dir_global = (
-            f'../../../../scratch-shared/mturk/datadump_long/trace_high_mem_{experiment_name}')
+            f'../../../../scratch-shared/mturk/datadump_mean/trace_high_mem_{experiment_name}')
         util.maybe_make_dir(trace_dir_global)
         logger.info(f"Dump traces to results_dir_global {trace_dir_global}")
     else:
