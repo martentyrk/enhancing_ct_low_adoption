@@ -7,6 +7,9 @@ import os
 import torch
 from torch_geometric.data import InMemoryDataset, Data
 from torch_geometric.utils import add_self_loops
+from torch.utils.data import Dataset
+from torch_geometric.loader import DataLoader as PygDataLoader
+from torch.utils.data import DataLoader as TorchDataLoader
 import shutil
 import os
 
@@ -189,7 +192,7 @@ def dump_features_graph(
     print(f"Ignored {num_ignored} out of {num_users} users")
 
 
-def inplace_features_graph_creation(
+def inplace_features_data_creation(
     contacts_now: np.ndarray,
     observations_now: np.ndarray,
     z_states_inferred: np.ndarray,
@@ -254,49 +257,80 @@ def create_observations_json(num_users: int, observations_now: np.ndarray):
 
 class NoContacts(Exception):
     """Custom exception for no contacts in a data row."""
+    
+class DeepSet_Dataset(Dataset):
+    def __init__(self, data):
+        self.features = data
+        
+    def __len__(self):
+        """
+        Return the total number of samples in the dataset.
+        """
+        return len(self.features)
+    
+    def __getitem__(self, idx):
+        """
+        Generates one sample of data.
+        """
+        return self.features[idx]
+        
 
 
-def create_dataset(data, infection_prior:int = None):
+def create_dataset(data, model_type, infection_prior:float = None):
     data_list = []
-
+    
     for single_data in data:
         try:
-            single_user, single_edge_index, observations = make_features_graph(
-                single_data, True, infection_prior)
+            if model_type in ['gcn', 'graphcn']:
+                single_user, single_edge_index, observations = make_features_graph(
+                    single_data, True, infection_prior)
+            elif model_type in ['set']:
+                single_user_data = make_features_set(single_data, infection_prior)
         except NoContacts:
             continue
+        
+        if model_type in ['gcn', 'graphcn']:
+            # Initialize node_features with the target user who is affected.
+            # Features for a single node [fn_pred, age, time, interaction type, target user or not, observation or not, app user
+            node_features = np.array(
+                [single_user['fn_pred'], single_user['user_age'], -1, -1, 1, 0, 1])
+            node_features = node_features.reshape(1, -1)
 
-        # Initialize node_features with the target user who is affected.
-        # Features for a single node [fn_pred, age, time, interaction type, target user or not, observation or not, app user
-        node_features = np.array(
-            [single_user['fn_pred'], single_user['user_age'], -1, -1, 1, 0, 1])
-        node_features = node_features.reshape(1, -1)
+            if len(single_user['contacts'] > 0):
+                contact_features = np.concatenate((single_user['contacts'][:, [2, 1, 0, 3]], np.zeros(
+                    (single_user['contacts'].shape[0], 2)), single_user['contacts'][:, [4]]), axis=1)
+                node_features = np.concatenate(
+                    (node_features, contact_features), axis=0)
 
-        if len(single_user['contacts'] > 0):
-            contact_features = np.concatenate((single_user['contacts'][:, [2, 1, 0, 3]], np.zeros(
-                (single_user['contacts'].shape[0], 2)), single_user['contacts'][:, [4]]), axis=1)
-            node_features = np.concatenate(
-                (node_features, contact_features), axis=0)
+            if len(observations) > 0:
+                # Reorder observations to match other node features
+                # new orderding = [outcome, -1 (age), time, -1 (interaction type), 0 (not target user), 1 (observation type), -1 (app users)]
 
-        if len(observations) > 0:
-            # Reorder observations to match other node features
-            # new orderding = [outcome, -1 (age), time, -1 (interaction type), 0 (not target user), 1 (observation type), -1 (app users)]
+                obs_features = observations[:, [1, 4, 0, 5, 2, 3, 6]]
+                node_features = np.concatenate(
+                    (node_features, obs_features), axis=0)
 
-            obs_features = observations[:, [1, 4, 0, 5, 2, 3, 6]]
-            node_features = np.concatenate(
-                (node_features, obs_features), axis=0)
+            data_single = Data(
+                x=torch.tensor(node_features, dtype=torch.float),
+                edge_index=single_edge_index.long(),
+            )
 
-        data_single = Data(
-            x=torch.tensor(node_features, dtype=torch.float),
-            edge_index=single_edge_index.long(),
-        )
+            data_list.append(data_single)
+        
+        elif model_type in ['set']:
+            data_list.append(single_user_data)
 
-        data_list.append(data_single)
+    if model_type in ['gcn', 'graphcn']:
+        return PygDataLoader(data_list, batch_size=1024, shuffle=False)
 
-    return data_list
+    elif model_type in ['set']:
+        set_dataset = DeepSet_Dataset(data_list)
+        
+        return TorchDataLoader(set_dataset, batch_size=1024, shuffle=False)
+    
 
 
-def make_features_graph(data, include_non_users: bool, infection_prior: int= None):
+def make_features_graph(data, include_non_users: bool, infection_prior: float= None):
     """Converts the JSON to the graph features."""
     # Contacts object: [timestep, sender, age (age groups), pinf, interaction type, app_user (1 or 0)]
     contacts = np.array(data['contacts'], dtype=np.int64)
@@ -357,3 +391,55 @@ def make_features_graph(data, include_non_users: bool, infection_prior: int= Non
         'user_age': torch.tensor(data['user_age'], dtype=torch.float32),
         'contacts': contacts,
     }, single_contact_edges, observations)
+
+def make_features_set(data, infection_prior: float= None):
+    """Converts the JSON to the graph features."""
+    #Contacts object: [timestep, sender, age (age groups), pinf, interaction type, app_user (1 or 0)]
+    contacts = np.array(data['contacts'], dtype=np.int64)
+    # Observations object: [timestep, result]
+    observations = np.array(data['observations'], dtype=np.int64)
+    
+    #Normalize user data
+    data['user_age'] /= 10
+
+    if len(contacts) == 0:
+        contacts = -1 * torch.ones(size=(900, 5), dtype=torch.float32)
+        
+    else:
+        # Remove sender information
+        contacts = np.concatenate((contacts[:, 0:1], contacts[:, 2:]), axis=1)    
+        contacts = torch.tensor(contacts, dtype=torch.float32)
+    
+    
+    if len(observations) == 0:
+        observations = -1 * torch.ones(size=(14, 5), dtype=torch.float32)
+    else:
+        observations = torch.tensor(observations, dtype=torch.float32)
+
+        observations = torch.nn.functional.pad(
+          observations, [0, 3, 0, 14-len(observations)],
+          mode='constant', value=-1.)
+        
+    # Column 0 is the timestep
+    
+    contacts[:, 1] /= 10  # Column 1 is the age
+    contacts[:, 2] /= 1024  # Column 2 is the pinf according to FN
+    
+    # We know timestep and interaction type for non users, other values will be set to -1.
+    app_users_mask = contacts[:, -1] == 1
+    
+    contacts[~app_users_mask, 1] = -1.
+    
+    if infection_prior is not None:
+            contacts[~app_users_mask, 2] = torch.tensor(infection_prior, dtype=torch.float)
+    else:
+            contacts[~app_users_mask, 2] = -1. # Setting pinf to -1.
+            
+    
+
+    contacts = torch.nn.functional.pad(
+      contacts, [0, 0, 0, 900-len(contacts)],
+      mode='constant', value=-1.)
+    contacts = torch.cat((contacts, observations), dim=0)
+    
+    return contacts

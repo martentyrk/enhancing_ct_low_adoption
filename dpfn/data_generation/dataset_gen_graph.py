@@ -15,8 +15,7 @@ class NoContacts(Exception):
   """Custom exception for no contacts in a data row."""
 
 class ABMInMemoryDataset(InMemoryDataset):
-    def __init__(self, root, include_non_users):
-        self.include_non_users = include_non_users
+    def __init__(self, root):
         super(ABMInMemoryDataset, self).__init__(root)
         # self.load(self.processed_paths[0])
         # self.num_obs_features = self._get_num_obs_features()
@@ -48,7 +47,7 @@ class ABMInMemoryDataset(InMemoryDataset):
                     line_data = json.loads(line.rstrip('\n'))
                     
                     try:
-                        single_user, single_edge_index, observations, non_app_users = make_features_graph(line_data, self.include_non_users)
+                        single_user, single_edge_index, observations, non_app_users = make_features_graph(line_data)
                     except NoContacts:
                         continue
                     non_app_user_counter += non_app_users
@@ -75,6 +74,7 @@ class ABMInMemoryDataset(InMemoryDataset):
                     x=torch.tensor(node_features, dtype=torch.float),
                     edge_index=single_edge_index.long(),
                     y=torch.tensor(y).long(),
+                    root_node_fn=torch.tensor(single_user['fn_pred'], dtype=torch.float),
                     )
 
                     data_list.append(data_single)
@@ -87,7 +87,7 @@ class ABMInMemoryDataset(InMemoryDataset):
         
         
 
-def make_features_graph(data, include_non_users:bool):
+def make_features_graph(data):
     """Converts the JSON to the graph features."""
     #Contacts object: [timestep, sender, age (age groups), pinf, interaction type, app_user (1 or 0)]
     contacts = np.array(data['contacts'], dtype=np.int64)
@@ -158,11 +158,11 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(
         description='Compare statistics acrosss inference methods')
-    parser.add_argument('--path', type=str, default="dpfn/data/data_all_users/frac_0.6/val")
+    parser.add_argument('--path', type=str, default="dpfn/data/data_all_users/frac_0.8/val")
     parser.add_argument('--include_non_users', action='store_true')
     
     args = parser.parse_args()
     logger.info('Initializing ABMInMemoryDataset with path: %s', str(args.path))
-    dataset = ABMInMemoryDataset(args.path, True)
+    dataset = ABMInMemoryDataset(args.path)
     
     logger.info('File saved!')

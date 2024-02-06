@@ -14,7 +14,7 @@ from dpfn.experiments import (
 from dpfn import logger
 from dpfn import simulator
 import torch
-from torch_geometric.loader import DataLoader
+from experiments.model_utils import make_predictions
 from experiments.util_dataset import create_dataset
 
 
@@ -154,7 +154,7 @@ def compare_abm(
         # rank_score = (
         #     z_states_inferred[:, -1, 1] + z_states_inferred[:, -1, 2])
         # rank_score = state_preds[:, 0] + z_states_inferred[:, -1, 1]
-        rank_score = z_states_inferred[:, -1, 1:3].sum(axis=1) + state_preds[:, 0]
+        rank_score = (z_states_inferred[:, -1, 1] + z_states_inferred[:, -1, 2])
         # rank_score = state_preds[:, 0]
 
         if np.any(np.abs(
@@ -258,7 +258,7 @@ def compare_abm(
                         sim.get_states_today(), users_age, app_users, trace_dir, num_users,
                         num_time_steps, t_now, int(rng_seed), infection_prior, infection_prior_now)
 
-            # TODO
+
             if dl_model:
                 logger.info('Deep learning predictions')
                 user_free = (user_quarantine_ends < t_now)
@@ -268,23 +268,24 @@ def compare_abm(
                 z_states_timesteps = t_now if t_now < pred_days else pred_days
                 z_states_inferred_last_days = z_states_inferred[:, -z_states_timesteps:, :]
 
-                model_data = util_dataset.inplace_features_graph_creation(
+                model_data = util_dataset.inplace_features_data_creation(
                     contacts_now, observations_now, z_states_inferred_last_days, user_free,
                     users_age, app_users, num_users,
                     num_time_steps
                 )
 
-                dataset = create_dataset(model_data)
-
-                train_loader = DataLoader(
-                    dataset, batch_size=1024, shuffle=False)
+                if run_mean_baseline:
+                    train_loader = create_dataset(model_data, cfg['dl_model_type'], infection_prior=infection_prior)    
+                else:
+                    train_loader = create_dataset(model_data, cfg['dl_model_type'])
 
                 all_preds = []
-                for data in train_loader:
-                    data = data.to(device)
-                    with torch.no_grad():
-                        predictions = dl_model(data).squeeze(1)
-                    all_preds.extend(predictions.cpu().numpy())
+                all_preds = make_predictions(
+                    dl_model, 
+                    train_loader,
+                    cfg['dl_model_type'],
+                    device
+                    )
 
                 #Reset statistics, since the incorporated users can change.
                 state_preds = np.zeros((num_users, 1), dtype=np.float32)
@@ -344,9 +345,9 @@ def compare_abm(
             positive = np.logical_or(states_today == 1, states_today == 2)
             # TODO: change rank_score to be just predictions?
             # TODO: can also use p_inf as predictions, keep everything else
-            # rank_score = z_states_inferred[:, -1, 1:3].sum(axis=1)
+            rank_score = z_states_inferred[:, -1, 1:3].sum(axis=1)
             # rank_score = state_preds[:, 0] + z_states_inferred[:, -1, 1]
-            rank_score = z_states_inferred[:, -1, 1:3].sum(axis=1) + state_preds[:, 0]
+            # rank_score = (z_states_inferred[:, -1, 1] + z_states_inferred[:, -1, 2])
             # rank_score = state_preds[:, 0]
             ave_precision[t_now] = metrics.average_precision_score(
                 y_true=positive, y_score=rank_score)

@@ -205,7 +205,7 @@ def fact_neigh(
     observations_all)
 
   q_marginal_infected = np.zeros((num_users, num_time_steps), dtype=np.single)
-  if infection_prior > -1.:
+  if infection_prior != -1.:
     q_marginal_infected[non_app_user_ids, -1] = infection_prior
   elif not np.all(user_age_pinf_mean == -1.):
     user_age_groups = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8])
@@ -252,14 +252,7 @@ def fact_neigh(
       clip_upper=10000.,
       past_contacts_array=past_contacts,
       quantization=quantization)
-    
-    # if np.any(np.isinf(post_exp)):
-    #   logger.info(f"post_exp has inf {post_exp}")
-    # if np.any(np.isnan(post_exp)):
-    #   logger.info(f"post_exp has nan {post_exp}")
-    #   users_nan = np.where(
-    #     np.sum(np.sum(np.isnan(post_exp), axis=-1), axis=-1))[0]
-    #   logger.info(f"At users {repr(users_nan)}")
+
   
     if verbose:
       logger.info(f"Time for fn_step: {t_end - tstart:.1f} seconds")

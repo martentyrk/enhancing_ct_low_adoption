@@ -14,7 +14,7 @@ results/
 results_temp/
 sweep/
 notebooks/
-config/dl_configs/*
+config/dl_configs
 
 # Slurm files
 slurm*

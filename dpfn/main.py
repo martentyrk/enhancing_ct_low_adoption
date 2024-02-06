@@ -51,10 +51,10 @@ if __name__ == "__main__":
                         type=str,
                         help="Type of deep learning model to apply to FN",
                         default=None,
-                        choices=['gcn', 'graphcn'])
+                        choices=['gcn', 'graphcn', 'set'])
     parser.add_argument('--model_name', 
                         type=str,
-                        default='gcn_all_users_0.6_max_graphconv.pth',
+                        default='set_all_users_0.6_1layers.pth',
                         help='The model state dict that will be used to load the model')
     parser.add_argument('--n_layers',
                         type=int,
@@ -63,7 +63,6 @@ if __name__ == "__main__":
     parser.add_argument('--num_users',
                         type=int,
                         default=None)
-
 
     # TODO make a better heuristic for this:
     # num_threads = max((util.get_cpu_count()-1, 1))
@@ -74,7 +73,7 @@ if __name__ == "__main__":
     logger.info(f"Start with {num_threads} threads")
 
     args = parser.parse_args()
-
+    
     # Both baselines should not be used at the same time.
     assert sum([args.age_baseline, args.mean_baseline]) <= 1
 
@@ -94,6 +93,7 @@ if __name__ == "__main__":
     config_wandb['config_data_name'] = configname_data
     config_wandb['config_model_name'] = configname_model
     config_wandb['dl_model_name'] = args.model_name
+    config_wandb['dl_model_type'] = args.model
     config_wandb['cpu_count'] = util.get_cpu_count()
     config_wandb['data'] = config_data.to_dict()
     config_wandb['model'] = config_model.to_dict()
@@ -156,19 +156,17 @@ if __name__ == "__main__":
     arg_rng = np.random.default_rng(seed=seed_value)
 
     # Set up locations to store results
-    if args.static_baseline:
+    if args.model:
+        input_str = args.name
+        experiment_name = f'{input_str}_run_abm_seed_model' + \
+            str(args.model) + '_seed_' + str(seed_value)
+
+    elif args.static_baseline:
         experiment_name = 'run_abm_static_age_seed_' + str(seed_value)
     elif args.mean_baseline:
         experiment_name = 'run_abm_mean_collect_seed_' + str(seed_value)
     elif args.age_baseline:
         experiment_name = 'run_abm_age_seed_' + str(seed_value)
-    elif args.model:
-        if args.num_users == 10000:
-            input_str = '10k'
-        else:
-            input_str = '100k'
-        experiment_name = f'{input_str}_run_abm_seed_model' + \
-            str(args.model) + '_seed_' + str(seed_value)
     else:
         experiment_name = 'run_abm_seed' + str(seed_value)
 
@@ -191,7 +189,7 @@ if __name__ == "__main__":
     util.maybe_make_dir(results_dir_global)
     if args.dump_traces:
         trace_dir_global = (
-            f'../../../../scratch-shared/mturk/datadump_mean/trace_high_mem_{experiment_name}')
+            f'../../../../scratch-shared/mturk/datadump_lowseed/trace_high_mem_{experiment_name}')
         util.maybe_make_dir(trace_dir_global)
         logger.info(f"Dump traces to results_dir_global {trace_dir_global}")
     else:
