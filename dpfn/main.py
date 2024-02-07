@@ -64,7 +64,6 @@ if __name__ == "__main__":
                         type=int,
                         default=None)
 
-    # TODO make a better heuristic for this:
     num_threads = 16
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     numba.set_num_threads(num_threads)
@@ -128,15 +127,15 @@ if __name__ == "__main__":
     logger.info(config_wandb)
     # Prepare model if model given
     
-            # Set random seed
+    # Set random seed
     seed_value = config_wandb.get("seed", -1)
-    logger.info(f"Seed value: {seed_value}")
     if seed_value < 0:
         if args.seed_value:
             seed_value = args.seed_value
         else:
             seed_value = random.randint(0, 999)
             
+    logger.info(f"Seed value: {seed_value}")
     random.seed(seed_value)
     np.random.seed(seed_value)
     torch.manual_seed(seed_value)

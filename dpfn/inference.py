@@ -24,9 +24,13 @@ def fn_step_wrapped(
     probab0: float,
     probab1: float,
     past_contacts_array: np.ndarray,
+    user_age_pinf_mean: np.ndarray,
+    non_app_users_age: np.ndarray,
     clip_lower: float = -1.,
     clip_upper: float = 10000.,
-    quantization: int = -1):
+    quantization: int = -1,
+    infection_prior: float = -1,
+    non_app_user_ids: np.ndarray = np.array([]),):
   """Wraps one step of Factorised Neighbors over a subset of users.
 
   Args:
@@ -77,9 +81,16 @@ def fn_step_wrapped(
 
   seq_array_hot = seq_array_hot.astype(np.single)
   num_sequences = seq_array_hot.shape[2]
-
+  
+  if infection_prior != -1.:
+      p_infected_matrix[non_app_user_ids, :] = infection_prior
+  elif not np.all(user_age_pinf_mean == -1.):
+      user_age_groups = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8])
+      for age in user_age_groups:
+        age_group_ids = non_app_user_ids[np.where(non_app_users_age == age)[0]]
+        p_infected_matrix[age_group_ids, :] = user_age_pinf_mean[age]
+    
   for i in numba.prange(interval_num_users):  # pylint: disable=not-an-iterable
-
     d_term, d_no_term = util.precompute_d_penalty_terms_fn2(
       q_marginal_infected=p_infected_matrix,
       p0=probab0,
@@ -203,14 +214,7 @@ def fact_neigh(
     observations_all)
 
   q_marginal_infected = np.zeros((num_users, num_time_steps), dtype=np.single)
-  if infection_prior != -1.:
-    q_marginal_infected[non_app_user_ids, -1] = infection_prior
-  elif not np.all(user_age_pinf_mean == -1.):
-    user_age_groups = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8])
-    for age in user_age_groups:
-      age_group_ids = non_app_user_ids[np.where(non_app_users_age == age)[0]]
-      q_marginal_infected[age_group_ids, -1] = user_age_pinf_mean[age]
-      
+
   post_exp = np.zeros((num_users, num_time_steps, 4), dtype=np.single)
 
   t_preamble1 = time.time() - t_start_preamble
@@ -236,7 +240,7 @@ def fact_neigh(
   for num_update in range(num_updates):
     if verbose:
       logger.info(f"Num update {num_update}")
-
+    
     post_exp, tstart, t_end = fn_step_wrapped(
       (0, num_users),
       seq_array_hot,
@@ -249,7 +253,12 @@ def fact_neigh(
       clip_lower=-1.,
       clip_upper=10000.,
       past_contacts_array=past_contacts,
-      quantization=quantization)
+      quantization=quantization,
+      infection_prior = infection_prior,
+      non_app_users_age = non_app_users_age,
+      user_age_pinf_mean = user_age_pinf_mean,
+      non_app_user_ids = non_app_user_ids,
+      )
 
   
     if verbose:

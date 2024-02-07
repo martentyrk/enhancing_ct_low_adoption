@@ -245,8 +245,6 @@ def iter_sequences(time_total: int, start_se=True):
         if t0+de == time_total:
           yield (t0, de, 0)
         else:
-          #TODO: Marten: should de not be > 0, otherwise you cant
-          # move to state I?
           i_start = 1 if (t0 > 0 or de > 0 or start_se) else 0
           for di in range(i_start, time_total-t0-de+1):
             if t0+de+di == time_total:
@@ -304,7 +302,6 @@ def enumerate_log_prior_values(
   """Enumerate values of log prior."""
   # TODO: drop the option to start in I or R state
   np.testing.assert_almost_equal(np.sum(params_start), 1.)
-  # TODO: Marten, need explanation on this part of code.
   b0, b1, b2 = params[0], params[1], params[2]
 
   #These are all boolean arrays denoting when something happened
