@@ -97,6 +97,7 @@ def compare_abm(
 
     running_mean = 0.0
     running_mean_age_groups = np.zeros((9), dtype=np.float32)
+    total_z_inf = 0
 
     inference_func, do_random_quarantine = util_experiments.make_inference_func(
         inference_method, num_users, cfg, user_ids=app_user_ids, non_app_user_ids=non_app_user_ids, trace_dir=trace_dir)
@@ -224,6 +225,9 @@ def compare_abm(
                     (running_mean_age_groups, user_age_pinf_mean), axis=0)
 
             t_start = time.time()
+            if np.floor(infection_prior * 256) / 256 > 0:
+                logger.info(f'Infection prior after quantization is above 0 for inf prior: {infection_prior}')
+                
             z_states_inferred, contacts_age = inference_func(
                 observations_now,
                 contacts_now,
@@ -239,7 +243,7 @@ def compare_abm(
 
             # Keep values that are relevant
             z_states_inferred[app_users == 0] = np.zeros((4), dtype=np.float32)
-
+            total_z_inf += np.sum(z_states_inferred)
             # TODO: Marten, the regular non-c++ FN function returns contacts_age as None. So no need to update.
             if inference_method == "fncpp":
                 contacts_age[app_users == 0] = np.zeros((2), dtype=np.float32)
@@ -426,6 +430,7 @@ def compare_abm(
             "precision": np.nanmean(precisions[10:])}
     runner.log(results)
 
+    logger.info(f'Total z_inferrefed_states {total_z_inf}')
     # Overwrite every experiment, such that code could be pre-empted
     prequential.dump_results(
         results_dir, precisions=precisions, recalls=recalls,

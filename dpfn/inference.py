@@ -67,7 +67,6 @@ def fn_step_wrapped(
   if clip_lower > 0.0:
     p_infected_matrix = np.maximum(p_infected_matrix, np.float32(clip_lower))
 
-
   interval_num_users = user_interval[1] - user_interval[0]
   post_exps = np.zeros(
     (interval_num_users, num_time_steps, 4), dtype=np.float32)
@@ -79,7 +78,6 @@ def fn_step_wrapped(
   seq_array_hot = seq_array_hot.astype(np.single)
   num_sequences = seq_array_hot.shape[2]
 
-  #TODO: Marten, Ask for explanation about this part.
   for i in numba.prange(interval_num_users):  # pylint: disable=not-an-iterable
 
     d_term, d_no_term = util.precompute_d_penalty_terms_fn2(
@@ -112,7 +110,7 @@ def fn_step_wrapped(
 
   with numba.objmode(t1='f8'):
     t1 = time.time()
-
+  # t0, t1 = 0,0
   return post_exps, t0, t1
 
 

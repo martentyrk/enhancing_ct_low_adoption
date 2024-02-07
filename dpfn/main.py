@@ -65,7 +65,6 @@ if __name__ == "__main__":
                         default=None)
 
     # TODO make a better heuristic for this:
-    # num_threads = max((util.get_cpu_count()-1, 1))
     num_threads = 16
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     numba.set_num_threads(num_threads)
@@ -73,7 +72,6 @@ if __name__ == "__main__":
     logger.info(f"Start with {num_threads} threads")
 
     args = parser.parse_args()
-    
     # Both baselines should not be used at the same time.
     assert sum([args.age_baseline, args.mean_baseline]) <= 1
 
@@ -84,7 +82,7 @@ if __name__ == "__main__":
     data_dir = f"dpfn/data/{configname_data}/"
 
     inf_method = args.inference_method
-
+    
     config_data = config.ConfigBase(fname_config_data)
     config_model = config.ConfigBase(fname_config_model)
 
@@ -130,6 +128,20 @@ if __name__ == "__main__":
     logger.info(config_wandb)
     # Prepare model if model given
     
+            # Set random seed
+    seed_value = config_wandb.get("seed", -1)
+    logger.info(f"Seed value: {seed_value}")
+    if seed_value < 0:
+        if args.seed_value:
+            seed_value = args.seed_value
+        else:
+            seed_value = random.randint(0, 999)
+            
+    random.seed(seed_value)
+    np.random.seed(seed_value)
+    torch.manual_seed(seed_value)
+    torch.cuda.manual_seed(seed_value)
+    
     if args.model:
         logger.info(f'Running with the deep model: {str(args.model)}')
 
@@ -138,20 +150,7 @@ if __name__ == "__main__":
         dl_model.eval()
     else:
         dl_model = None
-
-        # Set random seed
-    seed_value = config_wandb.get("seed", -1)
-    if seed_value < 0:
-        if args.seed_value:
-            seed_value = args.seed_value
-        else:
-            seed_value = random.randint(0, 999)
-        
-        
-    random.seed(seed_value)
-    np.random.seed(seed_value)
-    torch.manual_seed(seed_value)
-    torch.cuda.manual_seed(seed_value)
+    
     # Random number generator to pass as argument to some imported functions
     arg_rng = np.random.default_rng(seed=seed_value)
 
