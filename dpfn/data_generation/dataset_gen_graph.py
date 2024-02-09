@@ -132,7 +132,11 @@ def make_features_graph(data):
         # We know timestep and interaction type, other values will be set to -1.
     app_users_mask = contacts[:, -1] == 1
     contacts[~app_users_mask, 1] = -1.
-    contacts[~app_users_mask, 2] = -1.
+    
+    if data['infection_prior'] > 0:
+        contacts[~app_users_mask, 2] = data['infection_prior_now']
+    else:
+        contacts[~app_users_mask, 2] = -1.
 
     non_app_users = contacts.shape[0] - np.nonzero(app_users_mask.numpy())[0].shape[0]
         
@@ -158,7 +162,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(
         description='Compare statistics acrosss inference methods')
-    parser.add_argument('--path', type=str, default="dpfn/data/data_all_users/frac_0.8/val")
+    parser.add_argument('--path', type=str, default="dpfn/data/data_all_users/mean_base/frac_0.6/val")
     parser.add_argument('--include_non_users', action='store_true')
     
     args = parser.parse_args()

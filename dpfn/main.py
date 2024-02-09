@@ -45,7 +45,7 @@ if __name__ == "__main__":
     parser.add_argument('--mean_baseline', action='store_true')
     parser.add_argument('--static_baseline', action='store_true')
     parser.add_argument('--static_baseline_path', type=str,
-                        default='dpfn/data/static_age_baseline_results')
+                        default='dpfn/data/static_mean_baseline_results')
     parser.add_argument('--seed_value', type=int, default=None)
     parser.add_argument('--model',
                         type=str,
@@ -54,7 +54,7 @@ if __name__ == "__main__":
                         choices=['gcn', 'graphcn', 'set'])
     parser.add_argument('--model_name', 
                         type=str,
-                        default='set_all_users_0.6_1layers.pth',
+                        default='fullmodel_gcn_mean_impute_0.6_1layer.pth',
                         help='The model state dict that will be used to load the model')
     parser.add_argument('--n_layers',
                         type=int,
@@ -63,6 +63,14 @@ if __name__ == "__main__":
     parser.add_argument('--num_users',
                         type=int,
                         default=None)
+    parser.add_argument('--std_rank_noise',
+                        type=float,
+                        default=0,
+                        help='Noise added to testing rankings to generate more positive samples, hence more data')
+    parser.add_argument('--dump_traces_folder', 
+                        type=str,
+                        default='datadump_mean',
+                        help='Folder name where to dump traces')
 
     num_threads = 16
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -94,6 +102,7 @@ if __name__ == "__main__":
     config_wandb['cpu_count'] = util.get_cpu_count()
     config_wandb['data'] = config_data.to_dict()
     config_wandb['model'] = config_model.to_dict()
+    config_wandb['std_rank_noise'] = args.std_rank_noise
 
     if args.num_users:
         config_wandb['data']['num_users'] = args.num_users
@@ -155,19 +164,25 @@ if __name__ == "__main__":
 
     # Set up locations to store results
     if args.model:
-        input_str = args.name
-        experiment_name = f'{input_str}_run_abm_seed_model' + \
-            str(args.model) + '_seed_' + str(seed_value)
-
+      input_str = args.name
+      experiment_name = f'{input_str}_run_abm_seed_model' + \
+          str(args.model) + '_seed_' + str(seed_value)
+    
     elif args.static_baseline:
-        experiment_name = 'run_abm_static_age_seed_' + str(seed_value)
+        if args.mean_baseline:
+            experiment_name = 'run_abm_static_mean_seed_' + str(seed_value)
+        elif args.age_baseline:
+            experiment_name = 'run_abm_static_age_seed_' + str(seed_value)
     elif args.mean_baseline:
-        experiment_name = 'run_abm_mean_collect_seed_' + str(seed_value)
+      experiment_name = 'run_abm_mean_collect_seed_' + str(seed_value)
     elif args.age_baseline:
-        experiment_name = 'run_abm_age_seed_' + str(seed_value)
+      experiment_name = 'run_abm_age_seed_' + str(seed_value)
     else:
-        experiment_name = 'run_abm_seed' + str(seed_value)
-
+      experiment_name = 'run_abm_seed' + str(seed_value)
+      
+    if args.dump_traces:
+      experiment_name = experiment_name + '_dump_traces'
+      
     if args.app_users_fraction:
         experiment_name = experiment_name + \
             "_adaption_" + str(args.app_users_fraction)
@@ -187,7 +202,7 @@ if __name__ == "__main__":
     util.maybe_make_dir(results_dir_global)
     if args.dump_traces:
         trace_dir_global = (
-            f'../../../../scratch-shared/mturk/datadump_lowseed/trace_high_mem_{experiment_name}')
+            f'../../../../scratch-shared/mturk/{args.dump_traces_folder}/trace_high_mem_{experiment_name}')
         util.maybe_make_dir(trace_dir_global)
         logger.info(f"Dump traces to results_dir_global {trace_dir_global}")
     else:
@@ -224,6 +239,8 @@ if __name__ == "__main__":
 
         static_baseline_value = np.mean(
             np.array(overall_baseline), axis=0, dtype=np.float32)
+        
+        logger.info(f"Static baseline value: {static_baseline_value}")
 
     try:
         if args.simulator == "abm":

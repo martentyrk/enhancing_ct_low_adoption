@@ -55,6 +55,7 @@ def compare_abm(
         app_users_fraction = cfg.get("app_users_fraction_wandb", -1)
 
     logger.info(f"App users fraction: {app_users_fraction}")
+    logger.info(f"STD_rank_noise: {cfg['std_rank_noise']}")
     assert app_users_fraction >= 0 and app_users_fraction <= 1.0
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -124,7 +125,7 @@ def compare_abm(
 
     # Placeholder for tests on first day
     z_states_inferred = np.zeros((num_users, 1, 4), dtype=np.float32)
-    state_preds = np.zeros((num_users, 1), dtype=np.float32)
+    state_preds = np.zeros((num_users), dtype=np.float32)
     
     user_quarantine_ends = -1*np.ones((num_users), dtype=np.int32)
     contacts_age = np.zeros((num_users, 2), dtype=np.int32)
@@ -155,7 +156,7 @@ def compare_abm(
         # rank_score = (
         #     z_states_inferred[:, -1, 1] + z_states_inferred[:, -1, 2])
         # rank_score = state_preds[:, 0] + z_states_inferred[:, -1, 1]
-        rank_score = (z_states_inferred[:, -1, 1] + z_states_inferred[:, -1, 2])
+        rank_score = (z_states_inferred[:, -1, 1] + z_states_inferred[:, -1, 2] + state_preds)
         # rank_score = state_preds[:, 0]
 
         if np.any(np.abs(
@@ -168,7 +169,11 @@ def compare_abm(
 
         # Do not test when user in quarantine
         rank_score *= (user_quarantine_ends < t_now)
-
+        
+        # Add noise to rankings to have more positive cases thus more
+        # data to train on.
+        if cfg['std_rank_noise'] > 0:
+            rank_score[app_users == 1] += cfg['std_rank_noise'] * np.random.randn(app_user_frac_num)
         # Grab tests on the main process
         test_frac = int(fraction_test * num_users)
         num_tests = test_frac if test_frac <= app_user_frac_num else app_user_frac_num
@@ -221,12 +226,9 @@ def compare_abm(
                         mean_of_group = np.mean(
                             z_states_inferred[app_user_ids[np.argwhere(app_users_age == age_group)], -1, 2])
                         user_age_pinf_mean[age_group] = mean_of_group
-                running_mean_age_groups = np.sum(
-                    (running_mean_age_groups, user_age_pinf_mean), axis=0)
+                running_mean_age_groups = np.sum((running_mean_age_groups, user_age_pinf_mean), axis=0)
 
             t_start = time.time()
-            if np.floor(infection_prior * 256) / 256 > 0:
-                logger.info(f'Infection prior after quantization is above 0 for inf prior: {infection_prior}')
                 
             z_states_inferred, contacts_age = inference_func(
                 observations_now,
@@ -292,8 +294,8 @@ def compare_abm(
                     )
 
                 #Reset statistics, since the incorporated users can change.
-                state_preds = np.zeros((num_users, 1), dtype=np.float32)
-                state_preds[incorporated_user_ids, 0] = all_preds
+                state_preds = np.zeros((num_users), dtype=np.float32)
+                state_preds[incorporated_user_ids] = all_preds
                 
 
         else:
@@ -349,7 +351,7 @@ def compare_abm(
             positive = np.logical_or(states_today == 1, states_today == 2)
             # TODO: change rank_score to be just predictions?
             # TODO: can also use p_inf as predictions, keep everything else
-            rank_score = z_states_inferred[:, -1, 1:3].sum(axis=1)
+            rank_score = (z_states_inferred[:, -1, 1:3].sum(axis=1) + state_preds)
             # rank_score = state_preds[:, 0] + z_states_inferred[:, -1, 1]
             # rank_score = (z_states_inferred[:, -1, 1] + z_states_inferred[:, -1, 2])
             # rank_score = state_preds[:, 0]

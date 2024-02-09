@@ -7,7 +7,7 @@ if [ -f "$merged_file_name" ]; then
     rm "$merged_file_name"
 fi
 
-dirname='dpfn/data/data_all_users/merge0.4_0.6'
+dirname='dpfn/data/data_all_users/merge0.6_0.8'
 dirname_out=${dirname}_out
 
 cd "$dirname"

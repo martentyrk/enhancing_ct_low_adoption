@@ -11,4 +11,4 @@
 source activate thesis
 source scripts/preamble.sh
 
-srun python3 dpfn/data_generation/dataset_gen_graph.py --path dpfn/data/data_all_users/mean_base/frac_1/train --include_non_users
+srun python3 dpfn/data_generation/dataset_gen_graph.py --path dpfn/data/data_all_users/mean_base/frac_0.6/val --include_non_users

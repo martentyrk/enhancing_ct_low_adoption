@@ -81,7 +81,7 @@ def fn_step_wrapped(
 
   seq_array_hot = seq_array_hot.astype(np.single)
   num_sequences = seq_array_hot.shape[2]
-  
+
   if infection_prior != -1.:
       p_infected_matrix[non_app_user_ids, :] = infection_prior
   elif not np.all(user_age_pinf_mean == -1.):
@@ -89,7 +89,7 @@ def fn_step_wrapped(
       for age in user_age_groups:
         age_group_ids = non_app_user_ids[np.where(non_app_users_age == age)[0]]
         p_infected_matrix[age_group_ids, :] = user_age_pinf_mean[age]
-    
+
   for i in numba.prange(interval_num_users):  # pylint: disable=not-an-iterable
     d_term, d_no_term = util.precompute_d_penalty_terms_fn2(
       q_marginal_infected=p_infected_matrix,
