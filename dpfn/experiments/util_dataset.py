@@ -5,12 +5,13 @@ import json
 import numpy as np
 import os
 import torch
-from torch_geometric.data import InMemoryDataset, Data
+from torch_geometric.data import Data
 from torch_geometric.utils import add_self_loops
 from torch.utils.data import Dataset
 from torch_geometric.loader import DataLoader as PygDataLoader
 from torch.utils.data import DataLoader as TorchDataLoader
-import shutil
+from constants import GRAPH_MODELS
+
 import os
 
 
@@ -191,6 +192,41 @@ def dump_features_graph(
                     fneg.write(json.dumps(output) + "\n")
     print(f"Ignored {num_ignored} out of {num_users} users")
 
+def dump_preds(
+    fn_preds: np.ndarray,
+    dl_preds: np.ndarray,
+    incorporated_users:np.ndarray,
+    t_now: int,
+    dirname: str,
+    app_user_ids: np.ndarray,
+    users_age: np.ndarray,
+    ):
+    
+    fn_preds = fn_preds.astype(float)
+    dl_preds = dl_preds.astype(float)
+    incorporated_users = incorporated_users.astype(int)
+    fname_dump = os.path.join(dirname, f'pred_dump_{t_now:05d}.jl')
+    fname_extras = os.path.join(dirname, 'extras.jl')
+    if t_now == 1:
+        extra_output = {
+            'app_users': app_user_ids.tolist(),
+            'users_age': users_age.tolist(),
+        }
+        with open(fname_extras, 'w') as f_extra:
+            f_extra.write(json.dumps(extra_output))
+        
+    output = {
+        'fn_preds': fn_preds.tolist(),
+        'dl_preds': dl_preds.tolist(),
+        'incorporated_users': incorporated_users.tolist(),
+        't_now': t_now,
+    }
+    
+    with open(fname_dump, 'w') as f_dump:
+        f_dump.write(json.dumps(output) + "\n")
+    
+    
+    
 
 def inplace_features_data_creation(
     contacts_now: np.ndarray,
@@ -276,20 +312,20 @@ class DeepSet_Dataset(Dataset):
         
 
 
-def create_dataset(data, model_type, infection_prior:float = None):
+def create_dataset(data, model_type, infection_prior:float = None, add_weights=False):
     data_list = []
     
     for single_data in data:
         try:
-            if model_type in ['gcn', 'graphcn']:
+            if model_type in GRAPH_MODELS:
                 single_user, single_edge_index, observations = make_features_graph(
-                    single_data, True, infection_prior)
+                    single_data, infection_prior)
             elif model_type in ['set']:
                 single_user_data = make_features_set(single_data, infection_prior)
         except NoContacts:
             continue
         
-        if model_type in ['gcn', 'graphcn']:
+        if model_type in GRAPH_MODELS:
             # Initialize node_features with the target user who is affected.
             # Features for a single node [fn_pred, age, time, interaction type, target user or not, observation or not, app user
             node_features = np.array(
@@ -310,17 +346,35 @@ def create_dataset(data, model_type, infection_prior:float = None):
                 node_features = np.concatenate(
                     (node_features, obs_features), axis=0)
 
-            data_single = Data(
-                x=torch.tensor(node_features, dtype=torch.float),
-                edge_index=single_edge_index.long(),
-            )
+            if add_weights:
+                incorporated_nodes = single_edge_index[0]
+                unk_mask = np.where(node_features[incorporated_nodes, 6] == 0)[0]
+                known_mask = np.where(node_features[incorporated_nodes, 6] == 1)[0]
+                obs_mask = np.where(node_features[incorporated_nodes, 5] == 1)[0]
+
+                single_edge_index, _ = add_self_loops(single_edge_index)
+                data_single = Data(
+                    x=torch.tensor(node_features, dtype=torch.float),
+                    edge_index=single_edge_index.long(),
+                    known_mask=torch.tensor(known_mask, dtype=torch.int),
+                    unk_mask=torch.tensor(unk_mask, dtype=torch.int),
+                    obs_mask = torch.tensor(obs_mask, dtype=torch.int)
+                )
+                
+            else:
+                single_edge_index, _ = add_self_loops(single_edge_index)
+                
+                data_single = Data(
+                    x=torch.tensor(node_features, dtype=torch.float),
+                    edge_index=single_edge_index.long(),
+                )
 
             data_list.append(data_single)
         
         elif model_type in ['set']:
             data_list.append(single_user_data)
 
-    if model_type in ['gcn', 'graphcn']:
+    if model_type in GRAPH_MODELS:
         return PygDataLoader(data_list, batch_size=1024, shuffle=False)
 
     elif model_type in ['set']:
@@ -330,7 +384,7 @@ def create_dataset(data, model_type, infection_prior:float = None):
     
 
 
-def make_features_graph(data, include_non_users: bool, infection_prior: float= None):
+def make_features_graph(data, infection_prior: float= None):
     """Converts the JSON to the graph features."""
     # Contacts object: [timestep, sender, age (age groups), pinf, interaction type, app_user (1 or 0)]
     contacts = np.array(data['contacts'], dtype=np.int64)
@@ -367,14 +421,13 @@ def make_features_graph(data, include_non_users: bool, infection_prior: float= N
     contacts[:, 1] /= 10  # Column 1 is the age
     contacts[:, 2] /= 1024  # Column 2 is the pinf according to FN
 
-    if include_non_users:
-        # We know timestep and interaction type, other values will be set to -1.
-        app_users_mask = contacts[:, -1] == 1
-        contacts[~app_users_mask, 1] = -1. # Setting age to -1.
-        if infection_prior is not None:
-            contacts[~app_users_mask, 2] = torch.tensor(infection_prior, dtype=torch.float)
-        else:
-            contacts[~app_users_mask, 2] = -1. # Setting pinf to -1.
+    # We know timestep and interaction type, other values will be set to -1.
+    app_users_mask = contacts[:, -1] == 1
+    contacts[~app_users_mask, 1] = -1. # Setting age to -1.
+    if infection_prior is not None:
+        contacts[~app_users_mask, 2] = torch.tensor(infection_prior, dtype=torch.float)
+    else:
+        contacts[~app_users_mask, 2] = -1. # Setting pinf to -1.
 
     # edge_attributes = []
     num_contacts = len(contacts)
@@ -384,7 +437,6 @@ def make_features_graph(data, include_non_users: bool, infection_prior: float= N
 
     single_contact_edges = np.vstack([edges_source, edges_target])
     single_contact_edges = torch.tensor(single_contact_edges)
-    single_contact_edges, _ = add_self_loops(single_contact_edges)
 
     return ({
         'fn_pred': torch.tensor(data['fn_pred'], dtype=torch.float32),

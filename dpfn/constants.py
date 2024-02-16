@@ -65,3 +65,6 @@ Observation = Union[Tuple[int, int, int], np.ndarray]
 # Number of classes to make predictions with
 # Healthy or sick
 NUM_CLASSES = 2
+
+#Graph model names
+GRAPH_MODELS = ['gcn', 'graphcn', 'gcn_silu', 'gcn_weights']

@@ -25,6 +25,7 @@ def compare_abm(
     results_dir: str,
     arg_rng: int,
     trace_dir: Optional[str] = None,
+    trace_dir_preds: Optional[str] = None,
     do_diagnosis: bool = False,
     modify_contacts: bool = False,
     run_mean_baseline: bool = False,
@@ -267,6 +268,7 @@ def compare_abm(
 
             if dl_model:
                 logger.info('Deep learning predictions')
+                model_type = cfg['dl_model_type']
                 user_free = (user_quarantine_ends < t_now)
                 incorporated_users = app_users & user_free
                 incorporated_user_ids = np.nonzero(incorporated_users)[0]
@@ -281,21 +283,27 @@ def compare_abm(
                 )
 
                 if run_mean_baseline:
-                    train_loader = create_dataset(model_data, cfg['dl_model_type'], infection_prior=infection_prior)    
+                    add_weights = (model_type == 'gcn_weights')
+                    infection_prior_now = np.mean(z_states_inferred[app_user_ids, -1, 2])
+                    train_loader = create_dataset(model_data, model_type, infection_prior=infection_prior_now, add_weights=add_weights)
                 else:
-                    train_loader = create_dataset(model_data, cfg['dl_model_type'])
+                    train_loader = create_dataset(model_data, model_type)
 
                 all_preds = []
                 all_preds = make_predictions(
                     dl_model, 
                     train_loader,
-                    cfg['dl_model_type'],
+                    model_type,
                     device
                     )
 
                 #Reset statistics, since the incorporated users can change.
                 state_preds = np.zeros((num_users), dtype=np.float32)
                 state_preds[incorporated_user_ids] = all_preds
+            
+                if trace_dir_preds is not None:
+                    logger.info('Dumping prediction values') 
+                    util_dataset.dump_preds(z_states_inferred[:, -1, 2], state_preds, incorporated_users, t_now, trace_dir_preds, app_user_ids, users_age)
                 
 
         else:

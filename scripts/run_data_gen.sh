@@ -2,7 +2,7 @@
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=4
 #SBATCH --ntasks=1
-#SBATCH --time=00:40:00
+#SBATCH --time=00:20:00
 #SBATCH --job-name=data_gen
 #SBATCH --partition=rome
 #SBATCH --mem=16000
@@ -11,4 +11,4 @@
 source activate thesis
 source scripts/preamble.sh
 
-srun python3 dpfn/data_generation/dataset_gen_graph.py --path dpfn/data/data_all_users/mean_base/frac_0.6/val --include_non_users
+srun python3 dpfn/data_generation/dataset_gen_graph.py --path dpfn/data/data_all_users/merged_data/merge_mean_50steps_0.6 --include_non_users

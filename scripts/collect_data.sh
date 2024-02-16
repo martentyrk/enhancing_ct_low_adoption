@@ -7,10 +7,10 @@
 #SBATCH --mem=64000
 #SBATCH --output=data_collection%A.out
 
-seed=30
+seed=139
 adoption_rate=0.6
 
-dirname="../../../../scratch-shared/mturk/datadump_mean/trace_high_mem_dump_traces${seed}_adaption_${adoption_rate}/test_with_obs_${seed}"
+dirname="../../../../scratch-shared/mturk/datadump_50_mean/trace_high_mem_run_abm_mean_collect_seed_${seed}_dump_traces_adaption_${adoption_rate}/test_with_obs_${seed}"
 dirname_out=${dirname}_out
 file_out="all_${seed}_${adoption_rate}.jl"
 # Concatenate and shuffle train and validation sets

@@ -1,19 +1,24 @@
-from experiments.models import GCN, GraphCN, DeepSet
+from experiments.models import GCN, GraphCN, DeepSet, GCN_SiLU, GCN_Weights
 import torch
+from constants import GRAPH_MODELS
 
-def get_model(model_name, n_layers):
+def get_model(model_name, n_layers, nhid=64):
     if model_name in ['gcn']:
-        return GCN(num_features=7, n_layers=n_layers)
+        return GCN(num_features=7, n_layers=n_layers, nhid=nhid)
     elif model_name in ['graphcn']:
-        return GraphCN(num_features=7, n_layers=n_layers)
+        return GraphCN(num_features=7, n_layers=n_layers, nhid=nhid)
     elif model_name in ['set']:
         return DeepSet(num_features=5, n_layers=n_layers)
+    elif model_name in ['gcn_silu']:
+        return GCN_SiLU(num_features=7, n_layers=1, nhid=nhid)
+    elif model_name in ['gcn_weights']:
+        return GCN_Weights(num_features=7, n_layers=1, nhid=nhid)
     
     
 def make_predictions(model, loader, model_type, device):
     all_preds = []
     with torch.no_grad():
-        if model_type in ['gcn', 'graphcn']:
+        if model_type in GRAPH_MODELS:
             for data in loader:
                 data = data.to(device)
                 predictions = model(data).squeeze(1)

@@ -8,8 +8,8 @@ class GraphCN(nn.Module):
         super(GraphCN, self).__init__()
         
         gcn_layers = [
-            (nn.Dropout(dropout), 'x -> x'),
             (GraphConv(num_features, nhid, aggr='max'), 'x, edge_index -> x'),
+            (nn.Dropout(dropout), 'x -> x'),
             (nn.ReLU(inplace=True), 'x -> x')
         ]
         

@@ -134,7 +134,7 @@ def make_features_graph(data):
     contacts[~app_users_mask, 1] = -1.
     
     if data['infection_prior'] > 0:
-        contacts[~app_users_mask, 2] = data['infection_prior_now']
+        contacts[~app_users_mask, 2] = data['infection_prior']
     else:
         contacts[~app_users_mask, 2] = -1.
 
@@ -162,7 +162,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(
         description='Compare statistics acrosss inference methods')
-    parser.add_argument('--path', type=str, default="dpfn/data/data_all_users/mean_base/frac_0.6/val")
+    parser.add_argument('--path', type=str, default="dpfn/data/data_all_users/merged_data/merge_mean_50steps_0.6")
     parser.add_argument('--include_non_users', action='store_true')
     
     args = parser.parse_args()

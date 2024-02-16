@@ -17,10 +17,12 @@ from experiments.compare_covasim import compare_policy_covasim
 from experiments.compare_abm import compare_abm
 from experiments.model_utils import get_model
 import torch
+from constants import GRAPH_MODELS
 
 
 if __name__ == "__main__":
-
+    all_model_types = np.concatenate((GRAPH_MODELS, ['set']))
+    
     parser = argparse.ArgumentParser(
         description='Compare statistics acrosss inference methods')
     parser.add_argument('--inference_method', type=str, default='fn',
@@ -51,18 +53,25 @@ if __name__ == "__main__":
                         type=str,
                         help="Type of deep learning model to apply to FN",
                         default=None,
-                        choices=['gcn', 'graphcn', 'set'])
+                        choices=all_model_types)
     parser.add_argument('--model_name', 
                         type=str,
-                        default='fullmodel_gcn_mean_impute_0.6_1layer.pth',
+                        default='gcn_w_relu_hdim256_meannow_06_300e.pth',
                         help='The model state dict that will be used to load the model')
     parser.add_argument('--n_layers',
                         type=int,
                         default=1,
                         help='Number of layers in the deep learning model.')
+    parser.add_argument('--nhid',
+                    type=int,
+                    default=256,
+                    help='Number of hidden dimensions in the deep learning model.')
     parser.add_argument('--num_users',
                         type=int,
                         default=None)
+    parser.add_argument('--num_time_steps',
+                        type=int,
+                        default=None),
     parser.add_argument('--std_rank_noise',
                         type=float,
                         default=0,
@@ -71,6 +80,10 @@ if __name__ == "__main__":
                         type=str,
                         default='datadump_mean',
                         help='Folder name where to dump traces')
+    parser.add_argument('--collect_pred_data',
+                        action='store_true',
+                        help='Saves the differences in FN and DL predictions in different formats for explainability.')
+    
 
     num_threads = 16
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -103,6 +116,9 @@ if __name__ == "__main__":
     config_wandb['data'] = config_data.to_dict()
     config_wandb['model'] = config_model.to_dict()
     config_wandb['std_rank_noise'] = args.std_rank_noise
+    
+    if args.num_time_steps:
+        config_wandb["data"]["num_time_steps"] = args.num_time_steps
 
     if args.num_users:
         config_wandb['data']['num_users'] = args.num_users
@@ -153,7 +169,7 @@ if __name__ == "__main__":
     if args.model:
         logger.info(f'Running with the deep model: {str(args.model)}')
 
-        dl_model = get_model(args.model, n_layers=args.n_layers).to(device)
+        dl_model = get_model(args.model, n_layers=args.n_layers, nhid=args.nhid).to(device)
         dl_model.load_state_dict(torch.load(f"dpfn/config/dl_configs/" + args.model_name, map_location=torch.device(device)))
         dl_model.eval()
     else:
@@ -207,6 +223,14 @@ if __name__ == "__main__":
         logger.info(f"Dump traces to results_dir_global {trace_dir_global}")
     else:
         trace_dir_global = None
+    
+    if args.collect_pred_data:
+        trace_dir_preds = (
+            f'../../../../scratch-shared/mturk/preddump/trace_{experiment_name}')
+        util.maybe_make_dir(trace_dir_preds)
+        logger.info(f"Dump predictions to results_dir_global {trace_dir_global}")
+    else:
+        trace_dir_preds = None
 
     logger.info(f"Logger filename {LOGGER_FILENAME}")
     logger.info(f"Saving to results_dir_global {results_dir_global}")
@@ -258,6 +282,7 @@ if __name__ == "__main__":
             results_dir=results_dir_global,
             arg_rng=arg_rng,
             trace_dir=trace_dir_global,
+            trace_dir_preds = trace_dir_preds,
             do_diagnosis=args.do_diagnosis,
             modify_contacts=args.modify_contacts,
             run_mean_baseline=args.mean_baseline,
