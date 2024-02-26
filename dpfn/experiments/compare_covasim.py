@@ -4,7 +4,8 @@ import os
 import psutil
 import threading
 import time
-from typing import Any, Dict, Optional
+import torch
+from typing import Any, Dict, Optional, Union
 import warnings
 from dpfn.experiments import (
   prequential, util_experiments, prequential, util_covasim)
@@ -16,8 +17,14 @@ def compare_policy_covasim(
     runner,
     results_dir: str,
     trace_dir: Optional[str] = None,
+    trace_dir_preds: Optional[str] = None,
     do_diagnosis: bool = False,
-    modify_contacts: bool = False):
+    modify_contacts: bool = False,
+    run_mean_baseline: bool = False,
+    run_age_baseline: bool = False,
+    static_baseline_value: Union[np.ndarray, float] = -1.,
+    dl_model = None
+    ):
   """Compares different inference algorithms on the supplied contact graph."""
   del do_diagnosis
 
@@ -40,6 +47,25 @@ def compare_policy_covasim(
   num_days_window = cfg["model"]["num_days_window"]
   quantization = cfg["model"]["quantization"]
   num_rounds = cfg["model"]["num_rounds"]
+  
+  #Percentage of app users in population
+  app_users_fraction = cfg["data"]["app_users_fraction"]
+  
+  if 'app_users_fraction_wandb' in cfg:
+        app_users_fraction = cfg.get("app_users_fraction_wandb", -1)
+
+  logger.info(f"App users fraction: {app_users_fraction}")
+  logger.info(f"STD_rank_noise: {cfg['std_rank_noise']}")
+  assert app_users_fraction >= 0 and app_users_fraction <= 1.0
+
+  device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+  
+  if run_mean_baseline:
+        logger.info('Running mean baseline')
+  elif run_age_baseline:
+      logger.info('Running age baseline')
+  else:
+      logger.info('Running vanilla factorized neighbors')
 
   seed = cfg.get("seed", 123)
 

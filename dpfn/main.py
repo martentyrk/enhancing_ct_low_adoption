@@ -83,7 +83,6 @@ if __name__ == "__main__":
     parser.add_argument('--collect_pred_data',
                         action='store_true',
                         help='Saves the differences in FN and DL predictions in different formats for explainability.')
-    
 
     num_threads = 16
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -171,6 +170,9 @@ if __name__ == "__main__":
 
         dl_model = get_model(args.model, n_layers=args.n_layers, nhid=args.nhid).to(device)
         dl_model.load_state_dict(torch.load(f"dpfn/config/dl_configs/" + args.model_name, map_location=torch.device(device)))
+        
+        if args.model == 'gcn_weights':
+            logger.info(f"Three of the model weights: {dl_model.msg_weights}")
         dl_model.eval()
     else:
         dl_model = None

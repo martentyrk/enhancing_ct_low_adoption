@@ -170,6 +170,7 @@ def dump_features_graph(
                     "contacts": [],
                     "infection_prior": float(infection_prior),
                     "infection_prior_now": float(infection_prior_now),
+                    't_now': int(t_now),
                 }
 
                 for row in datadump[user]:
@@ -423,12 +424,18 @@ def make_features_graph(data, infection_prior: float= None):
 
     # We know timestep and interaction type, other values will be set to -1.
     app_users_mask = contacts[:, -1] == 1
-    contacts[~app_users_mask, 1] = -1. # Setting age to -1.
+    # contacts[~app_users_mask, 1] = -1. # Setting age to -1.
     if infection_prior is not None:
         contacts[~app_users_mask, 2] = torch.tensor(infection_prior, dtype=torch.float)
     else:
         contacts[~app_users_mask, 2] = -1. # Setting pinf to -1.
-
+        
+    interval_val = 0.1
+    age_prior_contacts = torch.round(torch.mean(contacts[app_users_mask, 1] / interval_val)) * interval_val
+    if age_prior_contacts.isnan().any():
+        contacts[~app_users_mask, 1] = data['user_age']
+    else:
+        contacts[~app_users_mask, 1] = age_prior_contacts
     # edge_attributes = []
     num_contacts = len(contacts)
     num_observations = len(observations)

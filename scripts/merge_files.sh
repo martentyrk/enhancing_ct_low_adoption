@@ -1,6 +1,6 @@
 #!/bin/bash
 
-merged_file_name="train_50steps_wlong_0.6.jl"
+merged_file_name="train_50steps_wlong_new_0.6.jl"
 
 # Check if merged_file.txt already exists and delete if it does
 if [ -f "$merged_file_name" ]; then
