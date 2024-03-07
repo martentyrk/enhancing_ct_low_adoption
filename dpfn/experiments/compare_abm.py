@@ -15,7 +15,7 @@ from dpfn import logger
 from dpfn import simulator
 import torch
 from experiments.model_utils import make_predictions
-from experiments.util_dataset import create_dataset
+from experiments.util_dataset import create_dataset, create_dataset5_feat
 
 
 def compare_abm(
@@ -46,6 +46,7 @@ def compare_abm(
     policy_weight_03 = cfg["model"]["policy_weight_03"]
     pred_days = cfg['model']['pred_days']
     rng_seed = cfg.get("seed", 123)
+    feature_prop = cfg['feature_propagation']
 
     fraction_test = cfg["data"]["fraction_test"]
 
@@ -100,9 +101,13 @@ def compare_abm(
     running_mean = 0.0
     running_mean_age_groups = np.zeros((9), dtype=np.float32)
     total_z_inf = 0
+    
+    model_type = cfg['dl_model_type']
+    add_weights = (model_type == 'gcn_weights')
+    logger.info(f'Weight will be added to the data generated for dl model: {add_weights}')
 
     inference_func, do_random_quarantine = util_experiments.make_inference_func(
-        inference_method, num_users, cfg, user_ids=app_user_ids, non_app_user_ids=non_app_user_ids, trace_dir=trace_dir)
+        inference_method, num_users, cfg, trace_dir=trace_dir)
 
     # Set conditional distributions for observations
     p_obs_infected = np.array(
@@ -234,6 +239,8 @@ def compare_abm(
             z_states_inferred, contacts_age = inference_func(
                 observations_now,
                 contacts_now,
+                app_user_ids,
+                non_app_user_ids,
                 num_rounds,
                 num_days,
                 non_app_users_age=non_app_users_age,
@@ -245,7 +252,9 @@ def compare_abm(
                 z_states_inferred.shape, [num_users, num_days, 4])
 
             # Keep values that are relevant
+            z_dump_inferred = np.copy(z_states_inferred)
             z_states_inferred[app_users == 0] = np.zeros((4), dtype=np.float32)
+            
             total_z_inf += np.sum(z_states_inferred)
             # TODO: Marten, the regular non-c++ FN function returns contacts_age as None. So no need to update.
             if inference_method == "fncpp":
@@ -261,14 +270,14 @@ def compare_abm(
                     infection_prior_now = np.mean(z_states_inferred[app_user_ids, -1, 2])
                     user_free = (user_quarantine_ends < t_now)
                     util_dataset.dump_features_graph(
-                        contacts_now, observations_now, z_states_inferred, user_free,
+                        contacts_now, observations_now, z_dump_inferred, user_free,
                         sim.get_states_today(), users_age, app_users, trace_dir, num_users,
                         num_time_steps, t_now, int(rng_seed), infection_prior, infection_prior_now)
 
 
             if dl_model:
                 logger.info('Deep learning predictions')
-                model_type = cfg['dl_model_type']
+                
                 user_free = (user_quarantine_ends < t_now)
                 incorporated_users = app_users & user_free
                 incorporated_user_ids = np.nonzero(incorporated_users)[0]
@@ -283,18 +292,18 @@ def compare_abm(
                 )
 
                 if run_mean_baseline:
-                    add_weights = (model_type == 'gcn_weights')
                     infection_prior_now = np.mean(z_states_inferred[app_user_ids, -1, 2])
-                    train_loader = create_dataset(model_data, model_type, infection_prior=infection_prior_now, add_weights=add_weights)
+                    train_loader = create_dataset5_feat(model_data, model_type, infection_prior=infection_prior_now, add_weights=add_weights)
                 else:
                     train_loader = create_dataset(model_data, model_type)
 
                 all_preds = []
                 all_preds = make_predictions(
-                    dl_model, 
+                    dl_model,
                     train_loader,
                     model_type,
-                    device
+                    device,
+                    feature_prop = feature_prop
                     )
 
                 #Reset statistics, since the incorporated users can change.
@@ -304,7 +313,7 @@ def compare_abm(
                 if trace_dir_preds is not None:
                     logger.info('Dumping prediction values') 
                     util_dataset.dump_preds(z_states_inferred[:, -1, 2], state_preds, incorporated_users, t_now, trace_dir_preds, app_user_ids, users_age)
-                
+
 
         else:
             z_states_inferred = np.zeros((num_users, num_days, 4))

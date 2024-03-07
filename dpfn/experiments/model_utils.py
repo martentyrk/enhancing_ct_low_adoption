@@ -1,6 +1,7 @@
 from experiments.models import GCN, GraphCN, DeepSet, GCN_SiLU, GCN_Weights
 import torch
 from constants import GRAPH_MODELS
+from feature_propagation import feature_propagation
 
 def get_model(model_name, n_layers, nhid=64):
     if model_name in ['gcn']:
@@ -12,14 +13,16 @@ def get_model(model_name, n_layers, nhid=64):
     elif model_name in ['gcn_silu']:
         return GCN_SiLU(num_features=7, n_layers=1, nhid=nhid)
     elif model_name in ['gcn_weights']:
-        return GCN_Weights(num_features=7, n_layers=1, nhid=nhid)
+        return GCN_Weights(num_features=5, n_layers=1, nhid=nhid)
     
     
-def make_predictions(model, loader, model_type, device):
+def make_predictions(model, loader, model_type, device, feature_prop=False):
     all_preds = []
     with torch.no_grad():
         if model_type in GRAPH_MODELS:
             for data in loader:
+                if feature_prop:
+                    data.x = feature_propagation(data)
                 data = data.to(device)
                 predictions = model(data).squeeze(1)
                 all_preds.extend(predictions.cpu().numpy())

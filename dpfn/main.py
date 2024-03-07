@@ -54,18 +54,18 @@ if __name__ == "__main__":
                         help="Type of deep learning model to apply to FN",
                         default=None,
                         choices=all_model_types)
-    parser.add_argument('--model_name', 
+    parser.add_argument('--model_name',
                         type=str,
-                        default='gcn_w_relu_hdim256_meannow_06_300e.pth',
+                        default='gcn_w_gpu_mig_w_5feat_256_final_es.pth',
                         help='The model state dict that will be used to load the model')
     parser.add_argument('--n_layers',
                         type=int,
                         default=1,
                         help='Number of layers in the deep learning model.')
     parser.add_argument('--nhid',
-                    type=int,
-                    default=256,
-                    help='Number of hidden dimensions in the deep learning model.')
+                        type=int,
+                        default=256,
+                        help='Number of hidden dimensions in the deep learning model.')
     parser.add_argument('--num_users',
                         type=int,
                         default=None)
@@ -83,6 +83,10 @@ if __name__ == "__main__":
     parser.add_argument('--collect_pred_data',
                         action='store_true',
                         help='Saves the differences in FN and DL predictions in different formats for explainability.')
+    parser.add_argument('--feature_propagation',
+                        action='store_true',
+                        help='Whether to do feature propagation or not.')
+    
 
     num_threads = 16
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -115,6 +119,7 @@ if __name__ == "__main__":
     config_wandb['data'] = config_data.to_dict()
     config_wandb['model'] = config_model.to_dict()
     config_wandb['std_rank_noise'] = args.std_rank_noise
+    config_wandb['feature_propagation'] = args.feature_propagation
     
     if args.num_time_steps:
         config_wandb["data"]["num_time_steps"] = args.num_time_steps

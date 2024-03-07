@@ -152,7 +152,8 @@ def generate_app_users(num_users: int, users_ages: np.ndarray, app_users_fractio
   
   population_array = np.arange(0, num_users)
   app_user_ids_binary = np.zeros((num_users), dtype=np.int32)
-  user_age_groups = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8])
+  
+  user_age_groups = np.unique(users_ages)
 
   app_user_ids = np.array([], dtype=np.int32)
   for age in user_age_groups:

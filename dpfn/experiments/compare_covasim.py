@@ -8,7 +8,7 @@ import torch
 from typing import Any, Dict, Optional, Union
 import warnings
 from dpfn.experiments import (
-  prequential, util_experiments, prequential, util_covasim)
+  prequential, util_experiments, prequential, util_covasim, util_dataset)
 from dpfn import logger
 
 def compare_policy_covasim(
@@ -16,6 +16,7 @@ def compare_policy_covasim(
     cfg: Dict[str, Any],
     runner,
     results_dir: str,
+    arg_rng: int,
     trace_dir: Optional[str] = None,
     trace_dir_preds: Optional[str] = None,
     do_diagnosis: bool = False,
@@ -43,7 +44,9 @@ def compare_policy_covasim(
   policy_weight_02 = cfg["model"]["policy_weight_02"]
   policy_weight_03 = cfg["model"]["policy_weight_03"]
   t_start_quarantine = cfg["data"]["t_start_quarantine"]
-
+  
+  std_rank_noise = cfg['std_rank_noise']
+  
   num_days_window = cfg["model"]["num_days_window"]
   quantization = cfg["model"]["quantization"]
   num_rounds = cfg["model"]["num_rounds"]
@@ -68,13 +71,11 @@ def compare_policy_covasim(
       logger.info('Running vanilla factorized neighbors')
 
   seed = cfg.get("seed", 123)
+  
 
   logger.info((
     f"Settings at experiment: {quantization:.0f} quant, at {fraction_test}% "
     f"seed {seed}"))
-
-  inference_func, do_random = util_experiments.make_inference_func(
-    inference_method, num_users, cfg, trace_dir=trace_dir)
 
   sensitivity = 1. - cfg["data"]["alpha"]
 
@@ -83,9 +84,11 @@ def compare_policy_covasim(
 
   cfg["model"]["beta"] = 0
   cfg["data"]["beta"] = 0
-  assert num_time_steps == 91, "hardcoded 91 days for now, TODO: fix this"
+  # assert num_time_steps == 91, "hardcoded 91 days for now, TODO: fix this"
 
   t0 = time.time()
+  
+
 
   # Make simulator
   pop_infected = 25
@@ -101,7 +104,10 @@ def compare_policy_covasim(
     "start_day": '2020-02-01',
     "end_day": '2020-05-01',
   }
-
+  
+  inference_func, do_random = util_experiments.make_inference_func(
+        inference_method, num_users, cfg, trace_dir=trace_dir)
+  
   def subtarget_func_random(sim, history):
     """Subtarget function for random testing.
 
@@ -130,6 +136,19 @@ def compare_policy_covasim(
     users_age = np.digitize(
       sim.people.age, np.array([0, 10, 20, 30, 40, 50, 60, 70, 80, 90,])) - 1
     users_age = users_age.astype(np.int32)
+    
+    
+    app_users = prequential.generate_app_users(
+        num_users=num_users, users_ages=users_age, app_users_fraction=app_users_fraction)
+    app_user_ids = np.nonzero(app_users)[0]
+    non_app_user_ids = np.where(app_users == 0)[0]
+    app_user_frac_num = app_user_ids.shape[0]
+    
+    app_users_age = users_age[app_users == 1]
+    non_app_users_age = users_age[app_users == 0]
+    
+    user_age_pinf_mean = -1. * np.ones((9), dtype=np.float32)
+    infection_prior = -1.
 
     if sim.t > t_start_quarantine:
       contacts = sim.people.contacts
@@ -138,8 +157,8 @@ def compare_policy_covasim(
       for layerkey in contacts.keys():
         ones_vec = np.ones_like(contacts[layerkey]['p1'])
         contacts_add.append(np.stack((
-          contacts[layerkey]['p1'], #p1 stands for "sources"
-          contacts[layerkey]['p2'], #p2 stands for "targets"
+          contacts[layerkey]['p1'],
+          contacts[layerkey]['p2'],
           sim.t*ones_vec,
           ones_vec,
           ), axis=1))
@@ -178,20 +197,23 @@ def compare_policy_covasim(
       # assert 0 <= obs_rel[:, 1].min() <= sim.t, (
       #   f"Earliest obs {obs_rel[:, 1].min()} is before {sim.t}")
 
-      if trace_dir and sim.t == 15:
-        fname = os.path.join(trace_dir, f"contacts_{sim.t}.npz")
-        np.savez(
-          fname, contacts=contacts_rel, observations=obs_rel)
-        logger.info(f"Dumped traces to {fname}")
-
+      if run_mean_baseline:
+        infection_prior = history['infection_prior'][sim.t - 1]
+        
       # Add +1 so the model predicts one day into the future
       t_start = time.time()
       pred, contacts_age = inference_func(
         observations_list=obs_rel,
         contacts_list=contacts_rel,
+        app_user_ids=app_user_ids,
+        non_app_user_ids=non_app_user_ids,
         num_updates=num_rounds,
         num_time_steps=num_days + 1,
-        users_age=users_age)
+        non_app_users_age=non_app_users_age,
+        infection_prior=infection_prior,
+        user_age_pinf_mean=user_age_pinf_mean
+      )
+      pred[app_users == 0] = np.zeros((4), dtype=np.float32)
       rank_score = pred[:, -1, 1] + pred[:, -1, 2]
       time_spent = time.time() - t_start
 
@@ -203,17 +225,46 @@ def compare_policy_covasim(
           + policy_weight_02 * contacts_age[:, 0] / 10
           + policy_weight_03 * users_age / 10)
 
+      if std_rank_noise > 0:
+        rank_score += std_rank_noise * np.random.randn(num_users)
+
       # Track some metrics here:
+      # Exposed is superset of infectious, but this is overwritten below
       states_today = 3*np.ones(num_users, dtype=np.int32)
       states_today[sim.people.exposed] = 2
       states_today[sim.people.infectious] = 1
       states_today[sim.people.susceptible] = 0
+
+      if trace_dir is not None and sim.t > 10:
+        user_free = np.logical_not(sim.people.isolated)
+
+        rate_user_free = np.mean(user_free)
+        rate_infection = np.mean(np.logical_or(
+          states_today == 1, states_today == 2))
+        rate_diagnosed = np.mean(sim.people.diagnosed)
+        logger.info((
+          f"Day {sim.t}: {rate_user_free:.4f} free, "
+          f"{rate_infection:.4f} infection, {rate_diagnosed:.4f} diagnosed"))
+
+        util_dataset.dump_features_graph(
+          contacts_now=contacts_rel,
+          observations_now=obs_rel,
+          z_states_inferred=pred,
+          user_free=user_free,
+          z_states_sim=states_today,
+          users_age=users_age,
+          trace_dir=trace_dir,
+          num_users=num_users,
+          num_time_steps=num_time_steps,
+          t_now=sim.t,
+          rng_seed=int(seed))
 
       p_at_state = pred[range(num_users), -1, states_today]
       history['likelihoods_state'][sim.t] = np.mean(np.log(p_at_state+1E-9))
       history['ave_prob_inf_at_inf'][sim.t] = np.mean(
         p_at_state[states_today == 2])
       history['time_inf_func'][sim.t] = time_spent
+      history['infection_prior'][sim.t] = np.mean(pred[app_user_ids, -1, 2])
     else:
       # For the first few days of a simulation, just test randomly
       rank_score = np.ones(num_users) + np.random.rand(num_users)
@@ -223,8 +274,10 @@ def compare_policy_covasim(
 
   # TODO: fix this to new keyword
   subtarget_func = (
-    subtarget_func_random if do_random else subtarget_func_inference)
+    subtarget_func_random if False else subtarget_func_inference)
 
+  #TODO: test fraction should be app_users_frac_num if its lower, since we can
+  # only test the app users.
   test_intervention = cv.test_num(
     daily_tests=int(fraction_test*num_users),
     do_plot=False,
@@ -241,10 +294,16 @@ def compare_policy_covasim(
 
   # COVASIM run() runs the entire simulation, including the initialization
   sim.set_seed(seed=seed)
+  
   sim.run(reset_seed=True)
+
 
   analysis = sim.get_analyzer('analysis')
   history_intv = sim.get_intervention('intervention_history').history
+  logger.info(analysis.e_rate)
+  logger.info(analysis.i_rate)
+  
+  
   infection_rates = analysis.e_rate + analysis.i_rate
   peak_crit_rate = np.max(analysis.crit_rate)
 
@@ -280,18 +339,16 @@ def compare_policy_covasim(
 
   time_spent = time.time() - t0
   logger.info(f"With {num_rounds} rounds, PIR {pir:5.2f}")
-  with warnings.catch_warnings():
-    warnings.simplefilter("ignore", category=RuntimeWarning)
-    results = {
-      "time_spent": time_spent,
-      "pir_mean": pir,
-      "pcr": peak_crit_rate,
-      "total_drate": total_drate,
-      "loadavg5": loadavg5,
-      "loadavg15": loadavg15,
-      "swap_use": swap_use,
-      "recall": np.nanmean(analysis.recalls[10:]),
-      "precision": np.nanmean(analysis.precisions[10:])}
+  results = {
+    "time_spent": time_spent,
+    "pir_mean": pir,
+    "pcr": peak_crit_rate,
+    "total_drate": total_drate,
+    "loadavg5": loadavg5,
+    "loadavg15": loadavg15,
+    "swap_use": swap_use,
+    "recall": np.nanmean(analysis.recalls[10:]),
+    "precision": np.nanmean(analysis.precisions[10:])}
   runner.log(results)
 
   return results

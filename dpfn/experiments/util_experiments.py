@@ -10,8 +10,6 @@ def make_inference_func(
     inference_method: str,
     num_users: int,
     cfg: Dict[str, Any],
-    user_ids: np.ndarray,
-    non_app_user_ids: np.ndarray,
     trace_dir: Optional[str] = None
     ):
   """Pulls together the inference function with parameters.
@@ -50,8 +48,6 @@ def make_inference_func(
   if inference_method == "fn":
     inference_func = wrap_fact_neigh_inference(
       num_users=num_users,
-      user_ids=user_ids,
-      non_app_user_ids=non_app_user_ids,
       alpha=alpha,
       beta=beta,
       probab0=p0,
@@ -103,8 +99,6 @@ def make_inference_func(
 
 def wrap_fact_neigh_inference(
     num_users: int,
-    user_ids:np.ndarray,
-    non_app_user_ids:np.ndarray,
     alpha: float,
     beta: float,
     probab0: float,
@@ -121,6 +115,8 @@ def wrap_fact_neigh_inference(
   def fact_neigh_wrapped(
       observations_list: np.ndarray,
       contacts_list: np.ndarray,
+      app_user_ids:np.ndarray,
+      non_app_user_ids:np.ndarray,
       num_updates: int,
       num_time_steps: int,
       infection_prior: float,
@@ -131,7 +127,7 @@ def wrap_fact_neigh_inference(
 
     traces_per_user_fn = inference.fact_neigh(
       num_users=num_users,
-      app_user_ids=user_ids,
+      app_user_ids=app_user_ids,
       non_app_user_ids=non_app_user_ids,
       num_time_steps=num_time_steps,
       observations_all=observations_list,

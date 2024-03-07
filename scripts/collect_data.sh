@@ -7,8 +7,8 @@
 #SBATCH --mem=64000
 #SBATCH --output=data_collection%A.out
 
-seed=20
-adoption_rate=0.4
+seed=15
+adoption_rate=0.6
 
 dirname="../../../../scratch-shared/mturk/datadump_tnow_mean/trace_high_mem_run_abm_mean_collect_seed_${seed}_dump_traces_adaption_${adoption_rate}/test_with_obs_${seed}"
 dirname_out=${dirname}_out

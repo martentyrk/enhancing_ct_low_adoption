@@ -1,6 +1,7 @@
 #!/bin/bash
+#SBATCH --output=merge_files%A.out
 
-merged_file_name="train_50steps_wlong_new_0.6.jl"
+merged_file_name="train_50steps_w100_all0.6.jl"
 
 # Check if merged_file.txt already exists and delete if it does
 if [ -f "$merged_file_name" ]; then
@@ -8,7 +9,7 @@ if [ -f "$merged_file_name" ]; then
 fi
 
 # dirname='dpfn/data/data_all_users/merge0.6_0.8'
-dirname='../../../../scratch-shared/mturk/datadump_mean/trace_high_mem_dump_traces20_adaption_0.6/test_with_obs_20_out'
+dirname='../../../../scratch-shared/mturk/final_tnow_mean/train'
 dirname_out=${dirname}_out
 
 cd "$dirname"
