@@ -9,6 +9,7 @@ from dpfn import logger
 import numba
 import numpy as np
 import os
+import pandas as pd
 from typing import Any, Iterable, List, Tuple, Union
 
 
@@ -46,20 +47,20 @@ def get_past_contacts_fast(
 
 
 @numba.njit(
-  'Tuple((int32[:, :, :], int64))(UniTuple(int64, 2), int32[:, :], int64)')
+  'Tuple((float32[:, :, :], int64))(UniTuple(int64, 2), int32[:, :], int64)')
 def get_past_contacts_static(
     user_interval: Tuple[int, int],
     contacts: np.ndarray,
-    num_msg: int) -> Tuple[np.ndarray, int]:
+    num_msg: int) -> Tuple[np.ndarray, float]:
   """Returns past contacts as a NumPy array, for easy pickling."""
   num_users_int = user_interval[1] - user_interval[0]
 
   if len(contacts) == 0:
-    return (-1 * np.ones((num_users_int, 1, 2))).astype(np.int32), 0
+    return (-1 * np.ones((num_users_int, 1, 2))).astype(np.float32), 0
   if contacts.shape[1] == 0:
-    return (-1 * np.ones((num_users_int, 1, 2))).astype(np.int32), 0
+    return (-1 * np.ones((num_users_int, 1, 2))).astype(np.float32), 0
 
-  contacts_past = -1 * np.ones((num_users_int, num_msg, 2), dtype=np.int32)
+  contacts_past = -1 * np.ones((num_users_int, num_msg, 4), dtype=np.float32)
 
   contacts_counts = np.zeros(num_users_int, dtype=np.int32)
 
@@ -69,12 +70,14 @@ def get_past_contacts_static(
     if user_interval[0] <= user_v < user_interval[1]:
       contact_rel = user_v - user_interval[0]
       contact_count = contacts_counts[contact_rel] % (num_msg - 1)
+      
+      # contacts_past = [time, contact_id, interaction type, imputation_score]
       contacts_past[contact_rel, contact_count] = np.array(
-        (contact[2], contact[0]), dtype=np.int32)
+        (contact[2], contact[0], contact[3], -1), dtype=np.float32)
 
       contacts_counts[contact_rel] += 1
 
-  return contacts_past.astype(np.int32), int(np.max(contacts_counts))
+  return contacts_past.astype(np.float32), int(np.max(contacts_counts))
 
 
 def state_at_time(days_array, timestamp):
@@ -462,7 +465,7 @@ def precompute_d_penalty_terms_fn(
 
 
 @numba.njit((
-  'UniTuple(float32[:], 2)(float32[:, :], float64, float64, int32[:, :], '
+  'UniTuple(float32[:], 2)(float32[:, :], float64, float64, float32[:, :], '
   'int64)'))
 def precompute_d_penalty_terms_fn2(
     q_marginal_infected: np.ndarray,
@@ -478,7 +481,7 @@ def precompute_d_penalty_terms_fn2(
   # Make num_time_steps+1 longs, such that penalties are 0 when t0==0
   d_term = np.zeros((num_time_steps+1), dtype=np.float32)
   d_no_term = np.zeros((num_time_steps+1), dtype=np.float32)
-
+  
   if len(past_contacts) == 0:
     return d_term, d_no_term
 
@@ -493,12 +496,17 @@ def precompute_d_penalty_terms_fn2(
   # contacts = [np.int32(x) for x in range(0)]
   for row in past_contacts:
     time_inc = int(row[0])
+    user_id = int(row[1])
+    imputed_value = float(row[3])
     if time_inc < 0:
       # past_contacts is padded with -1, so break when contact time is negative
       break
 
     happened[time_inc+1] = 1
-    p_inf_inc = q_marginal_infected[int(row[1])][time_inc]
+    if imputed_value > -1.:
+      p_inf_inc = imputed_value
+    else:
+      p_inf_inc = q_marginal_infected[user_id][time_inc]
     log_expectations[time_inc+1] += np.log(p_inf_inc*(1-p1) + (1-p_inf_inc))
     if log_expectations[time_inc + 1] == None:
       print(time_inc + 1)
@@ -821,4 +829,67 @@ def root_find_a_rdp(
   # Find lowest multiplier
   idx = np.argmin(mult_values)
   return a_values[idx], rho_values[idx]
+  
+
+def impute_local_graph(
+  prev_z_states:np.ndarray,
+  app_users:np.ndarray,
+  non_app_user_ids:np.ndarray,
+  past_contacts:np.ndarray,
+  ):
+
+  for user_id in app_users:
+    user_contacts = past_contacts[user_id]
+    contact_ids = user_contacts[:, 1]
+    # Use np.isin for set intersection equivalent
+    app_users_in_contacts = np.isin(contact_ids, app_users)
+    non_app_users_in_contacts = np.isin(contact_ids, non_app_user_ids)
+
+    # Find indices where true, then use these indices for operations
+    app_users_indices = contact_ids[app_users_in_contacts].astype(int)
+    
+    if app_users_indices.size > 0:
+        local_mean = prev_z_states[app_users_indices].mean()
+        past_contacts[user_id, non_app_users_in_contacts, 3] = local_mean
+
+def impute_lin_reg(
+  non_app_user_ids:np.ndarray,
+  app_user_ids:np.ndarray,
+  past_contacts:np.ndarray,
+  feature_imp_model:Any,
+  infection_prior: float
+):
+  non_app_user_ids_set = set(non_app_user_ids)
+  for user_id in app_user_ids:
+    imputation_data = {
+      'timestep': [],
+      'interaction_type': [],
+      'global_avg': []
+    }
+    user_contacts = past_contacts[user_id]
+    to_impute_ids = []
+    contact_counter = 0
+    for row in user_contacts:
+      time_inc = int(row[0])
+      contact_id = int(row[1])
+      int_type = int(row[2])
+      if time_inc < 0:
+        break
+      if contact_id in non_app_user_ids_set:
+        imputation_data['timestep'].append(time_inc)
+        imputation_data['interaction_type'].append(int_type)
+        to_impute_ids.append(contact_counter)
+      
+      contact_counter += 1
+
+    num_of_imputations = len(to_impute_ids)
+    if num_of_imputations > 0:
+      imputation_data['global_avg'] = [infection_prior] * num_of_imputations
+      
+      imputation_data = pd.DataFrame(imputation_data)
+      
+      p_inf_inc = feature_imp_model.predict(imputation_data)
+      p_inf_inc = np.clip(p_inf_inc, 0, 1.0)
+
+      past_contacts[user_id][to_impute_ids, 3] = p_inf_inc.squeeze()
   

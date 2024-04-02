@@ -23,6 +23,7 @@ def compare_policy_covasim(
     modify_contacts: bool = False,
     run_mean_baseline: bool = False,
     run_age_baseline: bool = False,
+    run_local_mean_baseline:bool=False,
     static_baseline_value: Union[np.ndarray, float] = -1.,
     dl_model = None
     ):
@@ -50,6 +51,10 @@ def compare_policy_covasim(
   num_days_window = cfg["model"]["num_days_window"]
   quantization = cfg["model"]["quantization"]
   num_rounds = cfg["model"]["num_rounds"]
+  
+  feature_imp_model = None
+  if cfg.get('feature_imp_model'):
+      feature_imp_model = load(cfg.get('feature_imp_model'))
   
   #Percentage of app users in population
   app_users_fraction = cfg["data"]["app_users_fraction"]
@@ -211,8 +216,10 @@ def compare_policy_covasim(
         num_time_steps=num_days + 1,
         non_app_users_age=non_app_users_age,
         infection_prior=infection_prior,
-        user_age_pinf_mean=user_age_pinf_mean
+        user_age_pinf_mean=user_age_pinf_mean,
+        feature_imp_model = feature_imp_model,
       )
+      pred_dump = np.copy(pred)
       pred[app_users == 0] = np.zeros((4), dtype=np.float32)
       rank_score = pred[:, -1, 1] + pred[:, -1, 2]
       time_spent = time.time() - t_start
@@ -235,6 +242,8 @@ def compare_policy_covasim(
       states_today[sim.people.infectious] = 1
       states_today[sim.people.susceptible] = 0
 
+      history['infection_prior'][sim.t] = np.mean(pred[app_user_ids, -1, 2])
+      
       if trace_dir is not None and sim.t > 10:
         user_free = np.logical_not(sim.people.isolated)
 
@@ -249,22 +258,25 @@ def compare_policy_covasim(
         util_dataset.dump_features_graph(
           contacts_now=contacts_rel,
           observations_now=obs_rel,
-          z_states_inferred=pred,
+          z_states_inferred=pred_dump,
           user_free=user_free,
           z_states_sim=states_today,
           users_age=users_age,
+          app_users=app_users,
           trace_dir=trace_dir,
           num_users=num_users,
           num_time_steps=num_time_steps,
           t_now=sim.t,
-          rng_seed=int(seed))
+          rng_seed=int(seed),
+          infection_prior = infection_prior,
+          infection_prior_now=history['infection_prior'][sim.t])
 
       p_at_state = pred[range(num_users), -1, states_today]
       history['likelihoods_state'][sim.t] = np.mean(np.log(p_at_state+1E-9))
       history['ave_prob_inf_at_inf'][sim.t] = np.mean(
         p_at_state[states_today == 2])
       history['time_inf_func'][sim.t] = time_spent
-      history['infection_prior'][sim.t] = np.mean(pred[app_user_ids, -1, 2])
+      
     else:
       # For the first few days of a simulation, just test randomly
       rank_score = np.ones(num_users) + np.random.rand(num_users)
@@ -287,6 +299,7 @@ def compare_policy_covasim(
     label='intervention_history')
 
   # Create, run, and plot the simulations
+  logger.info(f'Num time steps: {num_time_steps}')
   sim = cv.Sim(
     pars,
     interventions=test_intervention,

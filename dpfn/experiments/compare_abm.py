@@ -15,7 +15,8 @@ from dpfn import logger
 from dpfn import simulator
 import torch
 from experiments.model_utils import make_predictions
-from experiments.util_dataset import create_dataset, create_dataset5_feat
+from experiments.util_dataset import create_dataset, create_dataset5_feat, create_dataset5_feat_cat
+from joblib import load
 
 
 def compare_abm(
@@ -30,6 +31,7 @@ def compare_abm(
     modify_contacts: bool = False,
     run_mean_baseline: bool = False,
     run_age_baseline: bool = False,
+    run_local_mean_baseline:bool=False,
     static_baseline_value: Union[np.ndarray, float] = -1.,
     dl_model=None
 ):
@@ -51,7 +53,10 @@ def compare_abm(
     fraction_test = cfg["data"]["fraction_test"]
 
     app_users_fraction = cfg["data"]["app_users_fraction"]
-
+    feature_imp_model = None
+    if cfg.get('feature_imp_model'):
+        feature_imp_model = load(cfg.get('feature_imp_model'))
+    
     # When doing a sweep, then use parameters from there.
     if 'app_users_fraction_wandb' in cfg:
         app_users_fraction = cfg.get("app_users_fraction_wandb", -1)
@@ -62,10 +67,16 @@ def compare_abm(
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    if run_mean_baseline:
+    #Check that linreg would be run together with either of the baselines.
+    # assert (bool(feature_imp_model) & (run_mean_baseline | run_age_baseline)) == True 
+    if feature_imp_model:
+        logger.info('Running with linear regression feature imputation')
+    elif run_mean_baseline:
         logger.info('Running mean baseline')
     elif run_age_baseline:
         logger.info('Running age baseline')
+    elif run_local_mean_baseline:
+        logger.info('Running local mean baseline')
     else:
         logger.info('Running vanilla factorized neighbors')
 
@@ -233,7 +244,8 @@ def compare_abm(
                             z_states_inferred[app_user_ids[np.argwhere(app_users_age == age_group)], -1, 2])
                         user_age_pinf_mean[age_group] = mean_of_group
                 running_mean_age_groups = np.sum((running_mean_age_groups, user_age_pinf_mean), axis=0)
-
+            
+            
             t_start = time.time()
                 
             z_states_inferred, contacts_age = inference_func(
@@ -246,7 +258,10 @@ def compare_abm(
                 non_app_users_age=non_app_users_age,
                 diagnostic=diagnostic,
                 infection_prior=infection_prior,
-                user_age_pinf_mean=user_age_pinf_mean)
+                user_age_pinf_mean=user_age_pinf_mean,
+                feature_imp_model=feature_imp_model,
+                local_mean_baseline=run_local_mean_baseline,
+                prev_z_states=z_states_inferred[:, -1, 2])
 
             np.testing.assert_array_almost_equal(
                 z_states_inferred.shape, [num_users, num_days, 4])
@@ -270,9 +285,20 @@ def compare_abm(
                     infection_prior_now = np.mean(z_states_inferred[app_user_ids, -1, 2])
                     user_free = (user_quarantine_ends < t_now)
                     util_dataset.dump_features_graph(
-                        contacts_now, observations_now, z_dump_inferred, user_free,
-                        sim.get_states_today(), users_age, app_users, trace_dir, num_users,
-                        num_time_steps, t_now, int(rng_seed), infection_prior, infection_prior_now)
+                        contacts_now,
+                        observations_now,
+                        z_dump_inferred,
+                        user_free,
+                        sim.get_states_today(),
+                        users_age,
+                        app_users,
+                        trace_dir,
+                        num_users,
+                        num_time_steps,
+                        t_now,
+                        int(rng_seed),
+                        infection_prior,
+                        infection_prior_now)
 
 
             if dl_model:
@@ -293,7 +319,7 @@ def compare_abm(
 
                 if run_mean_baseline:
                     infection_prior_now = np.mean(z_states_inferred[app_user_ids, -1, 2])
-                    train_loader = create_dataset5_feat(model_data, model_type, infection_prior=infection_prior_now, add_weights=add_weights)
+                    train_loader = create_dataset5_feat_cat(model_data, model_type, infection_prior=infection_prior, add_weights=add_weights)
                 else:
                     train_loader = create_dataset(model_data, model_type)
 

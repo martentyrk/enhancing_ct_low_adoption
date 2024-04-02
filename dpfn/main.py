@@ -45,6 +45,7 @@ if __name__ == "__main__":
     parser.add_argument('--modify_contacts', action='store_true')
     parser.add_argument('--age_baseline', action='store_true')
     parser.add_argument('--mean_baseline', action='store_true')
+    parser.add_argument('--local_mean_baseline', action='store_true')
     parser.add_argument('--static_baseline', action='store_true')
     parser.add_argument('--static_baseline_path', type=str,
                         default='dpfn/data/static_mean_baseline_results')
@@ -86,11 +87,16 @@ if __name__ == "__main__":
     parser.add_argument('--feature_propagation',
                         action='store_true',
                         help='Whether to do feature propagation or not.')
+    parser.add_argument('--feature_imp_model',
+                        type=str,
+                        default=None,
+                        help='Path to the feature imputation model')
     
 
     num_threads = 16
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     numba.set_num_threads(num_threads)
+    logger.info(f'Running on device: {device}')
     logger.info(f"SLURM env N_TASKS: {os.getenv('SLURM_NTASKS')}")
     logger.info(f"Start with {num_threads} threads")
 
@@ -120,6 +126,7 @@ if __name__ == "__main__":
     config_wandb['model'] = config_model.to_dict()
     config_wandb['std_rank_noise'] = args.std_rank_noise
     config_wandb['feature_propagation'] = args.feature_propagation
+    config_wandb['feature_imp_model'] = args.feature_imp_model
     
     if args.num_time_steps:
         config_wandb["data"]["num_time_steps"] = args.num_time_steps
@@ -174,7 +181,8 @@ if __name__ == "__main__":
         logger.info(f'Running with the deep model: {str(args.model)}')
 
         dl_model = get_model(args.model, n_layers=args.n_layers, nhid=args.nhid).to(device)
-        dl_model.load_state_dict(torch.load(f"dpfn/config/dl_configs/" + args.model_name, map_location=torch.device(device)))
+        saved_model = torch.load(f"dpfn/config/dl_configs/" + args.model_name, map_location=torch.device(device))
+        dl_model.load_state_dict(saved_model)
         
         if args.model == 'gcn_weights':
             logger.info(f"Three of the model weights: {dl_model.msg_weights}")
@@ -196,16 +204,20 @@ if __name__ == "__main__":
             experiment_name = 'run_abm_static_mean_seed_' + str(seed_value)
         elif args.age_baseline:
             experiment_name = 'run_abm_static_age_seed_' + str(seed_value)
+    elif args.feature_imp_model:
+      experiment_name = 'run_abm_linreg_collect_seed_' + str(seed_value)
     elif args.mean_baseline:
       experiment_name = 'run_abm_mean_collect_seed_' + str(seed_value)
+    elif args.local_mean_baseline:
+      experiment_name = 'run_abm_local_mean_collect_seed_' + str(seed_value)
     elif args.age_baseline:
       experiment_name = 'run_abm_age_seed_' + str(seed_value)
     else:
       experiment_name = 'run_abm_seed' + str(seed_value)
-      
+
     if args.dump_traces:
       experiment_name = experiment_name + '_dump_traces'
-      
+
     if args.app_users_fraction:
         experiment_name = experiment_name + \
             "_adaption_" + str(args.app_users_fraction)
@@ -294,6 +306,7 @@ if __name__ == "__main__":
             modify_contacts=args.modify_contacts,
             run_mean_baseline=args.mean_baseline,
             run_age_baseline=args.age_baseline,
+            run_local_mean_baseline=args.local_mean_baseline,
             static_baseline_value=static_baseline_value,
             dl_model=dl_model,
         )

@@ -13,7 +13,7 @@ def get_model(model_name, n_layers, nhid=64):
     elif model_name in ['gcn_silu']:
         return GCN_SiLU(num_features=7, n_layers=1, nhid=nhid)
     elif model_name in ['gcn_weights']:
-        return GCN_Weights(num_features=5, n_layers=1, nhid=nhid)
+        return GCN_Weights(num_features=7, n_layers=1, nhid=nhid)
     
     
 def make_predictions(model, loader, model_type, device, feature_prop=False):

@@ -84,11 +84,6 @@ def make_inference_func(
   elif inference_method == "dummy":
     inference_func = wrap_dummy_inference(
       num_users=num_users, trace_dir=trace_dir)
-  elif inference_method == "dpct":
-    assert a_rdp < 0, f"a rdp should be negative ({a_rdp})"
-    assert delta_dp > 0
-    inference_func = wrap_dpct_inference(
-      num_users=num_users, epsilon_dp=epsilon_dp, delta_dp=delta_dp)
   else:
     raise ValueError((
       f"Not recognised inference method {inference_method}. Should be one of"
@@ -121,6 +116,9 @@ def wrap_fact_neigh_inference(
       num_time_steps: int,
       infection_prior: float,
       user_age_pinf_mean:np.ndarray,
+      feature_imp_model: Any,
+      local_mean_baseline:bool,
+      prev_z_states:np.ndarray,
       non_app_users_age: Optional[np.ndarray] = None,
       diagnostic: Optional[Any] = None
       ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
@@ -141,6 +139,9 @@ def wrap_fact_neigh_inference(
       infection_prior=infection_prior,
       user_age_pinf_mean=user_age_pinf_mean,
       non_app_users_age=non_app_users_age,
+      feature_imp_model=feature_imp_model,
+      prev_z_states=prev_z_states,
+      local_mean_baseline=local_mean_baseline,
       clip_lower=clip_lower,  # Lower bound for clipping, depends on method
       clip_upper=clip_upper,  # Upper bound for clipping, depends on method
       quantization=quantization,

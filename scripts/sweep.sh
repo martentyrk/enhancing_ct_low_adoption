@@ -2,9 +2,8 @@
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=CPUS
 #SBATCH --ntasks=NTASKS
-#SBATCH --time=35:00:00
+#SBATCH --time=15:00:00
 #SBATCH --job-name=marten_sweep
-#SBATCH --partition=rome
 #SBATCH --mem=128000
 #SBATCH --output=sweep_%A.out
 

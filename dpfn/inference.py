@@ -5,6 +5,7 @@ import numpy as np
 import os  # pylint: disable=unused-import
 import time
 from typing import Any, Optional, Tuple
+import pandas as pd
 
 
 @numba.njit(['float32[:](float32[:])', 'float64[:](float64[:])'])
@@ -90,6 +91,7 @@ def fn_step_wrapped(
         age_group_ids = non_app_user_ids[np.where(non_app_users_age == age)[0]]
         p_infected_matrix[age_group_ids, :] = user_age_pinf_mean[age]
 
+
   for i in numba.prange(interval_num_users):  # pylint: disable=not-an-iterable
     d_term, d_no_term = util.precompute_d_penalty_terms_fn2(
       q_marginal_infected=p_infected_matrix,
@@ -141,6 +143,9 @@ def fact_neigh(
     infection_prior: float,
     user_age_pinf_mean:np.ndarray,
     non_app_users_age:np.ndarray,
+    feature_imp_model: Any,
+    prev_z_states:np.ndarray,
+    local_mean_baseline:bool,
     clip_lower: float = -1.,
     clip_upper: float = 10000.,
     quantization: int = -1,
@@ -228,13 +233,31 @@ def fact_neigh(
     logger.warning(
       f"Max number of contacts {max_num_contacts} >= {num_max_msg}")
 
-  if trace_dir:
-    pass
+  # if trace_dir:
+  #   pass
     # fname = os.path.join(trace_dir, f"fact_neigh_.txt")
     # with open(fname, 'a') as fp:
     #   fp.write(f"{max_num_contacts:.0f}\n")
+  
+  if feature_imp_model:
+    # Modify past contacts in place with feature imputation model.
+    util.impute_lin_reg(
+      non_app_user_ids,
+      app_user_ids,
+      past_contacts,
+      feature_imp_model,
+      infection_prior
+      )
+
+    infection_prior = -1.
+
+  if local_mean_baseline:
+    #In place modification of past contacts based on local contact graphs.
+    util.impute_local_graph(prev_z_states, app_user_ids, non_app_user_ids, past_contacts)
+
 
   t_preamble2 = time.time() - t_start_preamble
+  
   logger.info(
     f"Time spent on preamble1/preamble2 {t_preamble1:.1f}/{t_preamble2:.1f}")
   for num_update in range(num_updates):
@@ -260,7 +283,6 @@ def fact_neigh(
       non_app_user_ids = non_app_user_ids,
       )
 
-  
     if verbose:
       logger.info(f"Time for fn_step: {t_end - tstart:.1f} seconds")
 
