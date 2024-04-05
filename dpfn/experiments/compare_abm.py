@@ -114,7 +114,7 @@ def compare_abm(
     total_z_inf = 0
     
     model_type = cfg['dl_model_type']
-    add_weights = (model_type == 'gcn_weights')
+    add_weights = (model_type == 'gcn_weight')
     logger.info(f'Weight will be added to the data generated for dl model: {add_weights}')
 
     inference_func, do_random_quarantine = util_experiments.make_inference_func(
@@ -244,8 +244,7 @@ def compare_abm(
                             z_states_inferred[app_user_ids[np.argwhere(app_users_age == age_group)], -1, 2])
                         user_age_pinf_mean[age_group] = mean_of_group
                 running_mean_age_groups = np.sum((running_mean_age_groups, user_age_pinf_mean), axis=0)
-            
-            
+
             t_start = time.time()
                 
             z_states_inferred, contacts_age = inference_func(
@@ -308,20 +307,22 @@ def compare_abm(
                 incorporated_users = app_users & user_free
                 incorporated_user_ids = np.nonzero(incorporated_users)[0]
                 
+                
+                # TODO: check if i need that
                 z_states_timesteps = t_now if t_now < pred_days else pred_days
                 z_states_inferred_last_days = z_states_inferred[:, -z_states_timesteps:, :]
 
                 model_data = util_dataset.inplace_features_data_creation(
-                    contacts_now, observations_now, z_states_inferred_last_days, user_free,
+                    contacts_now, observations_now, z_states_inferred, user_free,
                     users_age, app_users, num_users,
                     num_time_steps
                 )
 
                 if run_mean_baseline:
                     infection_prior_now = np.mean(z_states_inferred[app_user_ids, -1, 2])
-                    train_loader = create_dataset5_feat_cat(model_data, model_type, infection_prior=infection_prior, add_weights=add_weights)
+                    train_loader = create_dataset5_feat(model_data, model_type, infection_prior=infection_prior, add_weights=add_weights)
                 else:
-                    train_loader = create_dataset(model_data, model_type)
+                    train_loader = create_dataset5_feat(model_data, model_type, add_weights=add_weights)
 
                 all_preds = []
                 all_preds = make_predictions(

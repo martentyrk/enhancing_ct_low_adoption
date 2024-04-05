@@ -29,12 +29,12 @@ if __name__ == "__main__":
                         choices=[
                             'fn', 'dummy', 'random', 'dpct', 'fncpp'],
                         help='Name of the inference method')
-    parser.add_argument('--simulator', type=str, default='abm',
+    parser.add_argument('--simulator', type=str, default='covasim',
                         choices=['abm', 'covasim'],
                         help='Name of the simulator')
-    parser.add_argument('--config_data', type=str, default='intermediate_graph_abm_02',
+    parser.add_argument('--config_data', type=str, default='intermediate_graph_cv_01',
                         help='Name of the config file for the data')
-    parser.add_argument('--config_model', type=str, default='model_ABM01',
+    parser.add_argument('--config_model', type=str, default='model_CV01',
                         help='Name of the config file for the model')
     parser.add_argument('--name', type=str, default=None,
                         help=('Name of the experiments. WandB will set a random'
@@ -184,7 +184,7 @@ if __name__ == "__main__":
         saved_model = torch.load(f"dpfn/config/dl_configs/" + args.model_name, map_location=torch.device(device))
         dl_model.load_state_dict(saved_model)
         
-        if args.model == 'gcn_weights':
+        if args.model == 'gcn_weight':
             logger.info(f"Three of the model weights: {dl_model.msg_weights}")
         dl_model.eval()
     else:
@@ -194,6 +194,10 @@ if __name__ == "__main__":
     arg_rng = np.random.default_rng(seed=seed_value)
 
     # Set up locations to store results
+    if args.simulator == 'covasim':
+        sim_name = 'cov'
+    else:
+        sim_name = 'abm'
     if args.model:
       input_str = args.name
       experiment_name = f'{input_str}_run_abm_seed_model' + \
@@ -201,19 +205,19 @@ if __name__ == "__main__":
     
     elif args.static_baseline:
         if args.mean_baseline:
-            experiment_name = 'run_abm_static_mean_seed_' + str(seed_value)
+            experiment_name = f'run_{sim_name}_static_mean_seed_' + str(seed_value)
         elif args.age_baseline:
-            experiment_name = 'run_abm_static_age_seed_' + str(seed_value)
+            experiment_name = f'run_{sim_name}_static_age_seed_' + str(seed_value)
     elif args.feature_imp_model:
-      experiment_name = 'run_abm_linreg_collect_seed_' + str(seed_value)
+      experiment_name = f'run_{sim_name}_linreg_collect_seed_' + str(seed_value)
     elif args.mean_baseline:
-      experiment_name = 'run_abm_mean_collect_seed_' + str(seed_value)
+      experiment_name = f'run_{sim_name}_mean_collect_seed_' + str(seed_value)
     elif args.local_mean_baseline:
-      experiment_name = 'run_abm_local_mean_collect_seed_' + str(seed_value)
+      experiment_name = f'run_{sim_name}_local_mean_collect_seed_' + str(seed_value)
     elif args.age_baseline:
-      experiment_name = 'run_abm_age_seed_' + str(seed_value)
+      experiment_name = f'run_{sim_name}_age_seed_' + str(seed_value)
     else:
-      experiment_name = 'run_abm_seed' + str(seed_value)
+      experiment_name = f'run_{sim_name}_seed' + str(seed_value)
 
     if args.dump_traces:
       experiment_name = experiment_name + '_dump_traces'

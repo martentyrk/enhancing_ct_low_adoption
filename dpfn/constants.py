@@ -67,4 +67,4 @@ Observation = Union[Tuple[int, int, int], np.ndarray]
 NUM_CLASSES = 2
 
 #Graph model names
-GRAPH_MODELS = ['gcn', 'graphcn', 'gcn_silu', 'gcn_weights']
+GRAPH_MODELS = ['gcn', 'graphcn', 'gcn_silu', 'gcn_weight']

@@ -10,6 +10,9 @@ import warnings
 from dpfn.experiments import (
   prequential, util_experiments, prequential, util_covasim, util_dataset)
 from dpfn import logger
+from joblib import load
+from experiments.model_utils import make_predictions
+from experiments.util_dataset import create_dataset, create_dataset5_feat, create_dataset5_feat_cat
 
 def compare_policy_covasim(
     inference_method: str,
@@ -51,10 +54,15 @@ def compare_policy_covasim(
   num_days_window = cfg["model"]["num_days_window"]
   quantization = cfg["model"]["quantization"]
   num_rounds = cfg["model"]["num_rounds"]
+  pred_days = cfg['model']['pred_days']
   
+  model_type = cfg['dl_model_type']
+  add_weights = (model_type == 'gcn_weight')
+  feature_prop = cfg['feature_propagation']
   feature_imp_model = None
   if cfg.get('feature_imp_model'):
       feature_imp_model = load(cfg.get('feature_imp_model'))
+  
   
   #Percentage of app users in population
   app_users_fraction = cfg["data"]["app_users_fraction"]
@@ -68,10 +76,14 @@ def compare_policy_covasim(
 
   device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
   
-  if run_mean_baseline:
-        logger.info('Running mean baseline')
+  if feature_imp_model:
+      logger.info('Running with linear regression feature imputation')
+  elif run_mean_baseline:
+      logger.info('Running mean baseline')
   elif run_age_baseline:
       logger.info('Running age baseline')
+  elif run_local_mean_baseline:
+      logger.info('Running local mean baseline')
   else:
       logger.info('Running vanilla factorized neighbors')
 
@@ -92,8 +104,6 @@ def compare_policy_covasim(
   # assert num_time_steps == 91, "hardcoded 91 days for now, TODO: fix this"
 
   t0 = time.time()
-  
-
 
   # Make simulator
   pop_infected = 25
@@ -142,6 +152,8 @@ def compare_policy_covasim(
       sim.people.age, np.array([0, 10, 20, 30, 40, 50, 60, 70, 80, 90,])) - 1
     users_age = users_age.astype(np.int32)
     
+    pred_placeholder = np.zeros((num_users), dtype=np.float32)
+    state_preds = np.zeros((num_users), dtype=np.float32)
     
     app_users = prequential.generate_app_users(
         num_users=num_users, users_ages=users_age, app_users_fraction=app_users_fraction)
@@ -204,7 +216,9 @@ def compare_policy_covasim(
 
       if run_mean_baseline:
         infection_prior = history['infection_prior'][sim.t - 1]
-        
+      
+      if history['infection_state'][sim.t - 1].any() > 0:
+        pred_placeholder = history['infection_state'][sim.t - 1]
       # Add +1 so the model predicts one day into the future
       t_start = time.time()
       pred, contacts_age = inference_func(
@@ -218,10 +232,47 @@ def compare_policy_covasim(
         infection_prior=infection_prior,
         user_age_pinf_mean=user_age_pinf_mean,
         feature_imp_model = feature_imp_model,
+        local_mean_baseline=run_local_mean_baseline,
+        prev_z_states=pred_placeholder,
       )
       pred_dump = np.copy(pred)
       pred[app_users == 0] = np.zeros((4), dtype=np.float32)
-      rank_score = pred[:, -1, 1] + pred[:, -1, 2]
+      
+      if dl_model:
+        logger.info('Deep learning predictions')
+        user_free = np.logical_not(sim.people.isolated)
+        incorporated_users = app_users & user_free
+        incorporated_user_ids = np.nonzero(incorporated_users)[0]
+        
+        model_data = util_dataset.inplace_features_data_creation(
+          contacts_rel, obs_rel, pred, user_free,
+          users_age, app_users, num_users, num_time_steps
+        )
+        
+        if run_mean_baseline:
+          infection_prior_now = np.mean(pred[app_user_ids, -1, 2])
+          train_loader = create_dataset5_feat(model_data, model_type, infection_prior=infection_prior, add_weights=add_weights)
+        else:
+          train_loader = create_dataset5_feat(model_data, model_type, add_weights=add_weights)
+          
+        all_preds = []
+        all_preds = make_predictions(
+            dl_model,
+            train_loader,
+            model_type,
+            device,
+            feature_prop = feature_prop
+            )
+
+        #Reset statistics, since the incorporated users can change.
+        state_preds = np.zeros((num_users), dtype=np.float32)
+        state_preds[incorporated_user_ids] = all_preds
+    
+        if trace_dir_preds is not None:
+            logger.info('Dumping prediction values') 
+            util_dataset.dump_preds(pred[:, -1, 2], state_preds, incorporated_users, sim.t, trace_dir_preds, app_user_ids, users_age)
+
+      rank_score = pred[:, -1, 1] + pred[:, -1, 2] + state_preds
       time_spent = time.time() - t_start
 
       if np.any(np.abs(
@@ -276,6 +327,7 @@ def compare_policy_covasim(
       history['ave_prob_inf_at_inf'][sim.t] = np.mean(
         p_at_state[states_today == 2])
       history['time_inf_func'][sim.t] = time_spent
+      history['infection_state'][sim.t] = pred[:, -1, 2]
       
     else:
       # For the first few days of a simulation, just test randomly
@@ -292,6 +344,7 @@ def compare_policy_covasim(
   # only test the app users.
   test_intervention = cv.test_num(
     daily_tests=int(fraction_test*num_users),
+    num_users=num_users,
     do_plot=False,
     sensitivity=sensitivity,  # 1 - false_negative_rate
     loss_prob=loss_prob,  # probability of the person being lost-to-follow-up

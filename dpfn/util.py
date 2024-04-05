@@ -830,27 +830,42 @@ def root_find_a_rdp(
   idx = np.argmin(mult_values)
   return a_values[idx], rho_values[idx]
   
-
+@numba.njit
 def impute_local_graph(
   prev_z_states:np.ndarray,
   app_users:np.ndarray,
-  non_app_user_ids:np.ndarray,
+  app_users_binary:np.ndarray,
+  non_app_user_ids_binary:np.ndarray,
   past_contacts:np.ndarray,
   ):
-
+  
   for user_id in app_users:
     user_contacts = past_contacts[user_id]
     contact_ids = user_contacts[:, 1]
-    # Use np.isin for set intersection equivalent
-    app_users_in_contacts = np.isin(contact_ids, app_users)
-    non_app_users_in_contacts = np.isin(contact_ids, non_app_user_ids)
-
-    # Find indices where true, then use these indices for operations
-    app_users_indices = contact_ids[app_users_in_contacts].astype(int)
+    app_user_indices = []
+    non_app_user_indeces = []
     
-    if app_users_indices.size > 0:
-        local_mean = prev_z_states[app_users_indices].mean()
-        past_contacts[user_id, non_app_users_in_contacts, 3] = local_mean
+    index_counter = 0
+    for c_id in contact_ids:
+      c_id = int(c_id)
+      if c_id < 0:
+        break
+
+      if app_users_binary[c_id]:
+        app_user_indices.append(index_counter)
+      elif non_app_user_ids_binary[c_id]:
+        non_app_user_indeces.append(index_counter)
+
+      index_counter += 1
+
+    app_user_indices = np.array(app_user_indices, dtype=np.int32)
+    non_app_user_indeces = np.array(non_app_user_indeces, dtype=np.int32)
+
+    if len(app_user_indices) > 0:
+      local_mean = prev_z_states[app_user_indices].mean()
+      past_contacts[user_id, non_app_user_indeces, 3] = local_mean
+    else:
+      past_contacts[user_id, non_app_user_indeces, 3] = 0.0
 
 def impute_lin_reg(
   non_app_user_ids:np.ndarray,

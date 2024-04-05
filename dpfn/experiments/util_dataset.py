@@ -656,7 +656,7 @@ def create_dataset5_feat(data, model_type, infection_prior:float = None, add_wei
                 )
                 
             else:
-                single_edge_index = to_undirected(single_edge_index)
+                # single_edge_index = to_undirected(single_edge_index)
                 single_edge_index, _ = add_self_loops(single_edge_index)
                 
                 data_single = Data(

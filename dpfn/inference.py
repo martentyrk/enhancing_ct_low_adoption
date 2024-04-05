@@ -253,7 +253,13 @@ def fact_neigh(
 
   if local_mean_baseline:
     #In place modification of past contacts based on local contact graphs.
-    util.impute_local_graph(prev_z_states, app_user_ids, non_app_user_ids, past_contacts)
+    non_app_user_ids_binary = np.zeros((num_users), dtype=int)
+    non_app_user_ids_binary[non_app_user_ids] = 1
+    
+    app_users_binary = np.zeros((num_users), dtype=int)
+    app_users_binary[app_user_ids] = 1
+    
+    util.impute_local_graph(prev_z_states, app_user_ids, app_users_binary, non_app_user_ids_binary, past_contacts)
 
 
   t_preamble2 = time.time() - t_start_preamble
