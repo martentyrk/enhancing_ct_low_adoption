@@ -170,20 +170,29 @@ def compare_policy_covasim(
     if sim.t > t_start_quarantine:
       contacts = sim.people.contacts
 
+      layer_dict = {
+        'h':0,
+        's':1,
+        'w':2,
+        'c':3
+      }
+      
       contacts_add = []
       for layerkey in contacts.keys():
+        layer_code = layer_dict[layerkey]
         ones_vec = np.ones_like(contacts[layerkey]['p1'])
+        layer_vec = layer_code * ones_vec
         contacts_add.append(np.stack((
           contacts[layerkey]['p1'],
           contacts[layerkey]['p2'],
           sim.t*ones_vec,
-          ones_vec,
+          layer_vec,
           ), axis=1))
         contacts_add.append(np.stack((
           contacts[layerkey]['p2'],
           contacts[layerkey]['p1'],
           sim.t*ones_vec,
-          ones_vec,
+          layer_vec,
           ), axis=1))
 
       contacts_today = np.concatenate(contacts_add, axis=0)
@@ -221,7 +230,7 @@ def compare_policy_covasim(
         pred_placeholder = history['infection_state'][sim.t - 1]
       # Add +1 so the model predicts one day into the future
       t_start = time.time()
-      pred, contacts_age = inference_func(
+      pred, contacts_age, mse_loss = inference_func(
         observations_list=obs_rel,
         contacts_list=contacts_rel,
         app_user_ids=app_user_ids,
@@ -234,6 +243,7 @@ def compare_policy_covasim(
         feature_imp_model = feature_imp_model,
         local_mean_baseline=run_local_mean_baseline,
         prev_z_states=pred_placeholder,
+        mse_states = -1. * np.ones((1, 1, 4), dtype=np.float32),
       )
       pred_dump = np.copy(pred)
       pred[app_users == 0] = np.zeros((4), dtype=np.float32)

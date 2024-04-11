@@ -829,7 +829,7 @@ def root_find_a_rdp(
   # Find lowest multiplier
   idx = np.argmin(mult_values)
   return a_values[idx], rho_values[idx]
-  
+
 @numba.njit
 def impute_local_graph(
   prev_z_states:np.ndarray,
@@ -837,13 +837,17 @@ def impute_local_graph(
   app_users_binary:np.ndarray,
   non_app_user_ids_binary:np.ndarray,
   past_contacts:np.ndarray,
+  mse_states:np.ndarray,
   ):
-  
+  calc_mse = 0.0
+  calc_mae = 0.0
+  mse_counter = 0
   for user_id in app_users:
     user_contacts = past_contacts[user_id]
     contact_ids = user_contacts[:, 1]
     app_user_indices = []
     non_app_user_indeces = []
+    non_app_user_ids = []
     
     index_counter = 0
     for c_id in contact_ids:
@@ -855,6 +859,7 @@ def impute_local_graph(
         app_user_indices.append(index_counter)
       elif non_app_user_ids_binary[c_id]:
         non_app_user_indeces.append(index_counter)
+        non_app_user_ids.append(c_id)
 
       index_counter += 1
 
@@ -866,15 +871,37 @@ def impute_local_graph(
       past_contacts[user_id, non_app_user_indeces, 3] = local_mean
     else:
       past_contacts[user_id, non_app_user_indeces, 3] = 0.0
+  
+  if not np.all(mse_states == -1.):
+    non_app_user_ids = np.array(non_app_user_ids)
+    calc_mse += ((mse_states[non_app_user_ids, -1, 2] - past_contacts[user_id, non_app_user_indeces, 3])**2).sum()
+    calc_mae += (np.absolute(mse_states[non_app_user_ids, -1, 2] - past_contacts[user_id, non_app_user_indeces, 3])).sum()
+    mse_counter += len(non_app_user_indeces)
+  
+    if mse_counter > 0:
+      overall_mse = calc_mse / mse_counter
+      overall_mae = calc_mae / mse_counter
+    else:
+      overall_mse = 0.0
+      overall_mae = 0.0
+      
+    return overall_mse, overall_mae
+
+  return -1, -1
 
 def impute_lin_reg(
   non_app_user_ids:np.ndarray,
   app_user_ids:np.ndarray,
   past_contacts:np.ndarray,
   feature_imp_model:Any,
-  infection_prior: float
+  infection_prior: float,
+  mse_states:np.ndarray,
 ):
   non_app_user_ids_set = set(non_app_user_ids)
+  calc_mse = 0.0
+  calc_mae = 0.0
+  mse_counter = 0
+  
   for user_id in app_user_ids:
     imputation_data = {
       'timestep': [],
@@ -883,6 +910,7 @@ def impute_lin_reg(
     }
     user_contacts = past_contacts[user_id]
     to_impute_ids = []
+    non_app_user_ids = []
     contact_counter = 0
     for row in user_contacts:
       time_inc = int(row[0])
@@ -893,6 +921,7 @@ def impute_lin_reg(
       if contact_id in non_app_user_ids_set:
         imputation_data['timestep'].append(time_inc)
         imputation_data['interaction_type'].append(int_type)
+        non_app_user_ids.append(contact_id)
         to_impute_ids.append(contact_counter)
       
       contact_counter += 1
@@ -906,5 +935,16 @@ def impute_lin_reg(
       p_inf_inc = feature_imp_model.predict(imputation_data)
       p_inf_inc = np.clip(p_inf_inc, 0, 1.0)
 
-      past_contacts[user_id][to_impute_ids, 3] = p_inf_inc.squeeze()
+      past_contacts[user_id, to_impute_ids, 3] = p_inf_inc.squeeze()
+    
+    calc_mse += ((mse_states[non_app_user_ids] - past_contacts[user_id, to_impute_ids, 3])**2).sum()
+    calc_mae += (np.absolute(mse_states[non_app_user_ids] - past_contacts[user_id, to_impute_ids, 3])).sum()
+    mse_counter += len(to_impute_ids)
   
+  if mse_counter > 0:
+    overall_mse = calc_mse / mse_counter
+    overall_mae = calc_mae / mse_counter
+  else:
+      overall_mse = 0.0
+      overall_mae = 0.0
+  return overall_mse, overall_mae

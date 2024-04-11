@@ -42,6 +42,8 @@ def compare_abm(
     num_days_window = cfg["model"]["num_days_window"]
     quantization = cfg["model"]["quantization"]
 
+    online_mse = cfg.get('online_mse')
+    
     num_rounds = cfg["model"]["num_rounds"]
     policy_weight_01 = cfg["model"]["policy_weight_01"]
     policy_weight_02 = cfg["model"]["policy_weight_02"]
@@ -119,6 +121,28 @@ def compare_abm(
 
     inference_func, do_random_quarantine = util_experiments.make_inference_func(
         inference_method, num_users, cfg, trace_dir=trace_dir)
+    
+    if online_mse:
+        mse_inference_func, _ = util_experiments.make_inference_func(
+            'fn', num_users, cfg, trace_dir=None
+        )
+        z_states_inferred_mse = np.zeros((num_users, 1, 4), dtype=np.float32)
+    else:
+        mse_inference_func = None
+        z_states_inferred_mse = -1. * np.ones((1, 1, 4), dtype=np.float32)
+    
+    mse_values_imputation = np.zeros((num_time_steps), dtype=np.float32)
+    mae_values_imputation = np.zeros((num_time_steps), dtype=np.float32)
+    mse_at_t_imp = 0
+    mae_at_t_imp = 0
+    
+    mse_values_NA = np.zeros((num_time_steps), dtype=np.float32)
+    mae_values_NA = np.zeros((num_time_steps), dtype=np.float32)
+    mse_at_t_NA = 0
+    mae_at_t_NA = 0
+    
+    online_overlap_at_t = 0
+    all_online_overlap = np.zeros((num_time_steps), dtype=np.float32)
 
     # Set conditional distributions for observations
     p_obs_infected = np.array(
@@ -195,15 +219,30 @@ def compare_abm(
         test_frac = int(fraction_test * num_users)
         num_tests = test_frac if test_frac <= app_user_frac_num else app_user_frac_num
         logger.info(f"Number of tests: {num_tests}")
-
+        
+        user_free = (user_quarantine_ends < t_now)
+        incorporated_users = app_users & user_free
+        incorporated_user_ids = np.nonzero(incorporated_users)[0]
+        
         users_to_test = prequential.decide_tests(
             scores_infect=rank_score,
             num_tests=num_tests,
-            user_ids=app_user_ids)
+            user_ids=incorporated_user_ids)
 
-        # TODO: Marten, should users_to_test be app_user_ids instead?
-        # No, since it will be the same regardless, since we only look at users
-        # of app to test in the first place
+        if online_mse:
+            online_rank_score = (z_states_inferred_mse[:, -1, 1] + z_states_inferred_mse[:, -1, 2])
+            users_to_test_100 = prequential.decide_tests(
+            scores_infect=online_rank_score,
+            num_tests=num_tests,
+            user_ids=range(num_users))
+            
+            users_to_test_100_set = set(users_to_test_100)
+            users_to_test_set = set(users_to_test)
+            intersection = users_to_test_set.intersection(users_to_test_100_set)
+            
+            online_overlap_at_t = len(intersection) / len(users_to_test_100_set)
+            all_online_overlap[t_now] = online_overlap_at_t
+            
         obs_today = sim.get_observations_today(
             users_to_test.astype(np.int32),
             p_obs_infected,
@@ -233,7 +272,13 @@ def compare_abm(
                 if static_baseline_value > 0:
                     infection_prior = static_baseline_value
                 running_mean += infection_prior
-                assert infection_prior.dtype == np.float32
+                assert infection_prior.dtype == np.float32   
+                
+                if online_mse:
+                    mse_prior = infection_prior * np.ones((len(non_app_user_ids)), dtype=np.float32)
+                    mse_at_t_imp = ((z_states_inferred_mse[non_app_user_ids, -1,  2] - mse_prior)**2).mean()
+                    mae_at_t_imp = (np.absolute(z_states_inferred_mse[non_app_user_ids,-1, 2] - mse_prior)).mean()
+                       
 
             elif run_age_baseline:
                 if np.all(static_baseline_value > 0):
@@ -246,8 +291,8 @@ def compare_abm(
                 running_mean_age_groups = np.sum((running_mean_age_groups, user_age_pinf_mean), axis=0)
 
             t_start = time.time()
-                
-            z_states_inferred, contacts_age = inference_func(
+
+            z_states_inferred, contacts_age, mse_loss = inference_func(
                 observations_now,
                 contacts_now,
                 app_user_ids,
@@ -260,7 +305,9 @@ def compare_abm(
                 user_age_pinf_mean=user_age_pinf_mean,
                 feature_imp_model=feature_imp_model,
                 local_mean_baseline=run_local_mean_baseline,
-                prev_z_states=z_states_inferred[:, -1, 2])
+                prev_z_states=z_states_inferred[:, -1, 2],
+                mse_states=z_states_inferred_mse,
+                )
 
             np.testing.assert_array_almost_equal(
                 z_states_inferred.shape, [num_users, num_days, 4])
@@ -275,7 +322,14 @@ def compare_abm(
                 contacts_age[app_users == 0] = np.zeros((2), dtype=np.float32)
             else:
                 contacts_age = None
-
+                
+            if mse_loss['mae'] >= 0:
+                mae_at_t_imp = mse_loss['mae']
+                mse_at_t_imp = mse_loss['mse']
+            
+            mse_values_imputation[t_now] = mse_at_t_imp
+            mae_values_imputation[t_now] = mae_at_t_imp
+            
             logger.info(
                 f"Time spent on inference_func {time.time() - t_start:.0f}")
             if trace_dir is not None:
@@ -306,11 +360,6 @@ def compare_abm(
                 user_free = (user_quarantine_ends < t_now)
                 incorporated_users = app_users & user_free
                 incorporated_user_ids = np.nonzero(incorporated_users)[0]
-                
-                
-                # TODO: check if i need that
-                z_states_timesteps = t_now if t_now < pred_days else pred_days
-                z_states_inferred_last_days = z_states_inferred[:, -z_states_timesteps:, :]
 
                 model_data = util_dataset.inplace_features_data_creation(
                     contacts_now, observations_now, z_states_inferred, user_free,
@@ -336,14 +385,51 @@ def compare_abm(
                 #Reset statistics, since the incorporated users can change.
                 state_preds = np.zeros((num_users), dtype=np.float32)
                 state_preds[incorporated_user_ids] = all_preds
-            
+
+                if online_mse:
+                    mse_at_t_NA = ((z_states_inferred_mse[app_user_ids, -1, 2] - all_preds)**2).mean()
+                    mae_at_t_NA = (np.absolute(z_states_inferred_mse[app_user_ids, -1, 2] - all_preds)).mean()
+                    
+                    mse_values_NA[t_now] = mse_at_t_NA
+                    mae_values_NA[t_now] = mae_at_t_NA
+                
                 if trace_dir_preds is not None:
                     logger.info('Dumping prediction values') 
                     util_dataset.dump_preds(z_states_inferred[:, -1, 2], state_preds, incorporated_users, t_now, trace_dir_preds, app_user_ids, users_age)
 
+            if online_mse:
+                z_states_inferred_mse, _, _ = mse_inference_func(
+                    observations_now,
+                    contacts_now,
+                    app_user_ids,
+                    non_app_user_ids,
+                    num_rounds,
+                    num_days,
+                    non_app_users_age=non_app_users_age,
+                    diagnostic=diagnostic,
+                    infection_prior=-1.,
+                    user_age_pinf_mean=user_age_pinf_mean,
+                    feature_imp_model=None,
+                    local_mean_baseline=False,
+                    prev_z_states=None,
+                    mse_states=None,
+                )
 
         else:
+            states_today = sim.get_states_today()
             z_states_inferred = np.zeros((num_users, num_days, 4))
+            
+            user_free = (user_quarantine_ends < t_now)
+            incorporated_users = app_users & user_free
+
+            incorporated_user_ids = np.nonzero(incorporated_users)[0]
+            
+            infected_users_mask = states_today[incorporated_user_ids] == 2
+
+            infected_users = incorporated_user_ids[infected_users_mask]
+            
+            z_states_inferred[infected_users, -1, 2] = 1000
+            
 
         # Users that test positive go into quarantine
         users_to_quarantine = obs_today[np.where(obs_today[:, 2] > 0)[0], 0]
@@ -393,8 +479,6 @@ def compare_abm(
 
         if infection_rate > 0:
             positive = np.logical_or(states_today == 1, states_today == 2)
-            # TODO: change rank_score to be just predictions?
-            # TODO: can also use p_inf as predictions, keep everything else
             rank_score = (z_states_inferred[:, -1, 1:3].sum(axis=1) + state_preds)
             # rank_score = state_preds[:, 0] + z_states_inferred[:, -1, 1]
             # rank_score = (z_states_inferred[:, -1, 1] + z_states_inferred[:, -1, 2])
@@ -416,6 +500,9 @@ def compare_abm(
             "load5": loadavg5,
             "swap_use": swap_use,
             "recall": recall,
+            "mae_IMP": mae_at_t_imp,
+            "mae_NA": mae_at_t_NA,
+            'overlap_preds': online_overlap_at_t,
         })
 
     time_pir, pir = np.argmax(infection_rates), np.max(infection_rates)
@@ -432,6 +519,14 @@ def compare_abm(
     elif run_age_baseline:
         running_mean_age_groups = running_mean_age_groups / \
             (num_time_steps - 1)
+            
+    if online_mse:
+        logger.info(f"MAE_imp of total run: {mae_values_imputation.mean()}")
+        logger.info(f'MSE_imp of total run: {mse_values_imputation.mean()}')
+        
+        logger.info(f"MAE_NA of total run: {mae_values_NA.mean()}")
+        logger.info(f'MSE_NA of total run: {mse_values_NA.mean()}')
+        
 
     logger.info((
         f"At day {time_pir} peak infection rate is {pir:.5f} "
@@ -461,6 +556,11 @@ def compare_abm(
         app_users_fraction=float(app_users_fraction),
         run_mean_baseline=float(running_mean),
         running_mean_age_groups=running_mean_age_groups.tolist(),
+        mae_avg_imp=float(mae_values_imputation.mean()),
+        mse_avg_imp=float(mse_values_imputation.mean()),
+        mae_avg_na=float(mae_values_NA.mean()),
+        mse_avg_na=float(mse_values_NA.mean()),
+        overlap=all_online_overlap.tolist(),
     )
 
     time_spent = time.time() - t0

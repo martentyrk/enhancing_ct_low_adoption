@@ -145,6 +145,7 @@ def fact_neigh(
     non_app_users_age:np.ndarray,
     feature_imp_model: Any,
     prev_z_states:np.ndarray,
+    mse_states:np.ndarray,
     local_mean_baseline:bool,
     clip_lower: float = -1.,
     clip_upper: float = 10000.,
@@ -191,6 +192,8 @@ def fact_neigh(
   assert clip_lower < 1
   assert clip_upper > 0
 
+  mse_total = -1
+  mae_total = -1
   # Seq Array is the w in CRISP paper which includes (t_0, d_E, d_I)
   seq_array = np.stack(list(
     # TODO: change start_se to True
@@ -240,18 +243,23 @@ def fact_neigh(
     #   fp.write(f"{max_num_contacts:.0f}\n")
   
   if feature_imp_model:
+    mse_total = 0
+    mae_total = 0
     # Modify past contacts in place with feature imputation model.
-    util.impute_lin_reg(
+    mse_total, mae_total = util.impute_lin_reg(
       non_app_user_ids,
       app_user_ids,
       past_contacts,
       feature_imp_model,
-      infection_prior
+      infection_prior,
+      mse_states
       )
 
     infection_prior = -1.
 
   if local_mean_baseline:
+    mse_total = 0
+    mae_total = 0
     #In place modification of past contacts based on local contact graphs.
     non_app_user_ids_binary = np.zeros((num_users), dtype=int)
     non_app_user_ids_binary[non_app_user_ids] = 1
@@ -259,7 +267,14 @@ def fact_neigh(
     app_users_binary = np.zeros((num_users), dtype=int)
     app_users_binary[app_user_ids] = 1
     
-    util.impute_local_graph(prev_z_states, app_user_ids, app_users_binary, non_app_user_ids_binary, past_contacts)
+    mse_total, mae_total = util.impute_local_graph(
+      prev_z_states,
+      app_user_ids,
+      app_users_binary,
+      non_app_user_ids_binary,
+      past_contacts,
+      mse_states
+    )
 
 
   t_preamble2 = time.time() - t_start_preamble
@@ -296,4 +311,4 @@ def fact_neigh(
 
   post_exp_collect = post_exp
 
-  return post_exp_collect
+  return post_exp_collect, {'mse': mse_total, 'mae':mae_total}

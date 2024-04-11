@@ -136,7 +136,8 @@ def decide_tests(
   assert num_tests < len(scores_infect)
   sort_indeces = np.argsort(scores_infect)
   # Sort the list of user_ids based on scores, then assign tests to the num tests highest
-  users_to_test = sort_indeces[user_ids][-num_tests:]
+  mask = np.isin(sort_indeces, user_ids)
+  users_to_test = sort_indeces[mask][-num_tests:]
   return users_to_test.astype(np.int32)
 
 

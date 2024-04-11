@@ -118,12 +118,13 @@ def wrap_fact_neigh_inference(
       user_age_pinf_mean:np.ndarray,
       feature_imp_model: Any,
       local_mean_baseline:bool,
-      prev_z_states:np.ndarray,
+      prev_z_states:np.ndarray = None,
+      mse_states:np.ndarray=None,
       non_app_users_age: Optional[np.ndarray] = None,
       diagnostic: Optional[Any] = None
       ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
 
-    traces_per_user_fn = inference.fact_neigh(
+    traces_per_user_fn, mse_loss = inference.fact_neigh(
       num_users=num_users,
       app_user_ids=app_user_ids,
       non_app_user_ids=non_app_user_ids,
@@ -141,6 +142,7 @@ def wrap_fact_neigh_inference(
       non_app_users_age=non_app_users_age,
       feature_imp_model=feature_imp_model,
       prev_z_states=prev_z_states,
+      mse_states=mse_states,
       local_mean_baseline=local_mean_baseline,
       clip_lower=clip_lower,  # Lower bound for clipping, depends on method
       clip_upper=clip_upper,  # Upper bound for clipping, depends on method
@@ -151,7 +153,7 @@ def wrap_fact_neigh_inference(
       trace_dir=trace_dir,
       diagnostic=diagnostic,
       )
-    return traces_per_user_fn, None
+    return traces_per_user_fn, None, mse_loss
 
   return fact_neigh_wrapped
 

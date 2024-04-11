@@ -91,6 +91,7 @@ if __name__ == "__main__":
                         type=str,
                         default=None,
                         help='Path to the feature imputation model')
+    parser.add_argument('--online_mse', action='store_true')
     
 
     num_threads = 16
@@ -127,6 +128,7 @@ if __name__ == "__main__":
     config_wandb['std_rank_noise'] = args.std_rank_noise
     config_wandb['feature_propagation'] = args.feature_propagation
     config_wandb['feature_imp_model'] = args.feature_imp_model
+    config_wandb['online_mse'] = args.online_mse
     
     if args.num_time_steps:
         config_wandb["data"]["num_time_steps"] = args.num_time_steps
