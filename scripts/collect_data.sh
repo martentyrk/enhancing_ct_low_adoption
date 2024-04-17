@@ -8,9 +8,9 @@
 #SBATCH --output=data_collection%A.out
 
 seed=$1
-adoption_rate=0.3
+adoption_rate=0.6
 
-dirname="../../../../scratch-shared/mturk/datadump_03_seeds_covasim_local_mean/trace_high_mem_run_cov_local_mean_collect_seed_${seed}_dump_traces_adaption_${adoption_rate}/test_with_obs_${seed}"
+dirname="../../../../scratch-shared/mturk/datadump_06_abm_raw_mergenonappusers/trace_high_mem_run_abm_seed${seed}_dump_traces_adaption_${adoption_rate}/test_with_obs_${seed}"
 dirname_out=${dirname}_out
 file_out="all_${seed}_${adoption_rate}.jl"
 # Concatenate and shuffle train and validation sets

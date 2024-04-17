@@ -25,6 +25,9 @@ class StoreSEIR(cv.Analyzer):
 
     self.precisions = np.zeros((num_days), dtype=np.float32)
     self.recalls = np.zeros((num_days), dtype=np.float32)
+    
+    self.user_recalls = np.zeros((num_days), dtype=np.float32)
+    self.user_precisions = np.zeros((num_days), dtype=np.float32)
 
     self.timestamps = np.zeros((num_days+1), dtype=np.float64)
     self._time_prev = time.time()
@@ -42,10 +45,15 @@ class StoreSEIR(cv.Analyzer):
     self.r_rate[day] = ppl.recovered.sum() + ppl.dead.sum() / num_people
 
     self.crit_rate[day] = (ppl.severe.sum() + ppl.critical.sum()) / num_people
-
+    
+    app_users = sim.app_users
+    app_user_ids = np.nonzero(app_users)[0]
     isolated = np.logical_or(ppl.isolated, ppl.quarantined)
     true_positives = np.sum(np.logical_and(isolated, ppl.infectious))
-
+    
+    app_user_true_positives = np.sum(np.logical_and(isolated, ppl.infectious)[app_user_ids])
+    app_user_infectious = ppl.infectious[app_user_ids]
+    
     self.isolation_rate[day] = np.sum(isolated) / num_people
 
     # precision should be 1 when there are no false positives
@@ -53,6 +61,11 @@ class StoreSEIR(cv.Analyzer):
 
     # Number of infected people in isolation over total number of infected
     self.recalls[day] = (true_positives+1E-9) / (np.sum(ppl.infectious) + 1E-9)
+    
+    # Number of infected people amongst app users in isolation over total number of infected app users
+    self.user_recalls[day] = (app_user_true_positives+1E-9) / (np.sum(app_user_infectious)+1E-9)
+    self.user_precisions[day] = (app_user_true_positives+1E-9) / (np.sum(isolated[app_user_ids]) + 1E-9)
+    
     self.timestamps[day] = time.time() - self._time_prev
     self._time_prev = time.time()
 
@@ -61,6 +74,7 @@ class StoreSEIR(cv.Analyzer):
 
     logger.info((
       f"On day {day:3} recall is {self.recalls[day]:.2f} "
+      f"app user recall is {self.user_recalls[day]:.2f}"
       f"at IR {self.i_rate[day] + self.e_rate[day]:.4f} "
       f"timediff {self.timestamps[day]:8.1f}"
       f"({time_inf_func:5.1f})"))

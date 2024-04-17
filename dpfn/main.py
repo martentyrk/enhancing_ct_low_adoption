@@ -92,6 +92,9 @@ if __name__ == "__main__":
                         default=None,
                         help='Path to the feature imputation model')
     parser.add_argument('--online_mse', action='store_true')
+    parser.add_argument('--one_hot_encoding',
+                        action='store_true',
+                        help='Whether interaction type should be converted into one hot or not.')
     
 
     num_threads = 16
@@ -110,7 +113,6 @@ if __name__ == "__main__":
     fname_config_data = f"dpfn/config/{configname_data}.ini"
     fname_config_model = f"dpfn/config/{configname_model}.ini"
     data_dir = f"dpfn/data/{configname_data}/"
-
     inf_method = args.inference_method
     
     config_data = config.ConfigBase(fname_config_data)
@@ -129,6 +131,8 @@ if __name__ == "__main__":
     config_wandb['feature_propagation'] = args.feature_propagation
     config_wandb['feature_imp_model'] = args.feature_imp_model
     config_wandb['online_mse'] = args.online_mse
+    config_wandb['one_hot'] = args.one_hot_encoding
+    config_wandb['simulator'] = args.simulator
     
     if args.num_time_steps:
         config_wandb["data"]["num_time_steps"] = args.num_time_steps
@@ -202,9 +206,10 @@ if __name__ == "__main__":
         sim_name = 'abm'
     if args.model:
       input_str = args.name
-      experiment_name = f'{input_str}_run_abm_seed_model' + \
+      experiment_name = f'{input_str}_run_{sim_name}_seed_model' + \
           str(args.model) + '_seed_' + str(seed_value)
-    
+    elif args.inference_method == 'random':
+        experiment_name = f'run_{sim_name}_oracle_seed' + str(seed_value)
     elif args.static_baseline:
         if args.mean_baseline:
             experiment_name = f'run_{sim_name}_static_mean_seed_' + str(seed_value)

@@ -12,7 +12,7 @@ from dpfn.experiments import (
 from dpfn import logger
 from joblib import load
 from experiments.model_utils import make_predictions
-from experiments.util_dataset import create_dataset, create_dataset5_feat, create_dataset5_feat_cat
+from experiments.util_dataset import create_dataset
 
 def compare_policy_covasim(
     inference_method: str,
@@ -130,12 +130,18 @@ def compare_policy_covasim(
     the tests are run. It returns a dictionary with the keys 'inds' and 'vals'.
     """
     inds = sim.people.uid
-    vals = np.random.rand(len(sim.people))  # Create the array
+    # vals = np.random.rand(len(sim.people))  # Create the array
+    
 
     # Uncomment these lines to deterministically test people that are exposed
-    # vals = np.ones(len(sim.people))  # Create the array
-    # exposed = cv.true(sim.people.exposed)
-    # vals[exposed] = 100  # Probability for testing
+    app_users = sim.app_users
+    app_user_ids = np.nonzero(app_users)[0]
+    
+    vals = np.ones(len(sim.people))  # Create the array
+    exposed = cv.true(sim.people.exposed)
+    
+    exposed_appusers_intersect = np.intersect1d(exposed, app_user_ids)
+    vals[exposed_appusers_intersect] = 100  # Probability for testing
     return {'inds': inds, 'vals': vals}, history
 
   def subtarget_func_inference(sim, history):
@@ -148,20 +154,18 @@ def compare_policy_covasim(
     # Slice window
 
     # TODO(rob): no need to compute this every timestep
-    users_age = np.digitize(
-      sim.people.age, np.array([0, 10, 20, 30, 40, 50, 60, 70, 80, 90,])) - 1
-    users_age = users_age.astype(np.int32)
+    # users_age = np.digitize(
+    #   sim.people.age, np.array([0, 10, 20, 30, 40, 50, 60, 70, 80, 90,])) - 1
+    # users_age = users_age.astype(np.int32)
+    users_age = sim.users_age
+    app_users = sim.app_users
     
     pred_placeholder = np.zeros((num_users), dtype=np.float32)
     state_preds = np.zeros((num_users), dtype=np.float32)
-    
-    app_users = prequential.generate_app_users(
-        num_users=num_users, users_ages=users_age, app_users_fraction=app_users_fraction)
+        
     app_user_ids = np.nonzero(app_users)[0]
     non_app_user_ids = np.where(app_users == 0)[0]
-    app_user_frac_num = app_user_ids.shape[0]
-    
-    app_users_age = users_age[app_users == 1]
+
     non_app_users_age = users_age[app_users == 0]
     
     user_age_pinf_mean = -1. * np.ones((9), dtype=np.float32)
@@ -261,9 +265,9 @@ def compare_policy_covasim(
         
         if run_mean_baseline:
           infection_prior_now = np.mean(pred[app_user_ids, -1, 2])
-          train_loader = create_dataset5_feat(model_data, model_type, infection_prior=infection_prior, add_weights=add_weights)
+          train_loader = create_dataset(model_data, model_type, cfg, infection_prior=infection_prior, add_weights=add_weights)
         else:
-          train_loader = create_dataset5_feat(model_data, model_type, add_weights=add_weights)
+          train_loader = create_dataset(model_data, model_type, cfg, add_weights=add_weights, local_mean_base=run_local_mean_baseline)
           
         all_preds = []
         all_preds = make_predictions(
@@ -348,7 +352,7 @@ def compare_policy_covasim(
 
   # TODO: fix this to new keyword
   subtarget_func = (
-    subtarget_func_random if False else subtarget_func_inference)
+    subtarget_func_random if do_random else subtarget_func_inference)
 
   #TODO: test fraction should be app_users_frac_num if its lower, since we can
   # only test the app users.
@@ -366,7 +370,8 @@ def compare_policy_covasim(
   sim = cv.Sim(
     pars,
     interventions=test_intervention,
-    analyzers=util_covasim.StoreSEIR(num_days=num_time_steps, label='analysis'))
+    analyzers=util_covasim.StoreSEIR(num_days=num_time_steps, label='analysis'),
+    app_users_fraction = app_users_fraction)
 
   # COVASIM run() runs the entire simulation, including the initialization
   sim.set_seed(seed=seed)
@@ -392,6 +397,8 @@ def compare_policy_covasim(
     cfg=cfg,
     precisions=analysis.precisions.tolist(),
     recalls=analysis.recalls.tolist(),
+    user_precisions=analysis.user_precisions.tolist(),
+    user_recalls=analysis.user_recalls.tolist(),
     exposed_rates=analysis.e_rate.tolist(),
     infection_rates=infection_rates.tolist(),
     num_quarantined=analysis.isolation_rate.tolist(),
@@ -424,7 +431,10 @@ def compare_policy_covasim(
     "loadavg15": loadavg15,
     "swap_use": swap_use,
     "recall": np.nanmean(analysis.recalls[10:]),
-    "precision": np.nanmean(analysis.precisions[10:])}
+    "precision": np.nanmean(analysis.precisions[10:]),
+    "user_recall": np.nanmean(analysis.user_recalls[10:]),
+    "user_precision": np.nanmean(analysis.user_precisions[10:]),
+  }
   runner.log(results)
 
   return results

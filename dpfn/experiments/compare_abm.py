@@ -15,7 +15,7 @@ from dpfn import logger
 from dpfn import simulator
 import torch
 from experiments.model_utils import make_predictions
-from experiments.util_dataset import create_dataset, create_dataset5_feat, create_dataset5_feat_cat
+from experiments.util_dataset import create_dataset
 from joblib import load
 
 
@@ -154,6 +154,8 @@ def compare_abm(
     pir_running = 0.
     precisions = np.zeros((num_time_steps))
     recalls = np.zeros((num_time_steps))
+    user_recalls = np.zeros((num_time_steps))
+    user_precisions = np.zeros((num_time_steps))
     infection_rates = np.zeros((num_time_steps))
     exposed_rates = np.zeros((num_time_steps))
     critical_rates = np.zeros((num_time_steps))
@@ -220,14 +222,10 @@ def compare_abm(
         num_tests = test_frac if test_frac <= app_user_frac_num else app_user_frac_num
         logger.info(f"Number of tests: {num_tests}")
         
-        user_free = (user_quarantine_ends < t_now)
-        incorporated_users = app_users & user_free
-        incorporated_user_ids = np.nonzero(incorporated_users)[0]
-        
         users_to_test = prequential.decide_tests(
             scores_infect=rank_score,
             num_tests=num_tests,
-            user_ids=incorporated_user_ids)
+            user_ids=app_user_ids)
 
         if online_mse:
             online_rank_score = (z_states_inferred_mse[:, -1, 1] + z_states_inferred_mse[:, -1, 2])
@@ -369,9 +367,9 @@ def compare_abm(
 
                 if run_mean_baseline:
                     infection_prior_now = np.mean(z_states_inferred[app_user_ids, -1, 2])
-                    train_loader = create_dataset5_feat(model_data, model_type, infection_prior=infection_prior, add_weights=add_weights)
+                    train_loader = create_dataset(model_data, model_type, cfg, infection_prior=infection_prior, add_weights=add_weights)
                 else:
-                    train_loader = create_dataset5_feat(model_data, model_type, add_weights=add_weights)
+                    train_loader = create_dataset(model_data, model_type, cfg, add_weights=add_weights)
 
                 all_preds = []
                 all_preds = make_predictions(
@@ -416,20 +414,14 @@ def compare_abm(
                 )
 
         else:
+            logger.info('Running oracle model')
             states_today = sim.get_states_today()
             z_states_inferred = np.zeros((num_users, num_days, 4))
             
-            user_free = (user_quarantine_ends < t_now)
-            incorporated_users = app_users & user_free
-
-            incorporated_user_ids = np.nonzero(incorporated_users)[0]
-            
-            infected_users_mask = states_today[incorporated_user_ids] == 2
-
-            infected_users = incorporated_user_ids[infected_users_mask]
+            infected_users_mask = np.logical_or(states_today[app_user_ids] == 1, states_today[app_user_ids] == 2)
+            infected_users = app_user_ids[infected_users_mask]
             
             z_states_inferred[infected_users, -1, 2] = 1000
-            
 
         # Users that test positive go into quarantine
         users_to_quarantine = obs_today[np.where(obs_today[:, 2] > 0)[0], 0]
@@ -448,7 +440,13 @@ def compare_abm(
         # NOTE: fpr is only defined as long as num_users_quarantine is fixed.
         # else switch to precision and recall
         states_today = sim.get_states_today()
-        # states_today_only_appusers = states_today[app_user_ids]
+        user_states_today = states_today[app_user_ids]
+        app_user_quarantine_ends = user_quarantine_ends[app_user_ids]
+        
+        app_user_precision, app_user_recall = prequential.calc_prec_recall(
+            user_states_today, app_user_quarantine_ends > t_now
+        )
+        
         precision, recall = prequential.calc_prec_recall(
             states_today, user_quarantine_ends > t_now)
         infection_rate = np.mean(states_today == 2)
@@ -462,6 +460,8 @@ def compare_abm(
 
         precisions[t_now] = precision
         recalls[t_now] = recall
+        user_recalls[t_now] = app_user_recall
+        user_precisions[t_now] = app_user_precision
         infection_rates[t_now] = infection_rate
         critical_rates[t_now] = sim.get_critical_rate()
         exposed_rates[t_now] = np.mean(
@@ -500,6 +500,8 @@ def compare_abm(
             "load5": loadavg5,
             "swap_use": swap_use,
             "recall": recall,
+            "user_recall": app_user_recall,
+            "user_precision": app_user_precision,
             "mae_IMP": mae_at_t_imp,
             "mae_NA": mae_at_t_NA,
             'overlap_preds': online_overlap_at_t,
@@ -561,6 +563,8 @@ def compare_abm(
         mae_avg_na=float(mae_values_NA.mean()),
         mse_avg_na=float(mse_values_NA.mean()),
         overlap=all_online_overlap.tolist(),
+        user_recalls=user_recalls.tolist(),
+        user_precisions=user_precisions.tolist()
     )
 
     time_spent = time.time() - t0
