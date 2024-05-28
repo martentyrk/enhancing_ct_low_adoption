@@ -60,8 +60,9 @@ def compare_policy_covasim(
   add_weights = (model_type == 'gcn_weight')
   feature_prop = cfg['feature_propagation']
   feature_imp_model = None
+  one_hot_encoder = None
   if cfg.get('feature_imp_model'):
-      feature_imp_model = load(cfg.get('feature_imp_model'))
+      feature_imp_model, one_hot_encoder = load('dpfn/config/feature_imp_configs/' + cfg.get('feature_imp_model'))
   
   
   #Percentage of app users in population
@@ -151,12 +152,7 @@ def compare_policy_covasim(
     the tests are run. It returns a dictionary with the keys 'inds' and 'vals'.
     """
     assert isinstance(history, dict)
-    # Slice window
-
-    # TODO(rob): no need to compute this every timestep
-    # users_age = np.digitize(
-    #   sim.people.age, np.array([0, 10, 20, 30, 40, 50, 60, 70, 80, 90,])) - 1
-    # users_age = users_age.astype(np.int32)
+    
     users_age = sim.users_age
     app_users = sim.app_users
     
@@ -245,6 +241,7 @@ def compare_policy_covasim(
         infection_prior=infection_prior,
         user_age_pinf_mean=user_age_pinf_mean,
         feature_imp_model = feature_imp_model,
+        one_hot_encoder=one_hot_encoder,
         local_mean_baseline=run_local_mean_baseline,
         prev_z_states=pred_placeholder,
         mse_states = -1. * np.ones((1, 1, 4), dtype=np.float32),
@@ -386,11 +383,18 @@ def compare_policy_covasim(
   
   
   infection_rates = analysis.e_rate + analysis.i_rate
+  user_infection_rates = analysis.user_e_rate + analysis.user_i_rate
   peak_crit_rate = np.max(analysis.crit_rate)
+  peak_user_crit_rate = np.max(analysis.user_crit_rate)
 
   # Calculate PIR and Drate
   time_pir, pir = np.argmax(infection_rates), np.max(infection_rates)
+  user_pir = np.max(user_infection_rates)
+  
+  app_users = sim.app_users
+  
   total_drate = sim.people.dead.sum() / len(sim.people)
+  user_total_drate = sim.people.dead[app_users].sum() / app_users.sum()
 
   prequential.dump_results_json(
     datadir=results_dir,
@@ -401,6 +405,7 @@ def compare_policy_covasim(
     user_recalls=analysis.user_recalls.tolist(),
     exposed_rates=analysis.e_rate.tolist(),
     infection_rates=infection_rates.tolist(),
+    user_infection_rates=user_infection_rates.tolist(),
     num_quarantined=analysis.isolation_rate.tolist(),
     critical_rates=analysis.crit_rate.tolist(),
     likelihoods_state=history_intv['likelihoods_state'].tolist(),
@@ -410,6 +415,7 @@ def compare_policy_covasim(
     pir=float(np.max(infection_rates)),
     pcr=float(np.max(analysis.crit_rate)),
     total_drate=float(total_drate),
+    user_total_drate=float(user_total_drate),
     quantization=quantization,
     seed=cfg.get("seed", -1))
 
@@ -425,8 +431,11 @@ def compare_policy_covasim(
   results = {
     "time_spent": time_spent,
     "pir_mean": pir,
+    "user_pir_mean": user_pir,
     "pcr": peak_crit_rate,
+    "user_pcr": peak_user_crit_rate,
     "total_drate": total_drate,
+    "user_drate": user_total_drate,
     "loadavg5": loadavg5,
     "loadavg15": loadavg15,
     "swap_use": swap_use,

@@ -18,7 +18,6 @@ from experiments.model_utils import make_predictions
 from experiments.util_dataset import create_dataset
 from joblib import load
 
-
 def compare_abm(
     inference_method: str,
     cfg: Dict[str, Any],
@@ -48,7 +47,7 @@ def compare_abm(
     policy_weight_01 = cfg["model"]["policy_weight_01"]
     policy_weight_02 = cfg["model"]["policy_weight_02"]
     policy_weight_03 = cfg["model"]["policy_weight_03"]
-    pred_days = cfg['model']['pred_days']
+    
     rng_seed = cfg.get("seed", 123)
     feature_prop = cfg['feature_propagation']
 
@@ -56,8 +55,9 @@ def compare_abm(
 
     app_users_fraction = cfg["data"]["app_users_fraction"]
     feature_imp_model = None
+    one_hot_encoder = None
     if cfg.get('feature_imp_model'):
-        feature_imp_model = load(cfg.get('feature_imp_model'))
+        feature_imp_model, one_hot_encoder = load('dpfn/config/feature_imp_configs/' + cfg.get('feature_imp_model'))
     
     # When doing a sweep, then use parameters from there.
     if 'app_users_fraction_wandb' in cfg:
@@ -157,6 +157,7 @@ def compare_abm(
     user_recalls = np.zeros((num_time_steps))
     user_precisions = np.zeros((num_time_steps))
     infection_rates = np.zeros((num_time_steps))
+    user_infection_rates = np.zeros((num_time_steps))
     exposed_rates = np.zeros((num_time_steps))
     critical_rates = np.zeros((num_time_steps))
     likelihoods_state = np.zeros((num_time_steps))
@@ -165,6 +166,7 @@ def compare_abm(
     ave_precision = np.zeros((num_time_steps))
     num_quarantined = np.zeros((num_time_steps), dtype=np.int32)
     num_tested = np.zeros((num_time_steps), dtype=np.int32)
+
 
     # Placeholder for tests on first day
     z_states_inferred = np.zeros((num_users, 1, 4), dtype=np.float32)
@@ -302,6 +304,7 @@ def compare_abm(
                 infection_prior=infection_prior,
                 user_age_pinf_mean=user_age_pinf_mean,
                 feature_imp_model=feature_imp_model,
+                one_hot_encoder=one_hot_encoder,
                 local_mean_baseline=run_local_mean_baseline,
                 prev_z_states=z_states_inferred[:, -1, 2],
                 mse_states=z_states_inferred_mse,
@@ -450,6 +453,7 @@ def compare_abm(
         precision, recall = prequential.calc_prec_recall(
             states_today, user_quarantine_ends > t_now)
         infection_rate = np.mean(states_today == 2)
+        user_infection_rate = np.mean(user_states_today == 2)
         exposed_rate = np.mean(
             np.logical_or(states_today == 1, states_today == 2))
         pir_running = max((pir_running, infection_rate))
@@ -463,6 +467,7 @@ def compare_abm(
         user_recalls[t_now] = app_user_recall
         user_precisions[t_now] = app_user_precision
         infection_rates[t_now] = infection_rate
+        user_infection_rates[t_now] = user_infection_rate
         critical_rates[t_now] = sim.get_critical_rate()
         exposed_rates[t_now] = np.mean(
             np.logical_or(states_today == 1, states_today == 2))
@@ -496,6 +501,7 @@ def compare_abm(
         runner.log({
             "time_step": time_full_loop,
             "infection_rate": infection_rate,
+            "user_infection_rate": user_infection_rate,
             "load1": loadavg1,
             "load5": loadavg5,
             "swap_use": swap_use,
@@ -509,7 +515,9 @@ def compare_abm(
 
     time_pir, pir = np.argmax(infection_rates), np.max(infection_rates)
     total_drate = sim.get_death_rate()
-
+    simulator_states = sim._get_states_abm()
+    simulator_user_states = simulator_states[app_user_ids]
+    user_total_drate = np.mean(simulator_user_states == 9)
     # We need to deduct -1 because the first time a value gets added we add 0 to the sum,
     # which does not account for the total accumulation of the mean.
     if run_mean_baseline:
@@ -544,6 +552,7 @@ def compare_abm(
         critical_rates=critical_rates.tolist(),
         inference_method=inference_method,
         infection_rates=infection_rates.tolist(),
+        user_infection_rates=user_infection_rates.tolist(),
         likelihoods_state=likelihoods_state.tolist(),
         name=runner.name,
         num_quarantined=num_quarantined.tolist(),
@@ -551,6 +560,7 @@ def compare_abm(
         pir=float(pir),
         pcr=float(np.max(critical_rates)),
         total_drate=float(total_drate),
+        total_user_drate=float(user_total_drate),
         precisions=precisions.tolist(),
         quantization=quantization,
         recalls=recalls.tolist(),
@@ -576,6 +586,7 @@ def compare_abm(
             "pir_mean": pir,
             "pcr": np.max(critical_rates),
             "total_drate": total_drate,
+            "total_user_drate": user_total_drate,
             "recall": np.nanmean(recalls[10:]),
             "precision": np.nanmean(precisions[10:])}
     runner.log(results)
@@ -584,5 +595,5 @@ def compare_abm(
     # Overwrite every experiment, such that code could be pre-empted
     prequential.dump_results(
         results_dir, precisions=precisions, recalls=recalls,
-        infection_rates=infection_rates)
+        infection_rates=infection_rates, user_infection_rates=user_infection_rates)
     return results

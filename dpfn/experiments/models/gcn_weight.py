@@ -85,13 +85,13 @@ class GCN_Weights(nn.Module):
         super(GCN_Weights, self).__init__()
         self.msg_weights = nn.Parameter(torch.randn(3), requires_grad=True)
         
-        self.emb = nn.Linear(num_features - 1, 63)
+        # self.emb = nn.Linear(num_features - 1, 63)
         
         gcn_layers = [
-            (GCNConv(64, nhid), 'x, edge_index, edge_weight -> x'),
+            (GCNConv(num_features, nhid), 'x, edge_index, edge_weight -> x'),
             # (GraphConv(num_features, nhid, aggr='max'), 'x, edge_index -> x'),
             (nn.Dropout(dropout), 'x -> x'),
-            (nn.ReLU(inplace=True), 'x -> x')
+            (nn.ReLU(inplace=True), 'x -> x'),
         ]
         
         
@@ -136,20 +136,14 @@ class GCN_Weights(nn.Module):
         
         softmax_params = F.softmax(self.msg_weights, dim=0)
         
-        known_param = softmax_params[0]
-        unk_param = softmax_params[1]
-        obs_param = softmax_params[2]
+        edge_weights[known_mask] = softmax_params[0]
+        edge_weights[unk_mask] = softmax_params[1]
+        edge_weights[obs_mask] = softmax_params[2]
         
-        edge_weights[known_mask] = known_param
-        edge_weights[unk_mask] = unk_param
-        edge_weights[obs_mask] = obs_param
+        # x_fn = x[:, 0].unsqueeze(1)
+        # x_rest = self.emb(x[:, 1:])
         
-        x_fn = x[:, 0].unsqueeze(1)
-        x_rest = x[:, 1:]
-        
-        x_rest = self.emb(x_rest)
-        
-        x = torch.cat((x_fn, x_rest), 1)
+        # x = torch.cat((x_fn, x_rest), 1)
         
         x = self.gcn(x, edge_index=edge_index, edge_weight=edge_weights)
 

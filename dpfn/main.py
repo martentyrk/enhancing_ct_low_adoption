@@ -29,12 +29,12 @@ if __name__ == "__main__":
                         choices=[
                             'fn', 'dummy', 'random', 'dpct', 'fncpp'],
                         help='Name of the inference method')
-    parser.add_argument('--simulator', type=str, default='covasim',
+    parser.add_argument('--simulator', type=str, default='abm',
                         choices=['abm', 'covasim'],
                         help='Name of the simulator')
-    parser.add_argument('--config_data', type=str, default='intermediate_graph_cv_01',
+    parser.add_argument('--config_data', type=str, default='intermediate_graph_abm_02',
                         help='Name of the config file for the data')
-    parser.add_argument('--config_model', type=str, default='model_CV01',
+    parser.add_argument('--config_model', type=str, default='model_ABM01',
                         help='Name of the config file for the model')
     parser.add_argument('--name', type=str, default=None,
                         help=('Name of the experiments. WandB will set a random'
@@ -44,8 +44,9 @@ if __name__ == "__main__":
     parser.add_argument('--app_users_fraction', type=float, default=None)
     parser.add_argument('--modify_contacts', action='store_true')
     parser.add_argument('--age_baseline', action='store_true')
-    parser.add_argument('--mean_baseline', action='store_true')
+    parser.add_argument('--mean_baseline', action='store_true', help='Global average feature imputation baseline')
     parser.add_argument('--local_mean_baseline', action='store_true')
+    parser.add_argument('--gaussian_baseline', action='store_true', help='Gaussian sampling for feature imputation')
     parser.add_argument('--static_baseline', action='store_true')
     parser.add_argument('--static_baseline_path', type=str,
                         default='dpfn/data/static_mean_baseline_results')
@@ -95,7 +96,7 @@ if __name__ == "__main__":
     parser.add_argument('--one_hot_encoding',
                         action='store_true',
                         help='Whether interaction type should be converted into one hot or not.')
-    
+
 
     num_threads = 16
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -107,7 +108,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     # Both baselines should not be used at the same time.
     assert sum([args.age_baseline, args.mean_baseline]) <= 1
-
+ 
     configname_data = args.config_data
     configname_model = args.config_model
     fname_config_data = f"dpfn/config/{configname_data}.ini"
@@ -133,6 +134,7 @@ if __name__ == "__main__":
     config_wandb['online_mse'] = args.online_mse
     config_wandb['one_hot'] = args.one_hot_encoding
     config_wandb['simulator'] = args.simulator
+    config_wandb['gaussian_baseline'] = args.gaussian_baseline
     
     if args.num_time_steps:
         config_wandb["data"]["num_time_steps"] = args.num_time_steps
@@ -187,9 +189,9 @@ if __name__ == "__main__":
         logger.info(f'Running with the deep model: {str(args.model)}')
 
         dl_model = get_model(args.model, n_layers=args.n_layers, nhid=args.nhid).to(device)
-        saved_model = torch.load(f"dpfn/config/dl_configs/" + args.model_name, map_location=torch.device(device))
+        saved_model = torch.load(f"dpfn/config/dl_configs/" + args.simulator + '/' + args.model_name, map_location=torch.device(device))
         dl_model.load_state_dict(saved_model)
-        
+
         if args.model == 'gcn_weight':
             logger.info(f"Three of the model weights: {dl_model.msg_weights}")
         dl_model.eval()
@@ -206,17 +208,17 @@ if __name__ == "__main__":
         sim_name = 'abm'
     if args.model:
       input_str = args.name
-      experiment_name = f'{input_str}_run_{sim_name}_seed_model' + \
+      experiment_name = f'{input_str}_run_{sim_name}_seed_model_' + \
           str(args.model) + '_seed_' + str(seed_value)
     elif args.inference_method == 'random':
-        experiment_name = f'run_{sim_name}_oracle_seed' + str(seed_value)
+        experiment_name = f'run_{sim_name}_oracle_seed_' + str(seed_value)
     elif args.static_baseline:
         if args.mean_baseline:
             experiment_name = f'run_{sim_name}_static_mean_seed_' + str(seed_value)
         elif args.age_baseline:
             experiment_name = f'run_{sim_name}_static_age_seed_' + str(seed_value)
     elif args.feature_imp_model:
-      experiment_name = f'run_{sim_name}_linreg_collect_seed_' + str(seed_value)
+      experiment_name = f'run_{sim_name}_linreg_seed_' + str(seed_value)
     elif args.mean_baseline:
       experiment_name = f'run_{sim_name}_mean_collect_seed_' + str(seed_value)
     elif args.local_mean_baseline:
@@ -224,7 +226,7 @@ if __name__ == "__main__":
     elif args.age_baseline:
       experiment_name = f'run_{sim_name}_age_seed_' + str(seed_value)
     else:
-      experiment_name = f'run_{sim_name}_seed' + str(seed_value)
+      experiment_name = f'run_{sim_name}_seed_' + str(seed_value)
 
     if args.dump_traces:
       experiment_name = experiment_name + '_dump_traces'

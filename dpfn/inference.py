@@ -27,11 +27,13 @@ def fn_step_wrapped(
     past_contacts_array: np.ndarray,
     user_age_pinf_mean: np.ndarray,
     non_app_users_age: np.ndarray,
+    prev_z_states: np.ndarray,
     clip_lower: float = -1.,
     clip_upper: float = 10000.,
     quantization: int = -1,
     infection_prior: float = -1,
-    non_app_user_ids: np.ndarray = np.array([]),):
+    non_app_user_ids: np.ndarray = np.array([]),
+    ):
   """Wraps one step of Factorised Neighbors over a subset of users.
 
   Args:
@@ -83,6 +85,15 @@ def fn_step_wrapped(
   seq_array_hot = seq_array_hot.astype(np.single)
   num_sequences = seq_array_hot.shape[2]
 
+  # inf_mean = np.mean(prev_z_states)
+  # inf_std = np.std(prev_z_states)
+  # util.gaussian_imputation(
+  #   inf_mean,
+  #   inf_std,
+  #   p_infected_matrix,
+  #   non_app_user_ids
+  # )
+  
   if infection_prior != -1.:
       p_infected_matrix[non_app_user_ids, :] = infection_prior
   elif not np.all(user_age_pinf_mean == -1.):
@@ -144,6 +155,7 @@ def fact_neigh(
     user_age_pinf_mean:np.ndarray,
     non_app_users_age:np.ndarray,
     feature_imp_model: Any,
+    one_hot_encoder: Any,
     prev_z_states:np.ndarray,
     mse_states:np.ndarray,
     local_mean_baseline:bool,
@@ -236,13 +248,42 @@ def fact_neigh(
     logger.warning(
       f"Max number of contacts {max_num_contacts} >= {num_max_msg}")
 
+  
   # if trace_dir:
   #   pass
     # fname = os.path.join(trace_dir, f"fact_neigh_.txt")
     # with open(fname, 'a') as fp:
     #   fp.write(f"{max_num_contacts:.0f}\n")
+  # if len(output['contacts']) > 0:
+        #     output['contacts'] = np.array(output['contacts'])
+        #     non_app_user_mask = output['contacts'][:, -2] == 0
+        #     non_app_contacts = output['contacts'][non_app_user_mask]
+        #     app_contacts = output['contacts'][~non_app_user_mask]
+            
+        #     non_app_contacts[:, [1, 2, 3]] = -1.
+        #     unique_contacts = np.unique(non_app_contacts, axis=0)
+        #     output['contacts'] = np.vstack((unique_contacts, app_contacts))
+        #     np.random.shuffle(output['contacts'])
+        #     output['contacts'] = output['contacts'].tolist()
+        
+  #contacts_past = [time, contact_id, interaction type, imputation_score]
+  # for i, contact_array in enumerate(past_contacts):
+  #   non_app_user_mask = np.isin(contact_array[:, 1], non_app_user_ids)
+  #   # check time and int type
+  #   columns_to_check = contact_array[non_app_user_mask, :][:, [0, 2]]
+  #   _, unique_indeces = np.unique(columns_to_check, axis=0, return_index=True)
+  #   unique_rows = contact_array[non_app_user_mask][unique_indeces]
+  #   contacts_to_keep = contact_array[~non_app_user_mask]
+  #   number_of_app_users = sum(np.isin(contacts_to_keep[:, 1], app_user_ids))
+  #   contacts_to_keep[number_of_app_users:number_of_app_users + len(unique_rows), :] = unique_rows
+  #   padding = -1. * np.ones((constants.CTC - contacts_to_keep.shape[0], 4))
+  #   contacts_to_keep = np.concatenate((contacts_to_keep, padding))
+
+  #   past_contacts[i] = contacts_to_keep
+
   
   if feature_imp_model:
+    t_linreg_0 = time.time()
     mse_total = 0
     mae_total = 0
     # Modify past contacts in place with feature imputation model.
@@ -251,11 +292,15 @@ def fact_neigh(
       app_user_ids,
       past_contacts,
       feature_imp_model,
-      infection_prior,
+      one_hot_encoder,
+      prev_z_states,
       mse_states
       )
 
+    t_linreg_1 = time.time()
+    logger.info(f"Time spent on linear regression {time.time() - t_linreg_1}")
     infection_prior = -1.
+    
 
   if local_mean_baseline:
     mse_total = 0
@@ -302,6 +347,7 @@ def fact_neigh(
       non_app_users_age = non_app_users_age,
       user_age_pinf_mean = user_age_pinf_mean,
       non_app_user_ids = non_app_user_ids,
+      prev_z_states = prev_z_states,
       )
 
     if verbose:

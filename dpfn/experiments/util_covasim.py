@@ -17,12 +17,19 @@ class StoreSEIR(cv.Analyzer):
     self.e_rate = np.zeros((num_days), dtype=np.float32)
     self.i_rate = np.zeros((num_days), dtype=np.float32)
     self.r_rate = np.zeros((num_days), dtype=np.float32)
+    
+    self.user_s_rate = np.zeros((num_days), dtype=np.float32)
+    self.user_e_rate = np.zeros((num_days), dtype=np.float32)
+    self.user_i_rate = np.zeros((num_days), dtype=np.float32)
+    self.user_r_rate = np.zeros((num_days), dtype=np.float32)
 
     # Severe + critical rate
     self.crit_rate = np.zeros((num_days), dtype=np.float32)
+    self.user_crit_rate = np.zeros((num_days), dtype=np.float32)
 
     self.isolation_rate = np.zeros((num_days), dtype=np.float32)
-
+    self.user_isolation_rate = np.zeros((num_days), dtype=np.float32)
+    
     self.precisions = np.zeros((num_days), dtype=np.float32)
     self.recalls = np.zeros((num_days), dtype=np.float32)
     
@@ -37,14 +44,22 @@ class StoreSEIR(cv.Analyzer):
     ppl = sim.people  # Shorthand
     num_people = len(ppl)
     day = sim.t
+    app_users = sim.app_users
+    num_users = sum(app_users)
 
     self.t[day] = day
     self.s_rate[day] = ppl.susceptible.sum() / num_people
     self.e_rate[day] = (ppl.exposed.sum() - ppl.infectious.sum()) / num_people
     self.i_rate[day] = ppl.infectious.sum() / num_people
     self.r_rate[day] = ppl.recovered.sum() + ppl.dead.sum() / num_people
-
+    
+    self.user_s_rate[day] = ppl.susceptible[app_users].sum() / num_users
+    self.user_e_rate[day] = (ppl.exposed[app_users].sum() - ppl.infectious[app_users].sum()) / num_users
+    self.user_i_rate[day] = ppl.infectious[app_users].sum() / num_users
+    self.user_r_rate[day] = ppl.recovered[app_users].sum() + ppl.dead[app_users].sum() / num_users
+    
     self.crit_rate[day] = (ppl.severe.sum() + ppl.critical.sum()) / num_people
+    self.user_crit_rate[day] = (ppl.severe[app_users].sum() + ppl.critical[app_users].sum()) / num_users
     
     app_users = sim.app_users
     app_user_ids = np.nonzero(app_users)[0]
@@ -55,6 +70,7 @@ class StoreSEIR(cv.Analyzer):
     app_user_infectious = ppl.infectious[app_user_ids]
     
     self.isolation_rate[day] = np.sum(isolated) / num_people
+    self.user_isolation_rate[day] = np.sum(isolated[app_users]) / num_users
 
     # precision should be 1 when there are no false positives
     self.precisions[day] = (true_positives+1E-9) / (np.sum(isolated) + 1E-9)

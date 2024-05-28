@@ -831,6 +831,19 @@ def root_find_a_rdp(
   return a_values[idx], rho_values[idx]
 
 @numba.njit
+def gaussian_imputation(
+  inf_mean: np.float32,
+  inf_std: np.float32,
+  p_infected_matrix: np.ndarray,
+  non_app_user_ids:np.ndarray,
+  ):
+  num_of_imputations = len(non_app_user_ids)
+  imputation_values = np.random.normal(inf_mean, inf_std, num_of_imputations)
+  imputation_values = np.abs(imputation_values)
+  
+  p_infected_matrix[non_app_user_ids, :] = imputation_values.reshape(-1, 1)
+
+@numba.njit
 def impute_local_graph(
   prev_z_states:np.ndarray,
   app_users:np.ndarray,
@@ -889,62 +902,75 @@ def impute_local_graph(
 
   return -1, -1
 
+
+
+@numba.njit
+def compute_local_prior(contact_app_user_ids: np.ndarray, prev_z_states:np.ndarray):
+    if contact_app_user_ids.size > 0:
+        return prev_z_states[contact_app_user_ids].mean()
+    return 0.0
+
 def impute_lin_reg(
   non_app_user_ids:np.ndarray,
   app_user_ids:np.ndarray,
   past_contacts:np.ndarray,
   feature_imp_model:Any,
-  infection_prior: float,
+  one_hot_encoder: Any,
+  prev_z_states:np.ndarray,
   mse_states:np.ndarray,
 ):
-  non_app_user_ids_set = set(non_app_user_ids)
   calc_mse = 0.0
   calc_mae = 0.0
   mse_counter = 0
+  non_app_user_ids_set = set(non_app_user_ids)
   
   for user_id in app_user_ids:
     imputation_data = {
       'timestep': [],
       'interaction_type': [],
-      'global_avg': []
+      'local_avg': []
     }
     user_contacts = past_contacts[user_id]
-    to_impute_ids = []
-    non_app_user_ids = []
-    contact_counter = 0
-    for row in user_contacts:
-      time_inc = int(row[0])
-      contact_id = int(row[1])
-      int_type = int(row[2])
-      if time_inc < 0:
-        break
-      if contact_id in non_app_user_ids_set:
-        imputation_data['timestep'].append(time_inc)
-        imputation_data['interaction_type'].append(int_type)
-        non_app_user_ids.append(contact_id)
-        to_impute_ids.append(contact_counter)
-      
-      contact_counter += 1
-
-    num_of_imputations = len(to_impute_ids)
-    if num_of_imputations > 0:
-      imputation_data['global_avg'] = [infection_prior] * num_of_imputations
-      
-      imputation_data = pd.DataFrame(imputation_data)
-      
-      p_inf_inc = feature_imp_model.predict(imputation_data)
-      p_inf_inc = np.clip(p_inf_inc, 0, 1.0)
-
-      past_contacts[user_id, to_impute_ids, 3] = p_inf_inc.squeeze()
+    imputation_mask = np.array([contact_id in non_app_user_ids_set for contact_id in user_contacts[:, 1]])
+    to_impute_ids = np.where(imputation_mask)[0]
     
-    calc_mse += ((mse_states[non_app_user_ids] - past_contacts[user_id, to_impute_ids, 3])**2).sum()
-    calc_mae += (np.absolute(mse_states[non_app_user_ids] - past_contacts[user_id, to_impute_ids, 3])).sum()
-    mse_counter += len(to_impute_ids)
+    
+    if to_impute_ids.size > 0:
+      app_users_mask = np.isin(user_contacts[:, 1], app_user_ids)
+      contact_app_user_ids = user_contacts[app_users_mask, 1]
+      
+      imputation_data = {
+        'timestep': user_contacts[imputation_mask, 0],
+        'interaction_type': user_contacts[imputation_mask, 2],
+        'local_avg': np.zeros(to_impute_ids.size),
+      }
+      contact_app_user_ids = user_contacts[app_users_mask, 1].astype(np.int32)
+      local_prior = compute_local_prior(contact_app_user_ids, prev_z_states)
+      if local_prior != 0.0:
+          imputation_data['local_avg'] = np.full(to_impute_ids.size, local_prior)
+        
+      int_types_reshaped = imputation_data['interaction_type'].reshape(-1, 1)
+      int_types_one_hot = one_hot_encoder.transform(int_types_reshaped)
+      
+      X_impute = np.hstack([
+          imputation_data['timestep'].reshape(-1, 1),
+          imputation_data['local_avg'].reshape(-1, 1),
+          int_types_one_hot
+      ])
+      
+      p_inf_inc = feature_imp_model.predict(X_impute)
+      p_inf_inc = np.clip(p_inf_inc, 0, 0.5)
+      
+      past_contacts[user_id, to_impute_ids, 3] = p_inf_inc.squeeze()
+        
+      
+      
+    if not np.all(mse_states == -1.):
+      imputed_non_app_user_ids = user_contacts[imputation_mask, 1]
+      calc_mse += ((mse_states[imputed_non_app_user_ids] - past_contacts[user_id, to_impute_ids, 3])**2).sum()
+      calc_mae += (np.absolute(mse_states[imputed_non_app_user_ids] - past_contacts[user_id, to_impute_ids, 3])).sum()
+      mse_counter += len(to_impute_ids)
   
-  if mse_counter > 0:
-    overall_mse = calc_mse / mse_counter
-    overall_mae = calc_mae / mse_counter
-  else:
-      overall_mse = 0.0
-      overall_mae = 0.0
+  overall_mse = calc_mse / mse_counter if mse_counter > 0 else 0.0
+  overall_mae = calc_mae / mse_counter if mse_counter > 0 else 0.0
   return overall_mse, overall_mae
