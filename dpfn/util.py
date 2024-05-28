@@ -906,9 +906,7 @@ def impute_local_graph(
 
 @numba.njit
 def compute_local_prior(contact_app_user_ids: np.ndarray, prev_z_states:np.ndarray):
-    if contact_app_user_ids.size > 0:
-        return prev_z_states[contact_app_user_ids].mean()
-    return 0.0
+    return prev_z_states[contact_app_user_ids].mean()
 
 def impute_lin_reg(
   non_app_user_ids:np.ndarray,
@@ -919,10 +917,15 @@ def impute_lin_reg(
   prev_z_states:np.ndarray,
   mse_states:np.ndarray,
 ):
+  '''
+  For each app user, get their contacts and for each non app user
+  run the linear regression model to predict the probability of infection for them.
+  '''
   calc_mse = 0.0
   calc_mae = 0.0
   mse_counter = 0
   non_app_user_ids_set = set(non_app_user_ids)
+  
   
   for user_id in app_user_ids:
     imputation_data = {
@@ -931,11 +934,12 @@ def impute_lin_reg(
       'local_avg': []
     }
     user_contacts = past_contacts[user_id]
+    # Find non app users that are contacts of user_id
     imputation_mask = np.array([contact_id in non_app_user_ids_set for contact_id in user_contacts[:, 1]])
     to_impute_ids = np.where(imputation_mask)[0]
     
-    
     if to_impute_ids.size > 0:
+      # Find the app users among the contacts
       app_users_mask = np.isin(user_contacts[:, 1], app_user_ids)
       contact_app_user_ids = user_contacts[app_users_mask, 1]
       
@@ -945,13 +949,15 @@ def impute_lin_reg(
         'local_avg': np.zeros(to_impute_ids.size),
       }
       contact_app_user_ids = user_contacts[app_users_mask, 1].astype(np.int32)
-      local_prior = compute_local_prior(contact_app_user_ids, prev_z_states)
-      if local_prior != 0.0:
-          imputation_data['local_avg'] = np.full(to_impute_ids.size, local_prior)
+      
+      if len(contact_app_user_ids) > 0:
+        local_prior = compute_local_prior(contact_app_user_ids, prev_z_states)
+        imputation_data['local_avg'] = np.full(to_impute_ids.size, local_prior)
         
       int_types_reshaped = imputation_data['interaction_type'].reshape(-1, 1)
       int_types_one_hot = one_hot_encoder.transform(int_types_reshaped)
       
+      # Put together the X for prediction
       X_impute = np.hstack([
           imputation_data['timestep'].reshape(-1, 1),
           imputation_data['local_avg'].reshape(-1, 1),
@@ -961,6 +967,7 @@ def impute_lin_reg(
       p_inf_inc = feature_imp_model.predict(X_impute)
       p_inf_inc = np.clip(p_inf_inc, 0, 0.5)
       
+      # Insert the prediction
       past_contacts[user_id, to_impute_ids, 3] = p_inf_inc.squeeze()
         
       
