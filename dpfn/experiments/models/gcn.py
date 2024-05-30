@@ -14,25 +14,16 @@ class GCN(nn.Module):
         super(GCN, self).__init__()
         
         gcn_layers = [
-            (GCNConv(num_features, nhid), 'x, edge_index, edge_weight -> x'),
+            (GCNConv(num_features, nhid), 'x, edge_index -> x'),
             # (GraphConv(num_features, nhid, aggr='max'), 'x, edge_index -> x'),
             (nn.Dropout(dropout), 'x -> x'),
             (nn.ReLU(inplace=True), 'x -> x')
         ]
         
-        self.gcn = Sequential('x, edge_index, edge_weight', gcn_layers)
         
-        edge_layers = [
-            nn.Linear(5, nhid),
-            nn.ReLU(),
-            nn.Linear(nhid, nhid),
-            nn.ReLU(),
-            nn.Linear(nhid, 1),
-        ]
+        self.gcn = Sequential('x, edge_index', gcn_layers)
         
-        self.edge_mlp = nn.Sequential(*edge_layers)
-        
-        
+    
         backbone_layers = [
             nn.Linear(nhid, nhid),
             nn.Dropout(dropout),
@@ -56,19 +47,14 @@ class GCN(nn.Module):
             if isinstance(layer, nn.Linear):
                 nn.init.xavier_uniform_(layer.weight, gain=1.414)
                 layer.bias.data.fill_(0)
-                
-        for layer in self.edge_mlp:
-            if isinstance(layer, nn.Linear):
-                nn.init.xavier_uniform_(layer.weight, gain=1.414)
-                layer.bias.data.fill_(0)
 
     def forward(self, data):
-        x, edge_index, batch, edge_weights = data.x, data.edge_index, data.batch, data.edge_attr
+        x, edge_index, batch = data.x, data.edge_index, data.batch
         
         #Ensure all weights are non negative.
-        edge_w = F.relu(self.edge_mlp(edge_weights).squeeze(1))
+        # edge_w = F.relu(self.edge_mlp(edge_weights).squeeze(1))
         
-        x = self.gcn(x, edge_index, edge_weight=edge_w)
+        x = self.gcn(x, edge_index)
         
         x = global_add_pool(x, batch)
         

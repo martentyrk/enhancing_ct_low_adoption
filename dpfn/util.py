@@ -908,12 +908,14 @@ def impute_local_graph(
 def compute_local_prior(contact_app_user_ids: np.ndarray, prev_z_states:np.ndarray):
     return prev_z_states[contact_app_user_ids].mean()
 
+@numba.njit(parallel=True)
 def impute_lin_reg(
   non_app_user_ids:np.ndarray,
   app_user_ids:np.ndarray,
   past_contacts:np.ndarray,
-  feature_imp_model:Any,
-  one_hot_encoder: Any,
+  weights: np.ndarray,
+  intercept: np.ndarray,
+  one_hot_encodings: np.ndarray,
   prev_z_states:np.ndarray,
   mse_states:np.ndarray,
 ):
@@ -924,60 +926,69 @@ def impute_lin_reg(
   calc_mse = 0.0
   calc_mae = 0.0
   mse_counter = 0
-  non_app_user_ids_set = set(non_app_user_ids)
   
-  
-  for user_id in app_user_ids:
-    imputation_data = {
-      'timestep': [],
-      'interaction_type': [],
-      'local_avg': []
-    }
+  for user_idx in numba.prange(len(app_user_ids)):
+    user_id = app_user_ids[user_idx]
+    timesteps = np.zeros(0, dtype=np.float64)
+    interaction_types = np.zeros(0, dtype=np.int32)
+    local_avg = np.zeros(0, dtype=np.float64)
+    
+    
     user_contacts = past_contacts[user_id]
     # Find non app users that are contacts of user_id
-    imputation_mask = np.array([contact_id in non_app_user_ids_set for contact_id in user_contacts[:, 1]])
-    to_impute_ids = np.where(imputation_mask)[0]
+    imputation_mask = np.zeros(user_contacts.shape[0], dtype=np.bool_)
+    app_users_mask = np.zeros(user_contacts.shape[0], dtype=np.bool_)
     
+    contact_ids = user_contacts[:, 1]
+    # Numba does not support np.isin so this is the alternative.
+    for i in numba.prange(contact_ids.size):
+      if contact_ids[i] < 0:
+        break
+      imputation_mask[i] = np.any(contact_ids[i] == non_app_user_ids)
+      app_users_mask[i] = np.any(contact_ids[i] == app_user_ids)
+    
+    to_impute_ids = np.where(imputation_mask)[0]
+        
     if to_impute_ids.size > 0:
-      # Find the app users among the contacts
-      app_users_mask = np.isin(user_contacts[:, 1], app_user_ids)
       contact_app_user_ids = user_contacts[app_users_mask, 1]
       
-      imputation_data = {
-        'timestep': user_contacts[imputation_mask, 0],
-        'interaction_type': user_contacts[imputation_mask, 2],
-        'local_avg': np.zeros(to_impute_ids.size),
-      }
+      timesteps = user_contacts[imputation_mask, 0].astype(np.float64)
+      interaction_types = user_contacts[imputation_mask, 2].astype(np.int32)
+      local_avg = np.zeros(to_impute_ids.size, dtype=np.float64)
+      
       contact_app_user_ids = user_contacts[app_users_mask, 1].astype(np.int32)
       
       if len(contact_app_user_ids) > 0:
         local_prior = compute_local_prior(contact_app_user_ids, prev_z_states)
-        imputation_data['local_avg'] = np.full(to_impute_ids.size, local_prior)
-        
-      int_types_reshaped = imputation_data['interaction_type'].reshape(-1, 1)
-      int_types_one_hot = one_hot_encoder.transform(int_types_reshaped)
+        local_avg = np.full(to_impute_ids.size, local_prior)
       
-      # Put together the X for prediction
-      X_impute = np.hstack([
-          imputation_data['timestep'].reshape(-1, 1),
-          imputation_data['local_avg'].reshape(-1, 1),
-          int_types_one_hot
-      ])
+      int_types_one_hot = one_hot_encodings[interaction_types].astype(np.float64)
+      # Reshape the arrays to ensure correct shape for concatenate
+      timesteps = timesteps.reshape(-1, 1)
+      local_avg = local_avg.reshape(-1, 1)
       
-      p_inf_inc = feature_imp_model.predict(X_impute)
+      X_impute = np.concatenate((timesteps, local_avg, int_types_one_hot), axis=1)
+     
+      if user_idx == 1 or user_idx == 0:
+        print(X_impute)
+      
+      p_inf_inc = np.dot(X_impute, weights) + intercept
       p_inf_inc = np.clip(p_inf_inc, 0, 0.5)
       
       # Insert the prediction
-      past_contacts[user_id, to_impute_ids, 3] = p_inf_inc.squeeze()
-        
+      past_contacts[user_id, to_impute_ids, 3] = p_inf_inc
       
-      
-    if not np.all(mse_states == -1.):
-      imputed_non_app_user_ids = user_contacts[imputation_mask, 1]
-      calc_mse += ((mse_states[imputed_non_app_user_ids] - past_contacts[user_id, to_impute_ids, 3])**2).sum()
-      calc_mae += (np.absolute(mse_states[imputed_non_app_user_ids] - past_contacts[user_id, to_impute_ids, 3])).sum()
-      mse_counter += len(to_impute_ids)
+    # if not np.all(mse_states == -1.):
+    #   imputed_non_app_user_ids = user_contacts[imputation_mask, 1]
+    #   calc_mse += ((mse_states[imputed_non_app_user_ids] - past_contacts[user_id, to_impute_ids, 3])**2).sum()
+    #   calc_mae += (np.absolute(mse_states[imputed_non_app_user_ids] - past_contacts[user_id, to_impute_ids, 3])).sum()
+    #   mse_counter += len(to_impute_ids)
   
   overall_mse = calc_mse / mse_counter if mse_counter > 0 else 0.0
   overall_mae = calc_mae / mse_counter if mse_counter > 0 else 0.0
   return overall_mse, overall_mae
+
+
+def get_onehot_encodings(possible_inputs, encoder):
+  return np.array(encoder.transform(np.array(possible_inputs).reshape(-1, 1)), dtype=np.float64)
+  

@@ -16,6 +16,7 @@ from dpfn import simulator
 import torch
 from experiments.model_utils import make_predictions
 from experiments.util_dataset import create_dataset
+from util import get_onehot_encodings
 from joblib import load
 
 def compare_abm(
@@ -56,8 +57,14 @@ def compare_abm(
     app_users_fraction = cfg["data"]["app_users_fraction"]
     feature_imp_model = None
     one_hot_encoder = None
+    linear_feature_imputation = {}
     if cfg.get('feature_imp_model'):
         feature_imp_model, one_hot_encoder = load('dpfn/config/feature_imp_configs/' + cfg.get('feature_imp_model'))
+        possible_values = [0, 1, 2]
+        one_hot_encodings = get_onehot_encodings(possible_values, one_hot_encoder)
+        linear_feature_imputation['weights'] = np.array(feature_imp_model.coef_)
+        linear_feature_imputation['intercept'] = np.array(feature_imp_model.intercept_)
+        linear_feature_imputation['onehot_encodings'] = one_hot_encodings
     
     # When doing a sweep, then use parameters from there.
     if 'app_users_fraction_wandb' in cfg:
@@ -303,8 +310,7 @@ def compare_abm(
                 diagnostic=diagnostic,
                 infection_prior=infection_prior,
                 user_age_pinf_mean=user_age_pinf_mean,
-                feature_imp_model=feature_imp_model,
-                one_hot_encoder=one_hot_encoder,
+                linear_feature_imputation = linear_feature_imputation,
                 local_mean_baseline=run_local_mean_baseline,
                 prev_z_states=z_states_inferred[:, -1, 2],
                 mse_states=z_states_inferred_mse,

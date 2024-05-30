@@ -154,8 +154,7 @@ def fact_neigh(
     infection_prior: float,
     user_age_pinf_mean:np.ndarray,
     non_app_users_age:np.ndarray,
-    feature_imp_model: Any,
-    one_hot_encoder: Any,
+    linear_feature_imputation: Any,
     prev_z_states:np.ndarray,
     mse_states:np.ndarray,
     local_mean_baseline:bool,
@@ -282,17 +281,21 @@ def fact_neigh(
   #   past_contacts[i] = contacts_to_keep
 
   
-  if feature_imp_model:
-    t_linreg_0 = time.time()
+  if linear_feature_imputation:
     mse_total = 0
     mae_total = 0
     # Modify past contacts in place with feature imputation model.
+    weights = linear_feature_imputation['weights']
+    intercept = linear_feature_imputation['intercept']
+    onehot_encodings = linear_feature_imputation['onehot_encodings']
+    
     mse_total, mae_total = util.impute_lin_reg(
       non_app_user_ids,
       app_user_ids,
       past_contacts,
-      feature_imp_model,
-      one_hot_encoder,
+      weights,
+      intercept,
+      onehot_encodings,
       prev_z_states,
       mse_states
       )

@@ -13,6 +13,7 @@ from dpfn import logger
 from joblib import load
 from experiments.model_utils import make_predictions
 from experiments.util_dataset import create_dataset
+from dpfn.util import get_onehot_encodings
 
 def compare_policy_covasim(
     inference_method: str,
@@ -61,8 +62,14 @@ def compare_policy_covasim(
   feature_prop = cfg['feature_propagation']
   feature_imp_model = None
   one_hot_encoder = None
+  linear_feature_imputation = {}
   if cfg.get('feature_imp_model'):
       feature_imp_model, one_hot_encoder = load('dpfn/config/feature_imp_configs/' + cfg.get('feature_imp_model'))
+      possible_values = [0, 1, 2, 3]
+      one_hot_encodings = get_onehot_encodings(possible_values, one_hot_encoder)
+      linear_feature_imputation['weights'] = np.array(feature_imp_model.coef_)
+      linear_feature_imputation['intercept'] = np.array(feature_imp_model.intercept_)
+      linear_feature_imputation['onehot_encodings'] = one_hot_encodings
   
   
   #Percentage of app users in population
@@ -240,8 +247,7 @@ def compare_policy_covasim(
         non_app_users_age=non_app_users_age,
         infection_prior=infection_prior,
         user_age_pinf_mean=user_age_pinf_mean,
-        feature_imp_model = feature_imp_model,
-        one_hot_encoder=one_hot_encoder,
+        linear_feature_imputation = linear_feature_imputation,
         local_mean_baseline=run_local_mean_baseline,
         prev_z_states=pred_placeholder,
         mse_states = -1. * np.ones((1, 1, 4), dtype=np.float32),
