@@ -11,7 +11,9 @@ import numpy as np
 import os
 import pandas as pd
 from typing import Any, Iterable, List, Tuple, Union
-
+import torch
+import torch.nn as nn
+from sklearn import metrics
 
 @numba.njit
 def get_past_contacts_fast(
@@ -46,12 +48,12 @@ def get_past_contacts_fast(
   return pc_tensor, max_messages
 
 
-@numba.njit(
-  'Tuple((float32[:, :, :], int64))(UniTuple(int64, 2), int32[:, :], int64)')
+@numba.njit()
 def get_past_contacts_static(
     user_interval: Tuple[int, int],
     contacts: np.ndarray,
-    num_msg: int) -> Tuple[np.ndarray, float]:
+    num_msg: int,
+    app_users: np.ndarray) -> Tuple[np.ndarray, float]:
   """Returns past contacts as a NumPy array, for easy pickling."""
   num_users_int = user_interval[1] - user_interval[0]
 
@@ -60,7 +62,7 @@ def get_past_contacts_static(
   if contacts.shape[1] == 0:
     return (-1 * np.ones((num_users_int, 1, 2))).astype(np.float32), 0
 
-  contacts_past = -1 * np.ones((num_users_int, num_msg, 4), dtype=np.float32)
+  contacts_past = -1 * np.ones((num_users_int, num_msg, 5), dtype=np.float32)
 
   contacts_counts = np.zeros(num_users_int, dtype=np.int32)
 
@@ -72,8 +74,10 @@ def get_past_contacts_static(
       contact_count = contacts_counts[contact_rel] % (num_msg - 1)
       
       # contacts_past = [time, contact_id, interaction type, imputation_score]
+      app_user_identifier = app_users[contact[0]]
+      
       contacts_past[contact_rel, contact_count] = np.array(
-        (contact[2], contact[0], contact[3], -1), dtype=np.float32)
+        (contact[2], contact[0], contact[3], -1, app_user_identifier), dtype=np.float32)
 
       contacts_counts[contact_rel] += 1
 
@@ -843,81 +847,205 @@ def gaussian_imputation(
   
   p_infected_matrix[non_app_user_ids, :] = imputation_values.reshape(-1, 1)
 
-@numba.njit
+@numba.njit(parallel=True)
 def impute_local_graph(
   prev_z_states:np.ndarray,
   app_users:np.ndarray,
-  app_users_binary:np.ndarray,
-  non_app_user_ids_binary:np.ndarray,
   past_contacts:np.ndarray,
   mse_states:np.ndarray,
+  do_mse:bool,
   ):
   calc_mse = 0.0
   calc_mae = 0.0
   mse_counter = 0
-  for user_id in app_users:
+  for user_idx in numba.prange(len(app_users)):
+    user_id = app_users[user_idx]
     user_contacts = past_contacts[user_id]
-    contact_ids = user_contacts[:, 1]
-    app_user_indices = []
-    non_app_user_indeces = []
-    non_app_user_ids = []
     
-    index_counter = 0
-    for c_id in contact_ids:
-      c_id = int(c_id)
-      if c_id < 0:
-        break
+    user_status= user_contacts[:, 4]
+    
+    app_user_mask = (user_status == 1)
+    non_app_users_mask = (user_status == 0)
+    
+    app_user_ids = user_contacts[app_user_mask, 1].astype(np.int32)
+    non_app_user_ids = np.where(non_app_users_mask)[0]
+    
 
-      if app_users_binary[c_id]:
-        app_user_indices.append(index_counter)
-      elif non_app_user_ids_binary[c_id]:
-        non_app_user_indeces.append(index_counter)
-        non_app_user_ids.append(c_id)
-
-      index_counter += 1
-
-    app_user_indices = np.array(app_user_indices, dtype=np.int32)
-    non_app_user_indeces = np.array(non_app_user_indeces, dtype=np.int32)
-
-    if len(app_user_indices) > 0:
-      local_mean = prev_z_states[app_user_indices].mean()
-      past_contacts[user_id, non_app_user_indeces, 3] = local_mean
+    if len(app_user_ids) > 0:
+      local_mean = prev_z_states[app_user_ids].mean()
+      past_contacts[user_id, non_app_user_ids, 3] = local_mean
     else:
-      past_contacts[user_id, non_app_user_indeces, 3] = 0.0
+      past_contacts[user_id, non_app_user_ids, 3] = 0.0
   
-  if not np.all(mse_states == -1.):
-    non_app_user_ids = np.array(non_app_user_ids)
-    calc_mse += ((mse_states[non_app_user_ids, -1, 2] - past_contacts[user_id, non_app_user_indeces, 3])**2).sum()
-    calc_mae += (np.absolute(mse_states[non_app_user_ids, -1, 2] - past_contacts[user_id, non_app_user_indeces, 3])).sum()
-    mse_counter += len(non_app_user_indeces)
+    if do_mse:
+      imputed_non_app_user_ids = user_contacts[non_app_users_mask, 1].astype(np.int32)
+      calc_mse += ((mse_states[imputed_non_app_user_ids, -1, 2] - past_contacts[user_id, non_app_user_ids, 3])**2).sum()
+      calc_mae += (np.absolute(mse_states[imputed_non_app_user_ids, -1, 2] - past_contacts[user_id, non_app_user_ids, 3])).sum()
+      mse_counter += len(non_app_user_ids)
   
-    if mse_counter > 0:
-      overall_mse = calc_mse / mse_counter
-      overall_mae = calc_mae / mse_counter
-    else:
-      overall_mse = 0.0
-      overall_mae = 0.0
+    
+  overall_mse = calc_mse / mse_counter if mse_counter > 0 else 0.0
+  overall_mae = calc_mae / mse_counter if mse_counter > 0 else 0.0
+    
+  return overall_mse, overall_mae
+
+
+
+class NoContacts(Exception):
+  """Custom exception for no contacts in a data row."""
+@numba.njit()
+def impute_neural_data_collector(
+  prev_z_states,
+  one_hot_encodings,
+  user_contacts,
+  global_avg,
+  infection_rate,
+):
+  MAX_DAYS = 14.
+    # Find non app users that are contacts of user_id
+  user_status = user_contacts[:, 4]
+  imputation_mask = (user_status == 0)
+  app_users_mask = (user_status == 1)
+
+  to_impute_ids = np.where(imputation_mask)[0]
+  
+  if to_impute_ids.size > 0:
+    contact_app_user_ids = user_contacts[app_users_mask, 1]
+    
+    timesteps = (user_contacts[imputation_mask, 0] / MAX_DAYS).astype(np.float64)
+    interaction_types = user_contacts[imputation_mask, 2].astype(np.int32)
+    local_avg = np.zeros(to_impute_ids.size, dtype=np.float64)
+    
+    contact_app_user_ids = user_contacts[app_users_mask, 1].astype(np.int32)
+    
+    if len(contact_app_user_ids) > 0:
+      local_prior = prev_z_states[contact_app_user_ids].mean()
+      local_avg = np.full(to_impute_ids.size, local_prior)
+    
+    int_types_one_hot = one_hot_encodings[interaction_types].astype(np.float64)
+    # Reshape the arrays to ensure correct shape for concatenate
+    timesteps = timesteps.reshape(-1, 1)
+    local_avg = local_avg.reshape(-1, 1)
+    global_means = np.array([global_avg] * to_impute_ids.size).reshape(-1,1)
+    infection_rates = np.array([infection_rate] * to_impute_ids.size).reshape(-1,1)
+    
+    X = np.concatenate((
+        timesteps,
+        infection_rates,
+        global_means,
+        local_avg,
+        int_types_one_hot,
+    ),axis=1)
+    
+    return X, to_impute_ids, imputation_mask
+  
+  
+  return None, to_impute_ids, imputation_mask
+
+@numba.njit()
+def impute_neural_data_collection(
+  app_user_ids:np.ndarray,
+  past_contacts:np.ndarray,
+  global_avg: np.float64,
+  infection_rate: np.float64,
+  one_hot_encodings: np.ndarray,
+  prev_z_states:np.ndarray,
+):
+  X_full = []
+  positions = []
+  imputation_masks = []
+  user_ids = []
+  for user_idx in numba.prange(len(app_user_ids)):
+    user_id = app_user_ids[user_idx]
+    user_contacts = past_contacts[user_id]
+    X, to_impute_ids, imputation_mask = impute_neural_data_collector(
+      prev_z_states,
+      one_hot_encodings,
+      user_contacts,
+      global_avg,
+      infection_rate,
+    )
+    if X is not None:
+      X_full.extend(X)
+      user_ids.append(user_id)
+      positions.append(to_impute_ids)
+      imputation_masks.append(imputation_mask)
+    
+  return X_full, positions, imputation_masks, user_ids
+    
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+def neural_imp_predictions(
+  model:Any,
+  dataloader,
+):
+  all_outs = []
+  model.eval()
+  for X in dataloader:  
+    with torch.no_grad():
+      X = X.to(device)
+      outputs = model(X).cpu().numpy().flatten()
+      all_outs.extend(outputs)
+    
+  
+  return np.array(all_outs)
+
+@numba.njit()
+def neural_imp_fill_contacts(
+  user_ids:np.ndarray,
+  past_contacts:np.ndarray,
+  positions:np.ndarray,
+  imputation_masks:np.ndarray,
+  preds:np.ndarray,
+  mse_states:np.ndarray,
+  do_mse:bool
+):
+  calc_mse = 0.0
+  calc_mae = 0.0
+  mse_counter = 0
+  preds_begin_index = 0
+  for i in numba.prange(len(positions)):
+    to_impute_ids = positions[i]
+    user_id = user_ids[i]
+    current_masks = imputation_masks[i]
+    user_contacts = past_contacts[user_id]
+    
+    num_preds = len(to_impute_ids)
+    
+    preds_placeholder = preds[preds_begin_index:preds_begin_index + num_preds]
+    
+    preds_begin_index += num_preds
+    
+    
+    past_contacts[user_id, to_impute_ids, 3] = preds_placeholder
       
-    return overall_mse, overall_mae
 
-  return -1, -1
+    if do_mse:
+      imputed_non_app_user_ids = user_contacts[current_masks, 1].astype(np.int32)
+      calc_mse += ((mse_states[imputed_non_app_user_ids, -1, 2] - past_contacts[user_id, to_impute_ids, 3])**2).sum()
+      calc_mae += (np.absolute(mse_states[imputed_non_app_user_ids, -1, 2] - past_contacts[user_id, to_impute_ids, 3])).sum()
+      mse_counter += len(to_impute_ids)
+  
+  overall_mse = calc_mse / mse_counter if mse_counter > 0 else 0.0
+  overall_mae = calc_mae / mse_counter if mse_counter > 0 else 0.0
+  
+  return overall_mse, overall_mae
+  
 
 
-
-@numba.njit
-def compute_local_prior(contact_app_user_ids: np.ndarray, prev_z_states:np.ndarray):
-    return prev_z_states[contact_app_user_ids].mean()
 
 @numba.njit(parallel=True)
 def impute_lin_reg(
-  non_app_user_ids:np.ndarray,
   app_user_ids:np.ndarray,
   past_contacts:np.ndarray,
+  infection_prior:np.float64,
+  infection_rate: np.float64,
   weights: np.ndarray,
-  intercept: np.ndarray,
+  intercept: np.float64,
   one_hot_encodings: np.ndarray,
   prev_z_states:np.ndarray,
   mse_states:np.ndarray,
+  do_mse:bool,
 ):
   '''
   For each app user, get their contacts and for each non app user
@@ -932,21 +1060,14 @@ def impute_lin_reg(
     timesteps = np.zeros(0, dtype=np.float64)
     interaction_types = np.zeros(0, dtype=np.int32)
     local_avg = np.zeros(0, dtype=np.float64)
-    
+    infection_rates = np.zeros(0, dtype=np.float64)
     
     user_contacts = past_contacts[user_id]
     # Find non app users that are contacts of user_id
-    imputation_mask = np.zeros(user_contacts.shape[0], dtype=np.bool_)
-    app_users_mask = np.zeros(user_contacts.shape[0], dtype=np.bool_)
-    
-    contact_ids = user_contacts[:, 1]
-    # Numba does not support np.isin so this is the alternative.
-    for i in numba.prange(contact_ids.size):
-      if contact_ids[i] < 0:
-        break
-      imputation_mask[i] = np.any(contact_ids[i] == non_app_user_ids)
-      app_users_mask[i] = np.any(contact_ids[i] == app_user_ids)
-    
+    user_status = user_contacts[:, 4]
+    imputation_mask = (user_status == 0)
+    app_users_mask = (user_status == 1)
+
     to_impute_ids = np.where(imputation_mask)[0]
         
     if to_impute_ids.size > 0:
@@ -955,22 +1076,25 @@ def impute_lin_reg(
       timesteps = user_contacts[imputation_mask, 0].astype(np.float64)
       interaction_types = user_contacts[imputation_mask, 2].astype(np.int32)
       local_avg = np.zeros(to_impute_ids.size, dtype=np.float64)
-      
+      infection_rates = np.full((to_impute_ids.size), infection_rate)
       contact_app_user_ids = user_contacts[app_users_mask, 1].astype(np.int32)
+      infection_priors = np.full(to_impute_ids.size, infection_prior)
       
       if len(contact_app_user_ids) > 0:
-        local_prior = compute_local_prior(contact_app_user_ids, prev_z_states)
+        local_prior = prev_z_states[contact_app_user_ids].mean()
         local_avg = np.full(to_impute_ids.size, local_prior)
       
       int_types_one_hot = one_hot_encodings[interaction_types].astype(np.float64)
       # Reshape the arrays to ensure correct shape for concatenate
       timesteps = timesteps.reshape(-1, 1)
+      infection_rates = infection_rates.reshape(-1, 1)
       local_avg = local_avg.reshape(-1, 1)
-      
-      X_impute = np.concatenate((timesteps, local_avg, int_types_one_hot), axis=1)
+      infection_priors = infection_priors.reshape(-1, 1)
+
+      X_impute = np.concatenate((timesteps, infection_rates, local_avg, int_types_one_hot), axis=1)
      
-      if user_idx == 1 or user_idx == 0:
-        print(X_impute)
+      # if user_idx == 1 or user_idx == 0:
+      #   print(X_impute)
       
       p_inf_inc = np.dot(X_impute, weights) + intercept
       p_inf_inc = np.clip(p_inf_inc, 0, 0.5)
@@ -978,17 +1102,56 @@ def impute_lin_reg(
       # Insert the prediction
       past_contacts[user_id, to_impute_ids, 3] = p_inf_inc
       
-    # if not np.all(mse_states == -1.):
-    #   imputed_non_app_user_ids = user_contacts[imputation_mask, 1]
-    #   calc_mse += ((mse_states[imputed_non_app_user_ids] - past_contacts[user_id, to_impute_ids, 3])**2).sum()
-    #   calc_mae += (np.absolute(mse_states[imputed_non_app_user_ids] - past_contacts[user_id, to_impute_ids, 3])).sum()
-    #   mse_counter += len(to_impute_ids)
+    if do_mse:
+      imputed_non_app_user_ids = user_contacts[imputation_mask, 1].astype(np.int32)
+      calc_mse += ((mse_states[imputed_non_app_user_ids, -1, 2] - past_contacts[user_id, to_impute_ids, 3])**2).sum()
+      calc_mae += (np.absolute(mse_states[imputed_non_app_user_ids, -1, 2] - past_contacts[user_id, to_impute_ids, 3])).sum()
+      mse_counter += len(to_impute_ids)
   
   overall_mse = calc_mse / mse_counter if mse_counter > 0 else 0.0
   overall_mae = calc_mae / mse_counter if mse_counter > 0 else 0.0
+  
   return overall_mse, overall_mae
 
 
 def get_onehot_encodings(possible_inputs, encoder):
   return np.array(encoder.transform(np.array(possible_inputs).reshape(-1, 1)), dtype=np.float64)
   
+  
+def bootstrap_sampling_ave_precision(predictions, outcome, num_samples=12):
+    """Bootstrap samples the performance metrics."""
+    results_roc = np.zeros((num_samples))
+
+    for i in range(num_samples):
+        if num_samples == 1:
+            ind = np.arange(predictions.shape[0])
+        else:
+            ind = np.random.choice(
+                predictions.shape[0], predictions.shape[0], replace=True)
+
+        y_true = outcome[ind]
+        y_score = predictions[ind]
+
+        # Check if y_true contains both classes and y_score contains only finite values
+        if len(np.unique(y_true)) > 1 and np.isfinite(y_score).all():
+            try:
+                results_roc[i] = metrics.roc_auc_score(y_true=y_true, y_score=y_score)
+            except ValueError as e:
+                logger.warning(f"Skipping sample {i} due to error: {e}")
+                results_roc[i] = np.nan
+        else:
+            logger.warning(f"Sample {i} contains only one class or invalid scores: {np.unique(y_true)}, {y_score}")
+            results_roc[i] = np.nan  # Assign NaN if only one class is present
+  
+
+    # Filter out NaN values before calculating quantiles
+    results_roc = results_roc[~np.isnan(results_roc)]
+
+    if len(results_roc) > 0:
+        q20, q50_auroc, q80 = np.quantile(results_roc, [0.2, 0.5, 0.8]) * 100
+        logger.info(f"ROC: {q50_auroc:5.1f} [{q20:5.1f}, {q80:5.1f}]")
+    else:
+        q50_auroc = q20 = q80 = np.nan
+        logger.info("ROC: Not enough valid samples to calculate quantiles.")
+
+    return q50_auroc

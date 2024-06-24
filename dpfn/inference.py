@@ -6,7 +6,22 @@ import os  # pylint: disable=unused-import
 import time
 from typing import Any, Optional, Tuple
 import pandas as pd
+import torch
+from torch.utils.data import DataLoader, TensorDataset, Dataset
 
+class Dset(Dataset):
+    def __init__(self, data):
+        """
+        Args:
+            data (ndarray or Tensor): Array or Tensor containing input data.
+        """
+        self.data = data
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        return self.data[idx]
 
 @numba.njit(['float32[:](float32[:])', 'float64[:](float64[:])'])
 def softmax(x):
@@ -27,6 +42,7 @@ def fn_step_wrapped(
     past_contacts_array: np.ndarray,
     user_age_pinf_mean: np.ndarray,
     non_app_users_age: np.ndarray,
+    app_users: np.ndarray,
     prev_z_states: np.ndarray,
     clip_lower: float = -1.,
     clip_upper: float = 10000.,
@@ -102,45 +118,48 @@ def fn_step_wrapped(
         age_group_ids = non_app_user_ids[np.where(non_app_users_age == age)[0]]
         p_infected_matrix[age_group_ids, :] = user_age_pinf_mean[age]
 
-
   for i in numba.prange(interval_num_users):  # pylint: disable=not-an-iterable
-    d_term, d_no_term = util.precompute_d_penalty_terms_fn2(
-      q_marginal_infected=p_infected_matrix,
-      p0=probab0,
-      p1=probab1,
-      past_contacts=past_contacts_array[i],
-      num_time_steps=num_time_steps)
+    if app_users[i]:
+      d_term, d_no_term = util.precompute_d_penalty_terms_fn2(
+        q_marginal_infected=p_infected_matrix,
+        p0=probab0,
+        p1=probab1,
+        past_contacts=past_contacts_array[i],
+        num_time_steps=num_time_steps)
 
-    d_noterm_cumsum = np.cumsum(d_no_term)
+      d_noterm_cumsum = np.cumsum(d_no_term)
 
-    num_days_transit = num_days_s - 1
-    num_days_transit[num_days_transit < 0] = 0
+      num_days_transit = num_days_s - 1
+      num_days_transit[num_days_transit < 0] = 0
 
-    d_penalties = (
-      np.take(d_noterm_cumsum, num_days_transit)
-      + np.take(d_term, num_days_s))
+      d_penalties = (
+        np.take(d_noterm_cumsum, num_days_transit)
+        + np.take(d_term, num_days_s))
 
-    # Calculate log_joint
-    # Numba only does matmul with 2D-arrays, so do reshaping below
-    # log_c and log_a are described in the CRISP paper (Herbrich et al. 2021)
-    log_joint = log_c_z_u[i] + log_A_start + d_penalties
+      # Calculate log_joint
+      # Numba only does matmul with 2D-arrays, so do reshaping below
+      # log_c and log_a are described in the CRISP paper (Herbrich et al. 2021)
+      log_joint = log_c_z_u[i] + log_A_start + d_penalties
 
-    joint_distr = softmax(log_joint).astype(np.single)
+      joint_distr = softmax(log_joint).astype(np.single)
 
-    # Calculate the posterior expectations, with complete enumeration
-    post_exps[i] = np.reshape(np.dot(
-      seq_array_hot.reshape(num_time_steps*4, num_sequences), joint_distr),
-      (num_time_steps, 4))
+      # Calculate the posterior expectations, with complete enumeration
+      post_exps[i] = np.reshape(np.dot(
+        seq_array_hot.reshape(num_time_steps*4, num_sequences), joint_distr),
+        (num_time_steps, 4))
 
   with numba.objmode(t1='f8'):
     t1 = time.time()
   # t0, t1 = 0,0
   return post_exps, t0, t1
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 
 def fact_neigh(
     num_users: int,
     app_user_ids: np.ndarray,
+    app_users:np.ndarray,
     non_app_user_ids:np.ndarray,
     num_time_steps: int,
     observations_all: np.ndarray,
@@ -155,6 +174,8 @@ def fact_neigh(
     user_age_pinf_mean:np.ndarray,
     non_app_users_age:np.ndarray,
     linear_feature_imputation: Any,
+    neural_feature_imputation: Any,
+    infection_rate: float,
     prev_z_states:np.ndarray,
     mse_states:np.ndarray,
     local_mean_baseline:bool,
@@ -241,45 +262,64 @@ def fact_neigh(
 
   num_max_msg = constants.CTC
   past_contacts, max_num_contacts = util.get_past_contacts_static(
-    (0, num_users), contacts_all, num_msg=num_max_msg)
+    (0, num_users), contacts_all, num_msg=num_max_msg, app_users=app_users)
 
   if max_num_contacts >= num_max_msg:
     logger.warning(
       f"Max number of contacts {max_num_contacts} >= {num_max_msg}")
 
-  
-  # if trace_dir:
-  #   pass
-    # fname = os.path.join(trace_dir, f"fact_neigh_.txt")
-    # with open(fname, 'a') as fp:
-    #   fp.write(f"{max_num_contacts:.0f}\n")
-  # if len(output['contacts']) > 0:
-        #     output['contacts'] = np.array(output['contacts'])
-        #     non_app_user_mask = output['contacts'][:, -2] == 0
-        #     non_app_contacts = output['contacts'][non_app_user_mask]
-        #     app_contacts = output['contacts'][~non_app_user_mask]
-            
-        #     non_app_contacts[:, [1, 2, 3]] = -1.
-        #     unique_contacts = np.unique(non_app_contacts, axis=0)
-        #     output['contacts'] = np.vstack((unique_contacts, app_contacts))
-        #     np.random.shuffle(output['contacts'])
-        #     output['contacts'] = output['contacts'].tolist()
-        
-  #contacts_past = [time, contact_id, interaction type, imputation_score]
-  # for i, contact_array in enumerate(past_contacts):
-  #   non_app_user_mask = np.isin(contact_array[:, 1], non_app_user_ids)
-  #   # check time and int type
-  #   columns_to_check = contact_array[non_app_user_mask, :][:, [0, 2]]
-  #   _, unique_indeces = np.unique(columns_to_check, axis=0, return_index=True)
-  #   unique_rows = contact_array[non_app_user_mask][unique_indeces]
-  #   contacts_to_keep = contact_array[~non_app_user_mask]
-  #   number_of_app_users = sum(np.isin(contacts_to_keep[:, 1], app_user_ids))
-  #   contacts_to_keep[number_of_app_users:number_of_app_users + len(unique_rows), :] = unique_rows
-  #   padding = -1. * np.ones((constants.CTC - contacts_to_keep.shape[0], 4))
-  #   contacts_to_keep = np.concatenate((contacts_to_keep, padding))
 
-  #   past_contacts[i] = contacts_to_keep
-
+  if neural_feature_imputation:
+    mse_total = 0
+    mae_total = 0
+    model = neural_feature_imputation['model'].to(device).eval()
+    onehot_encodings = neural_feature_imputation['onehot_encodings']
+    logger.info('Neural imputation starting')
+    t_n_imputation_1 = time.time()
+    infection_prior = np.float64(infection_prior)
+    
+    X_full, positions, imputation_masks, user_ids = util.impute_neural_data_collection(
+      app_user_ids,
+      past_contacts,
+      infection_prior,
+      infection_rate,
+      onehot_encodings,
+      prev_z_states,
+    )
+    
+    user_ids = np.array(user_ids, dtype=np.int32)
+    logger.info(f"Time spent on data collection {time.time() - t_n_imputation_1} seconds")
+    
+    X_tensor = torch.tensor(np.array(X_full), dtype=torch.float32)
+    dataset = Dset(X_tensor)
+    dataloader = DataLoader(dataset, batch_size=16384, shuffle=False)
+    
+    t_n_imputation_1 = time.time()
+    
+    preds = util.neural_imp_predictions(
+      model,
+      dataloader
+    )
+    
+    logger.info(f"Time spent on neural imputation preds {time.time() - t_n_imputation_1} seconds")
+    do_mse = not np.all(mse_states == -1.)
+    
+    t_n_imputation_1 = time.time()
+    
+    mse_total, mae_total = util.neural_imp_fill_contacts(
+      user_ids,
+      past_contacts,
+      positions,
+      imputation_masks,
+      preds,
+      mse_states,
+      do_mse,
+    )
+    
+    logger.info(f"Time spent on neural imputation fill {time.time() - t_n_imputation_1} seconds")
+    
+    
+    infection_prior = -1.
   
   if linear_feature_imputation:
     mse_total = 0
@@ -288,41 +328,42 @@ def fact_neigh(
     weights = linear_feature_imputation['weights']
     intercept = linear_feature_imputation['intercept']
     onehot_encodings = linear_feature_imputation['onehot_encodings']
-    
+    infection_prior = np.float64(infection_prior)
+    t_linreg_1 = time.time()
+    do_mse = not np.all(mse_states == -1.)
+
     mse_total, mae_total = util.impute_lin_reg(
-      non_app_user_ids,
       app_user_ids,
       past_contacts,
+      infection_prior,
+      infection_rate,
       weights,
       intercept,
       onehot_encodings,
       prev_z_states,
-      mse_states
+      mse_states,
+      do_mse
       )
 
-    t_linreg_1 = time.time()
-    logger.info(f"Time spent on linear regression {time.time() - t_linreg_1}")
+    logger.info(f"Time spent on linear regression {time.time() - t_linreg_1} seconds")
     infection_prior = -1.
     
 
   if local_mean_baseline:
     mse_total = 0
     mae_total = 0
+    do_mse = not np.all(mse_states == -1.)
     #In place modification of past contacts based on local contact graphs.
-    non_app_user_ids_binary = np.zeros((num_users), dtype=int)
-    non_app_user_ids_binary[non_app_user_ids] = 1
-    
-    app_users_binary = np.zeros((num_users), dtype=int)
-    app_users_binary[app_user_ids] = 1
     
     mse_total, mae_total = util.impute_local_graph(
       prev_z_states,
       app_user_ids,
-      app_users_binary,
-      non_app_user_ids_binary,
       past_contacts,
-      mse_states
+      mse_states,
+      do_mse
     )
+    
+    infection_prior = -1.
 
 
   t_preamble2 = time.time() - t_start_preamble
@@ -348,6 +389,7 @@ def fact_neigh(
       quantization=quantization,
       infection_prior = infection_prior,
       non_app_users_age = non_app_users_age,
+      app_users=app_users,
       user_age_pinf_mean = user_age_pinf_mean,
       non_app_user_ids = non_app_user_ids,
       prev_z_states = prev_z_states,

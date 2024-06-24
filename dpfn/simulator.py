@@ -69,7 +69,7 @@ class ABMSimulator():
     # Start with sufficient amount of initial infections. Start in E-state
     n_seed = 5
     if 20000 < num_users < 200000:
-      n_seed = 25
+      n_seed = 50
     if num_users >= 200000:
       n_seed = 50
 

@@ -16,7 +16,7 @@ from dpfn import simulator
 import torch
 from experiments.model_utils import make_predictions
 from experiments.util_dataset import create_dataset
-from util import get_onehot_encodings
+from util import get_onehot_encodings, bootstrap_sampling_ave_precision
 from joblib import load
 
 def compare_abm(
@@ -25,6 +25,7 @@ def compare_abm(
     runner,
     results_dir: str,
     arg_rng: int,
+    neural_imp_model:Any,
     trace_dir: Optional[str] = None,
     trace_dir_preds: Optional[str] = None,
     do_diagnosis: bool = False,
@@ -57,14 +58,24 @@ def compare_abm(
     app_users_fraction = cfg["data"]["app_users_fraction"]
     feature_imp_model = None
     one_hot_encoder = None
+    neural_feature_imputation = None
+    
     linear_feature_imputation = {}
     if cfg.get('feature_imp_model'):
         feature_imp_model, one_hot_encoder = load('dpfn/config/feature_imp_configs/' + cfg.get('feature_imp_model'))
         possible_values = [0, 1, 2]
         one_hot_encodings = get_onehot_encodings(possible_values, one_hot_encoder)
         linear_feature_imputation['weights'] = np.array(feature_imp_model.coef_)
-        linear_feature_imputation['intercept'] = np.array(feature_imp_model.intercept_)
+        linear_feature_imputation['intercept'] = np.float64(feature_imp_model.intercept_[0])
         linear_feature_imputation['onehot_encodings'] = one_hot_encodings
+        
+    neural_feature_imputation = {}
+    if neural_imp_model:
+        possible_values = [0, 1, 2]
+        one_hot_encodings = get_onehot_encodings(possible_values, neural_imp_model['one_hot_encoder'])
+
+        neural_feature_imputation['model'] = neural_imp_model['model']
+        neural_feature_imputation['onehot_encodings'] = one_hot_encodings
     
     # When doing a sweep, then use parameters from there.
     if 'app_users_fraction_wandb' in cfg:
@@ -123,7 +134,7 @@ def compare_abm(
     total_z_inf = 0
     
     model_type = cfg['dl_model_type']
-    add_weights = (model_type == 'gcn_weight')
+    add_weights = (model_type == 'gcn_weight' or model_type == 'gcn_global')
     logger.info(f'Weight will be added to the data generated for dl model: {add_weights}')
 
     inference_func, do_random_quarantine = util_experiments.make_inference_func(
@@ -148,6 +159,7 @@ def compare_abm(
     mse_at_t_NA = 0
     mae_at_t_NA = 0
     
+    
     online_overlap_at_t = 0
     all_online_overlap = np.zeros((num_time_steps), dtype=np.float32)
 
@@ -160,6 +172,7 @@ def compare_abm(
     # Arrays to accumulate statistics
     pir_running = 0.
     precisions = np.zeros((num_time_steps))
+    aurocs = np.zeros((num_time_steps))
     recalls = np.zeros((num_time_steps))
     user_recalls = np.zeros((num_time_steps))
     user_precisions = np.zeros((num_time_steps))
@@ -303,6 +316,7 @@ def compare_abm(
                 observations_now,
                 contacts_now,
                 app_user_ids,
+                app_users,
                 non_app_user_ids,
                 num_rounds,
                 num_days,
@@ -311,6 +325,8 @@ def compare_abm(
                 infection_prior=infection_prior,
                 user_age_pinf_mean=user_age_pinf_mean,
                 linear_feature_imputation = linear_feature_imputation,
+                neural_feature_imputation=neural_feature_imputation,
+                infection_rate=np.float64(infection_rates[t_now-1]),
                 local_mean_baseline=run_local_mean_baseline,
                 prev_z_states=z_states_inferred[:, -1, 2],
                 mse_states=z_states_inferred_mse,
@@ -358,28 +374,60 @@ def compare_abm(
                         t_now,
                         int(rng_seed),
                         infection_prior,
-                        infection_prior_now)
+                        infection_prior_now,
+                        infection_rates[t_now-1],)
 
-
+            if online_mse:
+                z_states_inferred_mse, _, _ = mse_inference_func(
+                    observations_now,
+                    contacts_now,
+                    app_user_ids,
+                    app_users,
+                    non_app_user_ids,
+                    num_rounds,
+                    num_days,
+                    non_app_users_age=non_app_users_age,
+                    diagnostic=diagnostic,
+                    infection_prior=-1.,
+                    user_age_pinf_mean=user_age_pinf_mean,
+                    linear_feature_imputation = None,
+                    neural_feature_imputation=None,
+                    infection_rate=np.float64(infection_rates[t_now-1]),
+                    local_mean_baseline=False,
+                    prev_z_states=None,
+                    mse_states=None,
+                )
+            
             if dl_model:
                 logger.info('Deep learning predictions')
                 
                 user_free = (user_quarantine_ends < t_now)
                 incorporated_users = app_users & user_free
                 incorporated_user_ids = np.nonzero(incorporated_users)[0]
-
+                
+                start_time = time.time()
+                
                 model_data = util_dataset.inplace_features_data_creation(
                     contacts_now, observations_now, z_states_inferred, user_free,
                     users_age, app_users, num_users,
-                    num_time_steps
+                    num_time_steps, app_user_ids, infection_rates[t_now-1],
                 )
+                
+                end_time = time.time()
+                logger.info(f"Time taken for model_data creation: {end_time - start_time} seconds")
 
+                start_time = time.time()
+                
                 if run_mean_baseline:
                     infection_prior_now = np.mean(z_states_inferred[app_user_ids, -1, 2])
-                    train_loader = create_dataset(model_data, model_type, cfg, infection_prior=infection_prior, add_weights=add_weights)
+                    train_loader, dataset_user_ids = create_dataset(model_data, model_type, cfg, infection_prior=infection_prior, add_weights=add_weights)
                 else:
-                    train_loader = create_dataset(model_data, model_type, cfg, add_weights=add_weights)
-
+                    train_loader, dataset_user_ids = create_dataset(model_data, model_type, cfg, add_weights=add_weights)
+                end_time = time.time()
+                logger.info(f"Time taken for dataset creation: {end_time - start_time} seconds")
+                
+                start_time = time.time()
+                
                 all_preds = []
                 all_preds = make_predictions(
                     dl_model,
@@ -388,39 +436,19 @@ def compare_abm(
                     device,
                     feature_prop = feature_prop
                     )
+                
+                if np.all(all_preds == 0.0):
+                    logger.info('All predictions zero.')
 
+                end_time = time.time()
+                logger.info(f"Time taken for predictions: {end_time - start_time} seconds")
                 #Reset statistics, since the incorporated users can change.
                 state_preds = np.zeros((num_users), dtype=np.float32)
-                state_preds[incorporated_user_ids] = all_preds
-
-                if online_mse:
-                    mse_at_t_NA = ((z_states_inferred_mse[app_user_ids, -1, 2] - all_preds)**2).mean()
-                    mae_at_t_NA = (np.absolute(z_states_inferred_mse[app_user_ids, -1, 2] - all_preds)).mean()
-                    
-                    mse_values_NA[t_now] = mse_at_t_NA
-                    mae_values_NA[t_now] = mae_at_t_NA
+                state_preds[dataset_user_ids] = all_preds
                 
                 if trace_dir_preds is not None:
                     logger.info('Dumping prediction values') 
                     util_dataset.dump_preds(z_states_inferred[:, -1, 2], state_preds, incorporated_users, t_now, trace_dir_preds, app_user_ids, users_age)
-
-            if online_mse:
-                z_states_inferred_mse, _, _ = mse_inference_func(
-                    observations_now,
-                    contacts_now,
-                    app_user_ids,
-                    non_app_user_ids,
-                    num_rounds,
-                    num_days,
-                    non_app_users_age=non_app_users_age,
-                    diagnostic=diagnostic,
-                    infection_prior=-1.,
-                    user_age_pinf_mean=user_age_pinf_mean,
-                    feature_imp_model=None,
-                    local_mean_baseline=False,
-                    prev_z_states=None,
-                    mse_states=None,
-                )
 
         else:
             logger.info('Running oracle model')
@@ -435,6 +463,15 @@ def compare_abm(
         # Users that test positive go into quarantine
         users_to_quarantine = obs_today[np.where(obs_today[:, 2] > 0)[0], 0]
 
+        rank_score = (z_states_inferred[:, -1, 1:3].sum(axis=1) + state_preds)
+        
+        if online_mse:       
+            mse_at_t_NA = ((z_states_inferred_mse[app_user_ids, -1, 2] - rank_score[app_user_ids])**2).mean()
+            mae_at_t_NA = (np.absolute(z_states_inferred_mse[app_user_ids, -1, 2] - rank_score[app_user_ids])).mean()
+            
+            mse_values_NA[t_now] = mse_at_t_NA
+            mae_values_NA[t_now] = mae_at_t_NA
+        
         # Only run quarantines after a warmup period
         if t_now < t_start_quarantine:
             users_to_quarantine = np.array([], dtype=np.int32)
@@ -451,14 +488,29 @@ def compare_abm(
         states_today = sim.get_states_today()
         user_states_today = states_today[app_user_ids]
         app_user_quarantine_ends = user_quarantine_ends[app_user_ids]
-        
+
         app_user_precision, app_user_recall = prequential.calc_prec_recall(
             user_states_today, app_user_quarantine_ends > t_now
         )
+
+        app_user_preds = rank_score[app_user_ids]
+        app_user_states = states_today[app_user_ids]
+        app_user_states = np.where((app_user_states == 2) | (app_user_states == 1), 1, 0)
+
+        auroc = bootstrap_sampling_ave_precision(app_user_preds, app_user_states)
+        
+        infection_rate = np.mean(states_today == 2)
+        if infection_rate > 0:
+            positive = np.logical_or(states_today == 1, states_today == 2)
+            ave_precision[t_now] = metrics.average_precision_score(
+                y_true=positive, y_score=rank_score)
+        else:
+            ave_precision[t_now] = 0.
+        
         
         precision, recall = prequential.calc_prec_recall(
             states_today, user_quarantine_ends > t_now)
-        infection_rate = np.mean(states_today == 2)
+        
         user_infection_rate = np.mean(user_states_today == 2)
         exposed_rate = np.mean(
             np.logical_or(states_today == 1, states_today == 2))
@@ -467,7 +519,8 @@ def compare_abm(
                      f"infection rate: {infection_rate:5.3f}({pir_running:5.3f}),"
                      f"{exposed_rate:5.3f}, tests: {len(users_to_test):5.0f} "
                      f"Qs: {len(users_to_quarantine):5.0f}"))
-
+        
+        aurocs[t_now] = auroc
         precisions[t_now] = precision
         recalls[t_now] = recall
         user_recalls[t_now] = app_user_recall
@@ -488,17 +541,6 @@ def compare_abm(
             p_at_state[states_today == 2])
         ave_prob_inf[t_now] = np.mean(z_states_inferred[:, num_days-1, 2])
 
-        if infection_rate > 0:
-            positive = np.logical_or(states_today == 1, states_today == 2)
-            rank_score = (z_states_inferred[:, -1, 1:3].sum(axis=1) + state_preds)
-            # rank_score = state_preds[:, 0] + z_states_inferred[:, -1, 1]
-            # rank_score = (z_states_inferred[:, -1, 1] + z_states_inferred[:, -1, 2])
-            # rank_score = state_preds[:, 0]
-            ave_precision[t_now] = metrics.average_precision_score(
-                y_true=positive, y_score=rank_score)
-        else:
-            ave_precision[t_now] = 0.
-
         time_full_loop = time.time() - t_start_loop
         logger.info(f"Time spent on full_loop {time_full_loop:.0f}")
 
@@ -512,6 +554,7 @@ def compare_abm(
             "load5": loadavg5,
             "swap_use": swap_use,
             "recall": recall,
+            "auroc": auroc,
             "user_recall": app_user_recall,
             "user_precision": app_user_precision,
             "mae_IMP": mae_at_t_imp,
@@ -547,6 +590,7 @@ def compare_abm(
     logger.info((
         f"At day {time_pir} peak infection rate is {pir:.5f} "
         f"and total death rate is {total_drate:.5f}"))
+    
 
     prequential.dump_results_json(
         datadir=results_dir,
@@ -580,7 +624,8 @@ def compare_abm(
         mse_avg_na=float(mse_values_NA.mean()),
         overlap=all_online_overlap.tolist(),
         user_recalls=user_recalls.tolist(),
-        user_precisions=user_precisions.tolist()
+        user_precisions=user_precisions.tolist(),
+        avg_auroc=float(aurocs.mean()),
     )
 
     time_spent = time.time() - t0

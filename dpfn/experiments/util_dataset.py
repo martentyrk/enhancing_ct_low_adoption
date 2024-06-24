@@ -5,113 +5,17 @@ import json
 import numpy as np
 import os
 import torch
-from torch_geometric.data import Data
+from torch_geometric.data import Data, HeteroData
 from torch_geometric.utils import add_self_loops, to_undirected
 from torch.utils.data import Dataset
 from torch_geometric.loader import DataLoader as PygDataLoader
 from torch.utils.data import DataLoader as TorchDataLoader
 from constants import GRAPH_MODELS
+import numba
 from sklearn.preprocessing import OneHotEncoder
+import time
 
 import os
-
-def dump_features_flat(
-        contacts_now: np.ndarray,
-        observations_now: np.ndarray,
-        z_states_inferred: np.ndarray,
-        z_states_sim: np.ndarray,
-        contacts_age: np.ndarray,
-        users_age: np.ndarray,
-        trace_dir: str,
-        num_users: int,
-        t_now: int) -> None:
-    """Dump graphs for GNNs.
-
-    Args:
-      contacts_now: Contacts at current time.
-      observations_now: Observations at current time.
-      z_states_inferred: Inferred latent states.
-      z_states_sim: States according to the simulator.
-      contacts_age: Contacts age.
-      users_age: Users age.
-      trace_dir: Directory to dump graphs.
-      num_users: Number of users.
-      t_now: Current time.
-    """
-    # Assertions to ensure datatypes
-    assert len(contacts_now.shape) == 2
-    assert len(observations_now.shape) == 2
-
-    assert len(z_states_inferred.shape) == 3
-    assert len(z_states_sim.shape) == 1
-
-    assert len(contacts_age.shape) == 2
-    assert len(users_age.shape) == 1
-
-    # Filenames
-    fname_train = os.path.join(trace_dir, "train.jl")
-    fname_val = os.path.join(trace_dir, "val.jl")
-    fname_test = os.path.join(trace_dir, "test.jl")
-
-    if t_now < 14:
-        return
-
-    if t_now == 14:
-        # Clear dataset
-        with open(fname_train, "w") as f:
-            f.write("")
-        with open(fname_val, "w") as f:
-            f.write("")
-        with open(fname_test, "w") as f:
-            f.write("")
-    else:
-        logger.info(f"Dump graph dataset at day {t_now}")
-
-    # Initialize data
-    dataset = [
-        {'contacts': [], 'observations': [], 't_now': t_now}
-        for _ in range(num_users)]
-
-    for user in range(num_users):
-        dataset[user]["contacts_age_50"] = int(contacts_age[user][0])
-        dataset[user]["contacts_age_80"] = int(contacts_age[user][1])
-        dataset[user]["users_age"] = int(users_age[user])
-        dataset[user]["fn_pred"] = float(z_states_inferred[user, -1, 2])
-        dataset[user]["sim_state"] = float(z_states_sim[user])
-
-    # Figure out riskscore of contacts
-    for contact in contacts_now:
-        user_u = int(contact[0])
-        user_v = int(contact[1])
-        timestep = int(contact[2])
-        dataset[user_v]["contacts"].append(
-            float(z_states_inferred[user_u, timestep, 2]))
-
-    for user in range(num_users):
-        if len(dataset[user]["contacts"]) == 0:
-            dataset[user]["riskscore_contact_max"] = 0.0
-            dataset[user]["riskscore_contact_median"] = 0.0
-            continue
-
-        score_max = np.max(dataset[user]["contacts"])
-        score_median = np.median(dataset[user]["contacts"])
-        dataset[user]["riskscore_contact_max"] = float(score_max)
-        dataset[user]["riskscore_contact_median"] = float(score_median)
-
-    # Dump dataset to file
-    with open(fname_train, 'a') as f_train:
-        with open(fname_val, 'a') as f_val:
-            with open(fname_test, 'a') as f_test:
-                for user in range(num_users):
-                    if user < int(0.8*num_users):
-                        f = f_train
-                    elif user < int(0.9*num_users):
-                        f = f_val
-                    else:
-                        f = f_test
-
-                    f.write(json.dumps(dataset[user]) + "\n")
-
 
 def dump_features_graph(
         contacts_now: np.ndarray,
@@ -127,7 +31,9 @@ def dump_features_graph(
         t_now: int,
         rng_seed: int,
         infection_prior: float = -1.,
-        infection_prior_now: float = -1.) -> None:
+        infection_prior_now: float = -1.,
+        infection_rate_prev: float = -1.
+        ) -> None:
     """Dump graphs for GNNs."""
     datadump = dpfn_util.fn_features_dump(
         num_workers=1,
@@ -138,7 +44,7 @@ def dump_features_graph(
         users_age=users_age)
 
     # Process observations
-    observations_json = observations_json = create_observations_json(
+    observations_json = create_observations_json(
         num_users, observations_now)
 
     # Try to dump the dataset
@@ -185,7 +91,8 @@ def dump_features_graph(
                     "infection_prior": float(infection_prior),
                     "infection_prior_now": float(infection_prior_now),
                     't_now': int(t_now),
-                    'degree': degrees[user]
+                    'degree': degrees[user],
+                    'infection_rate': float(infection_rate_prev), 
                 }
 
                 for row in datadump[user]:
@@ -254,8 +161,16 @@ def dump_preds(
     with open(fname_dump, 'w') as f_dump:
         f_dump.write(json.dumps(output) + "\n")
     
-    
-    
+
+@numba.njit
+def get_user_contacts(contacts_now, user, temp_contacts):
+    count = 0
+    for i in numba.prange(contacts_now.shape[0]):
+        if contacts_now[i, 0] == user:
+            temp_contacts[count] = contacts_now[i]
+            count += 1
+
+    return temp_contacts[:count]
 
 def inplace_features_data_creation(
     contacts_now: np.ndarray,
@@ -266,7 +181,9 @@ def inplace_features_data_creation(
     app_users: np.ndarray,
     num_users: int,
     num_time_steps: int,
-):
+    app_user_ids: np.ndarray,
+    infection_rate: float,
+):  
 
     model_data = []
 
@@ -278,10 +195,12 @@ def inplace_features_data_creation(
         num_time_steps=num_time_steps,
         q_marginal=z_states_inferred[:, :, 2],
         contacts=contacts_now,
-        users_age=users_age)
+        users_age=users_age,)
+    
+    degrees = [0] * num_users
 
-    for user in range(num_users):
-        if user_free[user] == 0 or app_users[user] == 0:
+    for user in app_user_ids:
+        if user_free[user] == 0:
             continue
 
         output = {
@@ -289,7 +208,8 @@ def inplace_features_data_creation(
             "user": int(user),
             "user_age": int(users_age[user]),
             "observations": observations_json[user],
-            "contacts": []
+            "contacts": [],
+            "infection_rate": float(infection_rate),
         }
 
         for row in datadump[user]:
@@ -302,23 +222,11 @@ def inplace_features_data_creation(
                 int(row[3]),  # pinf
                 int(row[4]),  # interaction type
                 int(app_users[row[1]] == 1),  # app user status
+                int(degrees[row[1]])
             ])
-        
-        #TODO: Remove after run #code for merging non app users of the same day
-        # if len(output['contacts']) > 0:
-        #     output['contacts'] = np.array(output['contacts'])
-        #     non_app_user_mask = output['contacts'][:, -2] == 0
-        #     non_app_contacts = output['contacts'][non_app_user_mask]
-        #     app_contacts = output['contacts'][~non_app_user_mask]
             
-        #     non_app_contacts[:, [1, 2, 3]] = -1.
-        #     unique_contacts = np.unique(non_app_contacts, axis=0)
-        #     output['contacts'] = np.vstack((unique_contacts, app_contacts))
-        #     np.random.shuffle(output['contacts'])
-        #     output['contacts'] = output['contacts'].tolist()
-        
         model_data.append(output)
-
+    
     return model_data
 
 
@@ -334,7 +242,7 @@ def create_observations_json(num_users: int, observations_now: np.ndarray):
 
 
 class NoContacts(Exception):
-    """Custom exception for no contacts in a data row."""
+     """Custom exception for no contacts in a data row."""
     
 class DeepSet_Dataset(Dataset):
     def __init__(self, data):
@@ -351,8 +259,7 @@ class DeepSet_Dataset(Dataset):
         Generates one sample of data.
         """
         return self.features[idx]
-
-
+    
 def create_dataset_setmodel(data, model_type, infection_prior:float = None, add_weights=False):
     data_list = []
     
@@ -369,6 +276,53 @@ def create_dataset_setmodel(data, model_type, infection_prior:float = None, add_
         
     return TorchDataLoader(set_dataset, batch_size=1024, shuffle=False)
 
+def make_features_set(data, infection_prior):
+    """Converts the JSON to the graph features."""
+    #Contacts object: [timestep, sender, age (age groups), pinf, interaction type, app_user (1 or 0)]
+    contacts = np.array(data['contacts'], dtype=np.int64)
+    # Observations object: [timestep, result]
+    observations = np.array(data['observations'], dtype=np.int64)
+    
+    #Normalize user data
+    data['user_age'] /= 10
+
+    if len(contacts) == 0:
+        contacts = -1 * torch.ones(size=(900, 5), dtype=torch.float32)
+        
+    else:
+        # Remove sender information
+        contacts = np.concatenate((contacts[:, 0:1], contacts[:, 2:]), axis=1)
+        #Remove degree
+        contacts = contacts[:, :-1]
+        contacts = torch.tensor(contacts, dtype=torch.float32)
+    
+    
+    if len(observations) == 0:
+        observations = -1 * torch.ones(size=(14, 5), dtype=torch.float32)
+    else:
+        observations = torch.tensor(observations, dtype=torch.float32)
+
+        observations = torch.nn.functional.pad(
+          observations, [0, 3, 0, 14-len(observations)],
+          mode='constant', value=-1.)
+        
+    # Column 0 is the timestep
+    
+    contacts[:, 1] /= 10  # Column 1 is the age
+    contacts[:, 2] /= 1024  # Column 2 is the pinf according to FN
+    
+    # We know timestep and interaction type for non users, other values will be set to -1.
+    app_users_mask = contacts[:, -1] == 1
+    contacts[~app_users_mask, 1] = -1.
+    contacts[~app_users_mask, 2] = infection_prior
+
+    contacts = torch.nn.functional.pad(
+      contacts, [0, 0, 0, 900-len(contacts)],
+      mode='constant', value=-1.)
+    contacts = torch.cat((contacts, observations), dim=0)
+    
+    return contacts
+
 def create_dataset(data, model_type, cfg, infection_prior:float = None, add_weights=False, local_mean_base:bool=False):
     data_list = []
     one_hot_encoding = cfg.get('one_hot')
@@ -376,12 +330,14 @@ def create_dataset(data, model_type, cfg, infection_prior:float = None, add_weig
     interaction_encoder = OneHotEncoder(sparse_output=False)
     interaction_types = [[0], [1], [2], [3]] if simulator_type == 'covasim' else [[0], [1], [2]]
     interaction_encoder.fit(interaction_types)
-    
+    added_user_ids = []
     
     for single_data in data:
-        try:
-            node_features, single_contact_edges, edge_attr = create_graph_w_edge_features(
-                single_data, interaction_encoder,interaction_types, infection_prior, local_mean_base, one_hot_encoding)
+        try:    
+            if model_type != 'hetero_gnn':    
+                node_features, single_contact_edges, fn_averages, infection_rates  = create_graph_features(
+                    single_data, interaction_encoder,interaction_types, infection_prior, local_mean_base, one_hot_encoding)
+                added_user_ids.append(single_data['user'])
         except NoContacts:
             continue
         
@@ -389,16 +345,24 @@ def create_dataset(data, model_type, cfg, infection_prior:float = None, add_weig
             if add_weights:
                 unk_mask, known_mask, obs_mask = generate_node_masks(node_features, single_contact_edges)
                 
-                single_contact_edges, _ = add_self_loops(single_contact_edges)
-            
+                # single_contact_edges, _ = add_self_loops(single_contact_edges)
+                
                 data_single = Data(
                     x=torch.tensor(node_features, dtype=torch.float),
                     edge_index=single_contact_edges.long(),
                     known_mask=torch.tensor(known_mask, dtype=torch.int),
                     unk_mask=torch.tensor(unk_mask, dtype=torch.int),
-                    obs_mask = torch.tensor(obs_mask, dtype=torch.int)
+                    obs_mask = torch.tensor(obs_mask, dtype=torch.int),
+                    fn_averages=torch.tensor(fn_averages, dtype=torch.float),
+                    infection_rates=torch.tensor(infection_rates, dtype=torch.float),
                 )
-                
+            elif model_type=='hetero_gnn':
+                try:
+                    data_single = create_graph_heterogeneous(single_data, interaction_encoder,interaction_types, infection_prior, local_mean_base, one_hot_encoding)
+                    added_user_ids.append(single_data['user'])
+                except NoContacts:
+                    continue
+
             else:
                 # single_contact_edges, _ = add_self_loops(single_contact_edges)
                 # single_contact_edges = to_undirected(single_contact_edges)
@@ -406,13 +370,12 @@ def create_dataset(data, model_type, cfg, infection_prior:float = None, add_weig
                 data_single = Data(
                     x=torch.tensor(node_features, dtype=torch.float),
                     edge_index=single_contact_edges.long(),
-                    edge_attr=edge_attr,
                 )
 
             data_list.append(data_single)
         
-    if model_type in GRAPH_MODELS:
-        return PygDataLoader(data_list, batch_size=2048, shuffle=False)
+    
+    return PygDataLoader(data_list, batch_size=2048, shuffle=False), np.array(added_user_ids)
     
 MAX_DAYS = 14.
 
@@ -544,6 +507,8 @@ def create_graph_features(data, interaction_encoder,interaction_types: np.ndarra
     # Observations object: [timestep, result]
     observations = np.array(data['observations'], dtype=np.float32)
     obs = {}
+    
+    local_mean_prior = 0.0
 
     if len(observations) > 0:
         observations, obs = generate_observations(observations, one_hot_encoding, interaction_types)
@@ -551,8 +516,8 @@ def create_graph_features(data, interaction_encoder,interaction_types: np.ndarra
     
     if len(contacts) > 0:
         # Remove sender information
-        contacts = np.delete(contacts, 1, axis=1)
-        contacts = torch.tensor(contacts, dtype=torch.float32)
+        contacts = np.concatenate((contacts[:, 0:1], contacts[:, 2:]), axis=1)
+        #contacts = torch.tensor(contacts, dtype=torch.float32)
     
         if one_hot_encoding:
             interaction_types_categorical = interaction_encoder.transform(contacts[:, 3].reshape(-1, 1))
@@ -562,20 +527,20 @@ def create_graph_features(data, interaction_encoder,interaction_types: np.ndarra
 
     
         # We know timestep and interaction type, other values will be set to -1.
-        app_users_mask = contacts[:, -1] == 1
+        app_users_mask = contacts[:, -2] == 1
         
         #if data['infection_prior'] > 0:
         # infection_prior_contacts = torch.mean(contacts[app_users_mask, 2])
         # if infection_prior_contacts.isnan().any():
         
         if infection_prior is not None:
-            contacts[~app_users_mask, 2] = torch.tensor(infection_prior, dtype=torch.float)
+            contacts[~app_users_mask, 2] = infection_prior
         elif local_mean_base:
             if sum(app_users_mask) > 0:
-                local_mean_prior = torch.mean(contacts[app_users_mask, 2])
+                local_mean_prior = contacts[app_users_mask, 2].mean()
                 contacts[~app_users_mask, 2] = local_mean_prior
             else:
-                contacts[~app_users_mask, 2] = 0.
+                contacts[~app_users_mask, 2] = 0.0
         else:
             contacts[~app_users_mask, 2] = -1.
         # interval_val = 0.1
@@ -588,7 +553,11 @@ def create_graph_features(data, interaction_encoder,interaction_types: np.ndarra
         
         contacts[~app_users_mask, 1] = -1. #Age
         #     contacts[~app_users_mask, 2] = -1.
-
+        if sum(app_users_mask) > 0:
+            local_mean_prior = contacts[app_users_mask, 2].mean()
+        else:
+            local_mean_prior = 0.0
+                
         num_contacts = len(contacts)
         num_observations = len(observations)
         single_contact_edges = generate_contact_edges(num_contacts, num_observations)
@@ -600,65 +569,118 @@ def create_graph_features(data, interaction_encoder,interaction_types: np.ndarra
             'age': contacts[:, 1][:, np.newaxis],
             'time': contacts[:, 0][:, np.newaxis],
             'interaction_type': contact_interactions,
-            'app_user_ind': contacts[:, -1][:, np.newaxis],
+            'app_user_ind': contacts[:, -2][:, np.newaxis],
         }
         
-    node_features = process_node_features(data, contact_dict, obs, one_hot_encoding, interaction_types)
+    _, node_features = process_node_features(data, contact_dict, obs, one_hot_encoding, interaction_types)
+    fn_averages = np.array([infection_prior, local_mean_prior])
+    infection_rates = np.array(data['infection_rate'])
     
-    return node_features, single_contact_edges    
+    return node_features, single_contact_edges, fn_averages, infection_rates    
 
-
-def make_features_set(data, infection_prior: float= None):
-    """Converts the JSON to the graph features."""
+def create_graph_heterogeneous(data, interaction_encoder, interaction_types: np.ndarray, infection_prior: float=None, local_base: bool=False, one_hot_encoding:bool = False):
     #Contacts object: [timestep, sender, age (age groups), pinf, interaction type, app_user (1 or 0)]
-    contacts = np.array(data['contacts'], dtype=np.int64)
-    # Observations object: [timestep, result]
-    observations = np.array(data['observations'], dtype=np.int64)
-    
+    contacts = np.array(data['contacts'], dtype=np.float32)
+    contact_dict = {}
     #Normalize user data
     data['user_age'] /= 10
+    single_contact_edges = torch.tensor([[],[]])
 
-    if len(contacts) == 0:
-        contacts = -1 * torch.ones(size=(900, 5), dtype=torch.float32)
+    # Observations object: [timestep, result]
+    observations = np.array(data['observations'], dtype=np.float32)
+    obs = {}
+
+    hetero_data = HeteroData()
+    if len(observations) > 0:
+        observations, obs = generate_observations(observations, one_hot_encoding, interaction_types)
         
-    else:
+    if len(contacts) > 0:
         # Remove sender information
-        contacts = np.concatenate((contacts[:, 0:1], contacts[:, 2:]), axis=1)    
+        contacts = np.concatenate((contacts[:, 0:1], contacts[:, 2:]), axis=1)
         contacts = torch.tensor(contacts, dtype=torch.float32)
-    
-    
-    if len(observations) == 0:
-        observations = -1 * torch.ones(size=(14, 5), dtype=torch.float32)
-    else:
-        observations = torch.tensor(observations, dtype=torch.float32)
-
-        observations = torch.nn.functional.pad(
-          observations, [0, 3, 0, 14-len(observations)],
-          mode='constant', value=-1.)
-        
-    # Column 0 is the timestep
-    
-    contacts[:, 1] /= 10  # Column 1 is the age
-    contacts[:, 2] /= 1024  # Column 2 is the pinf according to FN
-    
-    # We know timestep and interaction type for non users, other values will be set to -1.
-    app_users_mask = contacts[:, -1] == 1
-    
-    contacts[~app_users_mask, 1] = -1.
-    
-    if infection_prior is not None:
-            contacts[~app_users_mask, 2] = torch.tensor(infection_prior, dtype=torch.float)
-    else:
-            contacts[~app_users_mask, 2] = -1. # Setting pinf to -1.
+                
+        if one_hot_encoding:
+            interaction_types_categorical = interaction_encoder.transform(contacts[:, 3].reshape(-1, 1))
+            contacts = np.concatenate((contacts[:,0:3], interaction_types_categorical, contacts[:,4:]), axis = 1)
+            contacts = torch.tensor(contacts, dtype=torch.float32)
             
+        normalize_contact_features(contacts)
+        # We know timestep and interaction type, other values will be set to -1.
+        app_users_mask = contacts[:, -2] == 1
+        
+        if infection_prior is not None:
+            contacts[~app_users_mask, 2] = torch.tensor(infection_prior, dtype=torch.float)
+        elif local_base:
+            if sum(app_users_mask) > 0:
+                local_mean_prior = torch.mean(contacts[app_users_mask, 2])
+                contacts[~app_users_mask, 2] = local_mean_prior
+            else:
+                contacts[~app_users_mask, 2] = 0.
+        else:
+            contacts[~app_users_mask, 2] = -1.
+            
+        #Age
+        contacts[~app_users_mask, 1] = -1.
     
-
-    contacts = torch.nn.functional.pad(
-      contacts, [0, 0, 0, 900-len(contacts)],
-      mode='constant', value=-1.)
-    contacts = torch.cat((contacts, observations), dim=0)
+        num_contacts = len(contacts)
+        num_observations = len(observations)
+        # From node index 1 to number of contacts + 1. 
+        single_contact_edges = generate_contact_edges(num_contacts, num_observations)
+        
+        interactions = interaction_types_categorical if one_hot_encoding else contacts[:, 3][:, np.newaxis]
     
-    return contacts
+        contact_dict = {
+            'fn': contacts[:, 2][:, np.newaxis],
+            'age': contacts[:, 1][:, np.newaxis],
+            'time': contacts[:, 0][:, np.newaxis],
+            'interaction_type': interactions,
+            'app_user_ind': contacts[:, -2][:, np.newaxis],
+            'degree': contacts[:, -1][:, np.newaxis]
+        }
+    
+    target_features, node_features = process_node_features(data, contact_dict, obs, one_hot_encoding, interaction_types)
+    
+    unk_mask, known_mask, obs_mask = generate_node_masks(node_features, single_contact_edges, add_root_to_known=False)
+    # Create dummy elements if no known, unknown or observation nodes are present
+    imputable_array = np.zeros(3 + len(interaction_types), dtype=np.int32) if one_hot_encoding else np.zeros(4, dtype=np.int32)
+    
+    if len(node_features[known_mask]) < 1:
+        impute_values = np.concatenate((imputable_array, np.array([1])))  
+        node_features = np.concatenate((node_features, impute_values.reshape(1,-1)), axis=0)
+        
+    if len(node_features[unk_mask]) < 1:
+        impute_values = np.concatenate((imputable_array, np.array([0])))  
+        node_features = np.concatenate((node_features, impute_values.reshape(1,-1)), axis=0)
+        
+    if len(node_features[obs_mask]) < 1:
+        impute_values = np.concatenate((imputable_array, np.array([-1])))
+        node_features = np.concatenate((node_features, impute_values.reshape(1,-1)), axis=0)
+    
+    
+    if len(known_mask) < 1:
+        known_mask = np.array([0])
+        
+    if len(unk_mask) < 1:
+        unk_mask = np.array([0])
+    
+    if len(obs_mask) < 1:
+        obs_mask = np.array([0])
+        
+    app_user_edge_index = generate_homogeneous_edges(len(known_mask))
+    non_app_user_edge_index = generate_homogeneous_edges(len(unk_mask))
+    obs_edge_index = generate_homogeneous_edges(len(obs_mask))
+    
+    # Features
+    hetero_data['app_user'].x = torch.tensor(node_features[known_mask], dtype=torch.float)
+    hetero_data['non_app_user'].x = torch.tensor(node_features[unk_mask], dtype=torch.float)
+    hetero_data['observation'].x = torch.tensor(node_features[obs_mask], dtype=torch.float)
+    hetero_data['target'].x = torch.tensor(target_features, dtype=torch.float)
+    
+    hetero_data['app_user', 'connect', 'target'].edge_index = app_user_edge_index
+    hetero_data['non_app_user', 'connect', 'target'].edge_index = non_app_user_edge_index
+    hetero_data['observation', 'connect', 'target'].edge_index = obs_edge_index
+        
+    return hetero_data
 
 
 def generate_observations(observations, int_categorical, interaction_types):
@@ -696,48 +718,50 @@ def normalize_contact_features(data):
   
   
 def process_node_features(data, contact_dict, obs, int_categorical, interaction_types):
-  if int_categorical:
-    initial_features = np.array([
-      data['fn_pred'],
-      data['user_age'],
-      -1.
-      ])
-    interaction_feature = np.zeros((len(interaction_types)))
-    app_user_indicator = np.array([1.])
-    node_features = np.concatenate((initial_features, interaction_feature, app_user_indicator))
-    node_features = node_features.reshape(1, -1)
-      
-  else:
-    node_features = np.array([
-      data['fn_pred'],
-      data['user_age'],
-      -1.,
-      -1.,
-      1.
-      ])
-    node_features = node_features.reshape(1, -1)
-  
-  if len(contact_dict.keys()) > 0:
-    contact_features = np.hstack((
-      contact_dict['fn'],
-      contact_dict['age'],
-      contact_dict['time'],
-      contact_dict['interaction_type'],
-      contact_dict['app_user_ind']
-      ))
-    node_features = np.concatenate((node_features, contact_features), axis=0)
+    if int_categorical:
+        initial_features = np.array([
+        data['fn_pred'],
+        data['user_age'],
+        -1.
+        ])
+        interaction_feature = np.zeros((len(interaction_types)))
+        app_user_indicator = np.array([1.])
+        target_features = np.concatenate((initial_features, interaction_feature, app_user_indicator))
+        target_features = target_features.reshape(1, -1)
+        
+    else:
+        target_features = np.array([
+        data['fn_pred'],
+        data['user_age'],
+        -1.,
+        -1.,
+        1.
+        ])
+        target_features = target_features.reshape(1, -1)
     
-  if len(obs.keys()) > 0:
-    obs_features = np.hstack((
-      obs['outcome'],
-      obs['age'],
-      obs['time'],
-      obs['interaction_type'],
-      obs['app_user_ind']
-      ))
-    node_features = np.concatenate((node_features, obs_features), axis=0)
+    node_features = target_features
+
+    if len(contact_dict.keys()) > 0:
+        contact_features = np.hstack((
+        contact_dict['fn'],
+        contact_dict['age'],
+        contact_dict['time'],
+        contact_dict['interaction_type'],
+        contact_dict['app_user_ind']
+        ))
+        node_features = np.concatenate((node_features, contact_features), axis=0)
+        
+    if len(obs.keys()) > 0:
+        obs_features = np.hstack((
+        obs['outcome'],
+        obs['age'],
+        obs['time'],
+        obs['interaction_type'],
+        obs['app_user_ind']
+        ))
+        node_features = np.concatenate((node_features, obs_features), axis=0)
   
-  return node_features
+    return target_features, node_features
 
 
 def generate_contact_edges(num_contacts, num_observations):
@@ -751,13 +775,25 @@ def generate_contact_edges(num_contacts, num_observations):
   return single_contact_edges
 
 
-def generate_node_masks(node_features, single_contact_edges):
+def generate_node_masks(node_features, single_contact_edges, add_root_to_known=True):
   incorporated_nodes = np.unique(single_contact_edges[0]).astype(np.int32)
   # Add 0th node which is the target user as well
-  incorporated_nodes = np.insert(incorporated_nodes, 0, 0)
+  if add_root_to_known:
+    incorporated_nodes = np.insert(incorporated_nodes, 0, 0)
   
   unk_mask = np.where((node_features[incorporated_nodes, -1] == 0))[0]
   known_mask = np.where(node_features[incorporated_nodes, -1] == 1)[0]
   obs_mask = np.where(node_features[incorporated_nodes, -1] == -1)[0]
   
   return unk_mask, known_mask, obs_mask
+
+
+def generate_homogeneous_edges(num_nodes):
+  # From node index 1 to number of contacts + 1. 
+  edges_source = np.arange(0, num_nodes)
+  edges_target = [0] * (num_nodes)
+  
+  single_contact_edges = np.vstack([edges_source, edges_target])
+  single_contact_edges = torch.tensor(single_contact_edges).long()
+  
+  return single_contact_edges

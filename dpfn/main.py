@@ -15,9 +15,10 @@ from dpfn import util
 from dpfn import util_wandb
 from experiments.compare_covasim import compare_policy_covasim
 from experiments.compare_abm import compare_abm
-from experiments.model_utils import get_model
+from experiments.model_utils import get_model, get_neural_imp_model
 import torch
 from constants import GRAPH_MODELS
+from joblib import load
 
 
 if __name__ == "__main__":
@@ -58,7 +59,7 @@ if __name__ == "__main__":
                         choices=all_model_types)
     parser.add_argument('--model_name',
                         type=str,
-                        default='gcn_w_gpu_mig_w_5feat_256_final_es.pth',
+                        default=None,
                         help='The model state dict that will be used to load the model')
     parser.add_argument('--n_layers',
                         type=int,
@@ -96,9 +97,15 @@ if __name__ == "__main__":
     parser.add_argument('--one_hot_encoding',
                         action='store_true',
                         help='Whether interaction type should be converted into one hot or not.')
+    parser.add_argument('--neural_imputation_model_path',
+                        type=str,
+                        default=None,
+                        help='Path to the neural imputation model, when given it is run.')
+    parser.add_argument('--testing_fraction',
+                        type=float,
+                        default=None,)
 
-
-    num_threads = 16
+    num_threads = 4
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     numba.set_num_threads(num_threads)
     logger.info(f'Running on device: {device}')
@@ -126,8 +133,13 @@ if __name__ == "__main__":
     config_wandb['dl_model_name'] = args.model_name
     config_wandb['dl_model_type'] = args.model
     config_wandb['cpu_count'] = util.get_cpu_count()
+        
     config_wandb['data'] = config_data.to_dict()
     config_wandb['model'] = config_model.to_dict()
+    
+    if args.testing_fraction is not None:
+        config_wandb["data"]["fraction_test"] = args.testing_fraction
+        
     config_wandb['std_rank_noise'] = args.std_rank_noise
     config_wandb['feature_propagation'] = args.feature_propagation
     config_wandb['feature_imp_model'] = args.feature_imp_model
@@ -135,7 +147,7 @@ if __name__ == "__main__":
     config_wandb['one_hot'] = args.one_hot_encoding
     config_wandb['simulator'] = args.simulator
     config_wandb['gaussian_baseline'] = args.gaussian_baseline
-    
+
     if args.num_time_steps:
         config_wandb["data"]["num_time_steps"] = args.num_time_steps
 
@@ -145,6 +157,12 @@ if __name__ == "__main__":
     if args.app_users_fraction:
         config_wandb["data"]["app_users_fraction"] = float(
             args.app_users_fraction)
+        
+    neural_imp_model = None
+    if args.neural_imputation_model_path:
+        neural_imp_model = {}
+        neural_imp_model['model'] = get_neural_imp_model(args.neural_imputation_model_path, args.simulator, device)
+        neural_imp_model['one_hot_encoder'] = neural_one_hot_encoder = load('dpfn/config/feature_imp_configs/' + args.neural_imputation_model_path.split('.')[0] + '.joblib')
 
     # WandB tags
     tags = [
@@ -187,14 +205,20 @@ if __name__ == "__main__":
     
     if args.model:
         logger.info(f'Running with the deep model: {str(args.model)}')
-
-        dl_model = get_model(args.model, n_layers=args.n_layers, nhid=args.nhid).to(device)
+        num_features = 5
+        if args.simulator == 'covasim' and args.one_hot_encoding:
+            num_features = 8
+        elif args.simulator == 'abm' and args.one_hot_encoding:
+            num_features = 7
+            
+        dl_model = get_model(args.model, n_layers=args.n_layers, nhid=args.nhid, num_features=num_features).to(device)
         saved_model = torch.load(f"dpfn/config/dl_configs/" + args.simulator + '/' + args.model_name, map_location=torch.device(device))
         dl_model.load_state_dict(saved_model)
 
         if args.model == 'gcn_weight':
             logger.info(f"Three of the model weights: {dl_model.msg_weights}")
         dl_model.eval()
+
     else:
         dl_model = None
     
@@ -218,11 +242,13 @@ if __name__ == "__main__":
         elif args.age_baseline:
             experiment_name = f'run_{sim_name}_static_age_seed_' + str(seed_value)
     elif args.feature_imp_model:
-      experiment_name = f'run_{sim_name}_linreg_seed_' + str(seed_value)
+        experiment_name = f'run_{sim_name}_linreg_seed_' + str(seed_value)
+    elif args.neural_imputation_model_path:
+        experiment_name = f'run_{sim_name}_neural_imp_seed_' + str(seed_value)
     elif args.mean_baseline:
-      experiment_name = f'run_{sim_name}_mean_collect_seed_' + str(seed_value)
+      experiment_name = f'run_{sim_name}_mean_seed_' + str(seed_value)
     elif args.local_mean_baseline:
-      experiment_name = f'run_{sim_name}_local_mean_collect_seed_' + str(seed_value)
+      experiment_name = f'run_{sim_name}_local_mean_seed_' + str(seed_value)
     elif args.age_baseline:
       experiment_name = f'run_{sim_name}_age_seed_' + str(seed_value)
     else:
@@ -234,10 +260,15 @@ if __name__ == "__main__":
     if args.app_users_fraction:
         experiment_name = experiment_name + \
             "_adaption_" + str(args.app_users_fraction)
+          
     elif 'app_users_fraction_wandb' in config_wandb:
         experiment_name = experiment_name + "_adaption_" + \
             str(config_wandb.get('app_users_fraction_wandb', -1))
-
+            
+    # if args.testing_fraction:
+    #         experiment_name = experiment_name + "_testingfrac_" + str(args.testing_fraction)
+            
+            
     results_dir_global = (
         f'results/{experiment_name}/{configname_data}_{configname_model}/')
 
@@ -313,6 +344,7 @@ if __name__ == "__main__":
             runner=runner_global,
             results_dir=results_dir_global,
             arg_rng=arg_rng,
+            neural_imp_model = neural_imp_model,
             trace_dir=trace_dir_global,
             trace_dir_preds = trace_dir_preds,
             do_diagnosis=args.do_diagnosis,

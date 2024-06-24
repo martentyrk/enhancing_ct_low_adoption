@@ -13,7 +13,7 @@ from dpfn import logger
 from joblib import load
 from experiments.model_utils import make_predictions
 from experiments.util_dataset import create_dataset
-from dpfn.util import get_onehot_encodings
+from dpfn.util import get_onehot_encodings, bootstrap_sampling_ave_precision
 
 def compare_policy_covasim(
     inference_method: str,
@@ -21,6 +21,7 @@ def compare_policy_covasim(
     runner,
     results_dir: str,
     arg_rng: int,
+    neural_imp_model:Any,
     trace_dir: Optional[str] = None,
     trace_dir_preds: Optional[str] = None,
     do_diagnosis: bool = False,
@@ -58,19 +59,30 @@ def compare_policy_covasim(
   pred_days = cfg['model']['pred_days']
   
   model_type = cfg['dl_model_type']
-  add_weights = (model_type == 'gcn_weight')
+  add_weights = (model_type == 'gcn_weight' or model_type == 'gcn_global')
   feature_prop = cfg['feature_propagation']
   feature_imp_model = None
   one_hot_encoder = None
+  
+  neural_feature_imputation = neural_imp_model
+  
   linear_feature_imputation = {}
   if cfg.get('feature_imp_model'):
       feature_imp_model, one_hot_encoder = load('dpfn/config/feature_imp_configs/' + cfg.get('feature_imp_model'))
       possible_values = [0, 1, 2, 3]
       one_hot_encodings = get_onehot_encodings(possible_values, one_hot_encoder)
       linear_feature_imputation['weights'] = np.array(feature_imp_model.coef_)
-      linear_feature_imputation['intercept'] = np.array(feature_imp_model.intercept_)
+      linear_feature_imputation['intercept'] = np.float64(feature_imp_model.intercept_[0])
       linear_feature_imputation['onehot_encodings'] = one_hot_encodings
   
+  neural_feature_imputation = {}
+  if neural_imp_model:
+    possible_values = [0, 1, 2, 3]
+    one_hot_encodings = get_onehot_encodings(possible_values, neural_imp_model['one_hot_encoder'])
+
+    neural_feature_imputation['model'] = neural_imp_model['model']
+    neural_feature_imputation['onehot_encodings'] = one_hot_encodings
+    
   
   #Percentage of app users in population
   app_users_fraction = cfg["data"]["app_users_fraction"]
@@ -96,6 +108,13 @@ def compare_policy_covasim(
       logger.info('Running vanilla factorized neighbors')
 
   seed = cfg.get("seed", 123)
+  
+  online_mse = cfg.get('online_mse')
+  mse_inference_func = None
+  online_mse_mse_states_placeholder = -1. * np.ones((1, 1, 4), dtype=np.float32)
+  if online_mse:
+    mse_inference_func, _ = util_experiments.make_inference_func(
+        'fn', num_users, cfg, trace_dir=None)
   
 
   logger.info((
@@ -145,11 +164,25 @@ def compare_policy_covasim(
     app_users = sim.app_users
     app_user_ids = np.nonzero(app_users)[0]
     
-    vals = np.ones(len(sim.people))  # Create the array
+    vals = np.zeros(len(sim.people))  # Create the array
     exposed = cv.true(sim.people.exposed)
-    
-    exposed_appusers_intersect = np.intersect1d(exposed, app_user_ids)
+    infected = cv.true(sim.people.infectious)
+    users_of_interest = np.concatenate((exposed, infected))
+
+    exposed_appusers_intersect = np.intersect1d(users_of_interest, app_user_ids)
     vals[exposed_appusers_intersect] = 100  # Probability for testing
+    
+    states_today = 3*np.ones(num_users, dtype=np.int32)
+    states_today[sim.people.exposed] = 2
+    states_today[sim.people.infectious] = 1
+    states_today[sim.people.susceptible] = 0
+    
+    app_user_preds = vals[app_user_ids]
+    app_user_states = states_today[app_user_ids]
+    app_user_states = np.where((app_user_states == 2) | (app_user_states == 1), 1, 0)
+    auroc = bootstrap_sampling_ave_precision(app_user_preds, app_user_states)
+    
+    history['aurocs'][sim.t] = auroc
     return {'inds': inds, 'vals': vals}, history
 
   def subtarget_func_inference(sim, history):
@@ -170,6 +203,13 @@ def compare_policy_covasim(
     non_app_user_ids = np.where(app_users == 0)[0]
 
     non_app_users_age = users_age[app_users == 0]
+    
+    # For imputation measurements and how accurate the system is comparing to 100% FN
+    mse_at_t_imp = 0
+    mae_at_t_imp = 0
+    mse_at_t_NA = 0
+    mae_at_t_NA = 0
+
     
     user_age_pinf_mean = -1. * np.ones((9), dtype=np.float32)
     infection_prior = -1.
@@ -232,15 +272,26 @@ def compare_policy_covasim(
 
       if run_mean_baseline:
         infection_prior = history['infection_prior'][sim.t - 1]
+        
+        if online_mse:
+          mse_prior = infection_prior * np.ones((len(non_app_user_ids)), dtype=np.float32)
+          mse_at_t_imp = ((history['infection_state_mse'][non_app_user_ids, sim.t - 1, 2] - mse_prior) ** 2).mean()
+          mae_at_t_imp = (np.absolute(history['infection_state_mse'][non_app_user_ids, sim.t - 1, 2] - mse_prior)).mean()
+          
       
       if history['infection_state'][sim.t - 1].any() > 0:
         pred_placeholder = history['infection_state'][sim.t - 1]
       # Add +1 so the model predicts one day into the future
+      
+      analysis = sim.get_analyzer('analysis')
+      infection_rates = analysis.e_rate + analysis.i_rate
+      
       t_start = time.time()
       pred, contacts_age, mse_loss = inference_func(
         observations_list=obs_rel,
         contacts_list=contacts_rel,
         app_user_ids=app_user_ids,
+        app_users=app_users,
         non_app_user_ids=non_app_user_ids,
         num_updates=num_rounds,
         num_time_steps=num_days + 1,
@@ -248,30 +299,72 @@ def compare_policy_covasim(
         infection_prior=infection_prior,
         user_age_pinf_mean=user_age_pinf_mean,
         linear_feature_imputation = linear_feature_imputation,
+        neural_feature_imputation=neural_feature_imputation,
+        infection_rate=np.float64(infection_rates[sim.t - 1]),
         local_mean_baseline=run_local_mean_baseline,
         prev_z_states=pred_placeholder,
-        mse_states = -1. * np.ones((1, 1, 4), dtype=np.float32),
+        mse_states = history['infection_state_mse'][:, :sim.t] if online_mse else online_mse_mse_states_placeholder,
       )
       pred_dump = np.copy(pred)
       pred[app_users == 0] = np.zeros((4), dtype=np.float32)
       
+      
+      if mse_loss['mae'] >= 0:
+        mae_at_t_imp = mse_loss['mae']
+        mse_at_t_imp = mse_loss['mse']
+      
+      history['mse_values_imputation'][sim.t] = mse_at_t_imp
+      history['mae_values_imputation'][sim.t] = mae_at_t_imp
+      
+      if online_mse:
+        pred_mse, _, _ = mse_inference_func(
+          obs_rel,
+          contacts_rel,
+          app_user_ids,
+          app_users,
+          non_app_user_ids,
+          num_rounds,
+          num_time_steps=num_days + 1,
+          non_app_users_age=non_app_users_age,
+          infection_prior=-1.,
+          user_age_pinf_mean=user_age_pinf_mean,
+          linear_feature_imputation = None,
+          neural_feature_imputation=None,
+          infection_rate=np.float64(infection_rates[sim.t - 1]),
+          local_mean_baseline=False,
+          prev_z_states=None,
+          mse_states=None,
+        )
+      
       if dl_model:
         logger.info('Deep learning predictions')
+        
         user_free = np.logical_not(sim.people.isolated)
         incorporated_users = app_users & user_free
         incorporated_user_ids = np.nonzero(incorporated_users)[0]
         
+        logger.info('Measuring time for model_data creation')
+        start_time = time.time()
+
         model_data = util_dataset.inplace_features_data_creation(
           contacts_rel, obs_rel, pred, user_free,
-          users_age, app_users, num_users, num_time_steps
+          users_age, app_users, num_users, num_time_steps, app_user_ids, infection_rates[sim.t - 1],
         )
+        end_time = time.time()
+        logger.info(f"Time taken for model_data creation: {end_time - start_time} seconds")
         
+        logger.info('Measuring time for create_dataset')
+
+        start_time = time.time()
         if run_mean_baseline:
-          infection_prior_now = np.mean(pred[app_user_ids, -1, 2])
-          train_loader = create_dataset(model_data, model_type, cfg, infection_prior=infection_prior, add_weights=add_weights)
+          # infection_prior_now = np.mean(pred[app_user_ids, -1, 2])
+          train_loader, dataset_user_ids = create_dataset(model_data, model_type, cfg, infection_prior=infection_prior, add_weights=add_weights)
         else:
-          train_loader = create_dataset(model_data, model_type, cfg, add_weights=add_weights, local_mean_base=run_local_mean_baseline)
-          
+          train_loader, dataset_user_ids = create_dataset(model_data, model_type, cfg, add_weights=add_weights, local_mean_base=run_local_mean_baseline)
+        
+        end_time = time.time()
+        logger.info(f"Time taken for dataset creation: {end_time - start_time} seconds")
+    
         all_preds = []
         all_preds = make_predictions(
             dl_model,
@@ -282,23 +375,28 @@ def compare_policy_covasim(
             )
 
         #Reset statistics, since the incorporated users can change.
+        if np.all(all_preds == 0.0):
+          logger.info('All predictions zero.')
+
         state_preds = np.zeros((num_users), dtype=np.float32)
-        state_preds[incorporated_user_ids] = all_preds
+        state_preds[dataset_user_ids] = all_preds
+        
     
         if trace_dir_preds is not None:
             logger.info('Dumping prediction values') 
             util_dataset.dump_preds(pred[:, -1, 2], state_preds, incorporated_users, sim.t, trace_dir_preds, app_user_ids, users_age)
 
       rank_score = pred[:, -1, 1] + pred[:, -1, 2] + state_preds
+      # rank_score = pred[:, -1, 2] + state_preds
       time_spent = time.time() - t_start
-
-      if np.any(np.abs(
-          [policy_weight_01, policy_weight_02, policy_weight_03]) > 1E-9):
-        assert contacts_age is not None, f"Contacts age is {contacts_age}"
-        rank_score += (
-          policy_weight_01 * contacts_age[:, 1] / 10
-          + policy_weight_02 * contacts_age[:, 0] / 10
-          + policy_weight_03 * users_age / 10)
+      
+      if online_mse:
+        mse_at_t_NA = ((pred_mse[app_user_ids, -1, 2] - rank_score[app_user_ids])**2).mean()
+        mae_at_t_NA = (np.absolute(pred_mse[app_user_ids, -1, 2] - rank_score[app_user_ids])).mean()
+        
+        history['mse_values_NA'][sim.t] = mse_at_t_NA
+        history['mae_values_NA'][sim.t] = mae_at_t_NA
+      
 
       if std_rank_noise > 0:
         rank_score += std_rank_noise * np.random.randn(num_users)
@@ -312,9 +410,16 @@ def compare_policy_covasim(
 
       history['infection_prior'][sim.t] = np.mean(pred[app_user_ids, -1, 2])
       
+      app_user_preds = rank_score[app_user_ids]
+      app_user_states = states_today[app_user_ids]
+      app_user_states = np.where((app_user_states == 2) | (app_user_states == 1), 1, 0)
+      auroc = bootstrap_sampling_ave_precision(app_user_preds, app_user_states)
+      
       if trace_dir is not None and sim.t > 10:
         user_free = np.logical_not(sim.people.isolated)
-
+        analysis = sim.get_analyzer('analysis')
+        infection_rates = analysis.e_rate + analysis.i_rate
+        
         rate_user_free = np.mean(user_free)
         rate_infection = np.mean(np.logical_or(
           states_today == 1, states_today == 2))
@@ -337,7 +442,8 @@ def compare_policy_covasim(
           t_now=sim.t,
           rng_seed=int(seed),
           infection_prior = infection_prior,
-          infection_prior_now=history['infection_prior'][sim.t])
+          infection_prior_now=history['infection_prior'][sim.t],
+          infection_rate_prev=infection_rates[sim.t - 1],)
 
       p_at_state = pred[range(num_users), -1, states_today]
       history['likelihoods_state'][sim.t] = np.mean(np.log(p_at_state+1E-9))
@@ -345,7 +451,10 @@ def compare_policy_covasim(
         p_at_state[states_today == 2])
       history['time_inf_func'][sim.t] = time_spent
       history['infection_state'][sim.t] = pred[:, -1, 2]
-      
+      history['aurocs'][sim.t] = auroc
+      if online_mse:
+        history['infection_state_mse'][:, sim.t] = pred_mse[:, -1]
+
     else:
       # For the first few days of a simulation, just test randomly
       rank_score = np.ones(num_users) + np.random.rand(num_users)
@@ -387,7 +496,6 @@ def compare_policy_covasim(
   logger.info(analysis.e_rate)
   logger.info(analysis.i_rate)
   
-  
   infection_rates = analysis.e_rate + analysis.i_rate
   user_infection_rates = analysis.user_e_rate + analysis.user_i_rate
   peak_crit_rate = np.max(analysis.crit_rate)
@@ -401,7 +509,7 @@ def compare_policy_covasim(
   
   total_drate = sim.people.dead.sum() / len(sim.people)
   user_total_drate = sim.people.dead[app_users].sum() / app_users.sum()
-
+  
   prequential.dump_results_json(
     datadir=results_dir,
     cfg=cfg,
@@ -416,6 +524,11 @@ def compare_policy_covasim(
     critical_rates=analysis.crit_rate.tolist(),
     likelihoods_state=history_intv['likelihoods_state'].tolist(),
     ave_prob_inf_at_inf=history_intv['ave_prob_inf_at_inf'].tolist(),
+    mae_avg_imp=float(history_intv['mae_values_imputation'].mean()),
+    mse_avg_imp=float(history_intv['mse_values_imputation'].mean()),
+    mae_avg_na=float(history_intv['mae_values_NA'].mean()),
+    mse_avg_na=float(history_intv['mse_values_NA'].mean()),
+    avg_auroc=float(history_intv['aurocs'].mean()),
     inference_method=inference_method,
     name=runner.name,
     pir=float(np.max(infection_rates)),
@@ -445,6 +558,9 @@ def compare_policy_covasim(
     "loadavg5": loadavg5,
     "loadavg15": loadavg15,
     "swap_use": swap_use,
+    "mse_avg_na": float(history_intv['mse_values_NA'].mean()),
+    "mse_avg_imp": float(history_intv['mse_values_imputation'].mean()),
+    "avg_auroc": float(history_intv['aurocs'].mean()),
     "recall": np.nanmean(analysis.recalls[10:]),
     "precision": np.nanmean(analysis.precisions[10:]),
     "user_recall": np.nanmean(analysis.user_recalls[10:]),
