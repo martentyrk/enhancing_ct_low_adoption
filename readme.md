@@ -1,9 +1,11 @@
-# Protect Your Score
+# Enhancing Statistical Contact Tracing in Scenarios of Low Adoption
 
-This repo contains accompanying code for the AAAI 2023 paper:
+This repository is the codebase created for a Master's Thesis at the University of Amsterdam. 
+
+The base code for the factorized neighbors algorithm and the simulators comes from the AAAI 2023 paper:
 'Protect Your Score: Contact Tracing with Differential Privacy Guarantees'.
 
-The library is named DPFN, after the decentralized algorithm that we introduce.
+All the instructions given here are from the original repository.
 
 ## Typical usage
 
