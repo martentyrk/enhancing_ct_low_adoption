@@ -42,19 +42,6 @@ class GCN_Weights(nn.Module):
         backbone_layers.append(nn.Linear(nhid, 1))
         self.backbone_fc = nn.Sequential(*backbone_layers)
 
-    # def reset_parameters(self):
-    #     for layer in self.gcn:
-    #         if hasattr(layer, 'reset_parameters'):
-    #             layer.reset_parameters()
-
-    #     for layer in self.backbone_fc:
-    #         if isinstance(layer, nn.Linear):
-    #             nn.init.xavier_uniform_(layer.weight, gain=1.414)
-    #             layer.bias.data.fill_(0)
-
-    #     nn.init.xavier_uniform_(self.emb.weight, gain=1.414)
-    #     self.emb.bias.data.fill_(0)
-
     def forward(self, data):
         x, edge_index, batch, known_mask, unk_mask, obs_mask = data.x, data.edge_index, data.batch, data.known_mask, data.unk_mask, data.obs_mask
         known_mask = known_mask.to(torch.int)
