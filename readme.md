@@ -1,6 +1,10 @@
-# Protect Your Score: Contact Tracing With Differential Privacy Guarantees
+# Enhancing Statistical Contact Tracing in Scenarios of Low Adoption
 
-This repo contains accompanying code for the anonymous submission titled "Protect Your Score"
+This repository contains the code for the thesis of Marten Türk titled Enhancing Statistical Contact Tracing in Scenarios of Low Adoption.
+
+This base code containing the factorized neighbours and simulators is from the AAAI 2023 paper: 'Protect Your Score: Contact Tracing with Differential Privacy Guarantees'.
+
+The instructions for installation and use are from the original repository.
 
 ## Typical usage
 

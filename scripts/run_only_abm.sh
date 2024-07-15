@@ -16,8 +16,6 @@ module load 2022
 module load GSL/2.7-GCC-11.3.0
 module load SWIG/4.0.2-GCCcore-11.3.0
 
-# srun python3 dpfn/main.py --model set --name=10k_users_SET_06_test --model_name set_all_users_0.6_1layers.pth --seed_value 45 --app_users_fraction 0.6  --n_layers 1  --config_data=intermediate_graph_abm_02 --simulator=abm --inference_method=fn --num_users 10000
-
 srun python3 dpfn/main.py \
     --app_users_fraction 0.6 \
     --name=test_run_for_cpu \
