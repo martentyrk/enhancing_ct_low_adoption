@@ -23,7 +23,7 @@ from joblib import load
 
 if __name__ == "__main__":
     all_model_types = np.concatenate((GRAPH_MODELS, ['set']))
-    
+
     parser = argparse.ArgumentParser(
         description='Compare statistics acrosss inference methods')
     parser.add_argument('--inference_method', type=str, default='fn',
@@ -44,10 +44,11 @@ if __name__ == "__main__":
     parser.add_argument('--dump_traces', action='store_true')
     parser.add_argument('--app_users_fraction', type=float, default=None)
     parser.add_argument('--modify_contacts', action='store_true')
-    parser.add_argument('--age_baseline', action='store_true')
-    parser.add_argument('--mean_baseline', action='store_true', help='Global average feature imputation baseline')
+    parser.add_argument('--mean_baseline', action='store_true',
+                        help='Global average feature imputation baseline')
     parser.add_argument('--local_mean_baseline', action='store_true')
-    parser.add_argument('--gaussian_baseline', action='store_true', help='Gaussian sampling for feature imputation')
+    parser.add_argument('--gaussian_baseline', action='store_true',
+                        help='Gaussian sampling for feature imputation')
     parser.add_argument('--static_baseline', action='store_true')
     parser.add_argument('--static_baseline_path', type=str,
                         default='dpfn/data/static_mean_baseline_results')
@@ -79,7 +80,7 @@ if __name__ == "__main__":
                         type=float,
                         default=0,
                         help='Noise added to testing rankings to generate more positive samples, hence more data')
-    parser.add_argument('--dump_traces_folder', 
+    parser.add_argument('--dump_traces_folder',
                         type=str,
                         default='datadump_mean',
                         help='Folder name where to dump traces')
@@ -115,14 +116,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
     # Both baselines should not be used at the same time.
     assert sum([args.age_baseline, args.mean_baseline]) <= 1
- 
+
     configname_data = args.config_data
     configname_model = args.config_model
     fname_config_data = f"dpfn/config/{configname_data}.ini"
     fname_config_model = f"dpfn/config/{configname_model}.ini"
     data_dir = f"dpfn/data/{configname_data}/"
     inf_method = args.inference_method
-    
+
     config_data = config.ConfigBase(fname_config_data)
     config_model = config.ConfigBase(fname_config_model)
 
@@ -133,13 +134,13 @@ if __name__ == "__main__":
     config_wandb['dl_model_name'] = args.model_name
     config_wandb['dl_model_type'] = args.model
     config_wandb['cpu_count'] = util.get_cpu_count()
-        
+
     config_wandb['data'] = config_data.to_dict()
     config_wandb['model'] = config_model.to_dict()
-    
+
     if args.testing_fraction is not None:
         config_wandb["data"]["fraction_test"] = args.testing_fraction
-        
+
     config_wandb['std_rank_noise'] = args.std_rank_noise
     config_wandb['feature_propagation'] = args.feature_propagation
     config_wandb['feature_imp_model'] = args.feature_imp_model
@@ -157,12 +158,14 @@ if __name__ == "__main__":
     if args.app_users_fraction:
         config_wandb["data"]["app_users_fraction"] = float(
             args.app_users_fraction)
-        
+
     neural_imp_model = None
     if args.neural_imputation_model_path:
         neural_imp_model = {}
-        neural_imp_model['model'] = get_neural_imp_model(args.neural_imputation_model_path, args.simulator, device)
-        neural_imp_model['one_hot_encoder'] = neural_one_hot_encoder = load('dpfn/config/feature_imp_configs/' + args.neural_imputation_model_path.split('.')[0] + '.joblib')
+        neural_imp_model['model'] = get_neural_imp_model(
+            args.neural_imputation_model_path, args.simulator, device)
+        neural_imp_model['one_hot_encoder'] = neural_one_hot_encoder = load(
+            'dpfn/config/feature_imp_configs/' + args.neural_imputation_model_path.split('.')[0] + '.joblib')
 
     # WandB tags
     tags = [
@@ -188,7 +191,7 @@ if __name__ == "__main__":
     config_wandb = util_experiments.convert_log_params(config_wandb)
     logger.info(config_wandb)
     # Prepare model if model given
-    
+
     # Set random seed
     seed_value = config_wandb.get("seed", -1)
     if seed_value < 0:
@@ -196,13 +199,13 @@ if __name__ == "__main__":
             seed_value = args.seed_value
         else:
             seed_value = random.randint(0, 999)
-            
+
     logger.info(f"Seed value: {seed_value}")
     random.seed(seed_value)
     np.random.seed(seed_value)
     torch.manual_seed(seed_value)
     torch.cuda.manual_seed(seed_value)
-    
+
     if args.model:
         logger.info(f'Running with the deep model: {str(args.model)}')
         num_features = 5
@@ -210,9 +213,11 @@ if __name__ == "__main__":
             num_features = 8
         elif args.simulator == 'abm' and args.one_hot_encoding:
             num_features = 7
-            
-        dl_model = get_model(args.model, n_layers=args.n_layers, nhid=args.nhid, num_features=num_features).to(device)
-        saved_model = torch.load(f"dpfn/config/dl_configs/" + args.simulator + '/' + args.model_name, map_location=torch.device(device))
+
+        dl_model = get_model(args.model, n_layers=args.n_layers,
+                             nhid=args.nhid, num_features=num_features).to(device)
+        saved_model = torch.load(f"dpfn/config/dl_configs/" + args.simulator +
+                                 '/' + args.model_name, map_location=torch.device(device))
         dl_model.load_state_dict(saved_model)
 
         if args.model == 'gcn_weight':
@@ -221,7 +226,7 @@ if __name__ == "__main__":
 
     else:
         dl_model = None
-    
+
     # Random number generator to pass as argument to some imported functions
     arg_rng = np.random.default_rng(seed=seed_value)
 
@@ -231,44 +236,45 @@ if __name__ == "__main__":
     else:
         sim_name = 'abm'
     if args.model:
-      input_str = args.name
-      experiment_name = f'{input_str}_run_{sim_name}_seed_model_' + \
-          str(args.model) + '_seed_' + str(seed_value)
+        input_str = args.name
+        experiment_name = f'{input_str}_run_{sim_name}_seed_model_' + \
+            str(args.model) + '_seed_' + str(seed_value)
     elif args.inference_method == 'random':
         experiment_name = f'run_{sim_name}_oracle_seed_' + str(seed_value)
     elif args.static_baseline:
         if args.mean_baseline:
-            experiment_name = f'run_{sim_name}_static_mean_seed_' + str(seed_value)
+            experiment_name = f'run_{sim_name}_static_mean_seed_' + \
+                str(seed_value)
         elif args.age_baseline:
-            experiment_name = f'run_{sim_name}_static_age_seed_' + str(seed_value)
+            experiment_name = f'run_{sim_name}_static_age_seed_' + \
+                str(seed_value)
     elif args.feature_imp_model:
         experiment_name = f'run_{sim_name}_linreg_seed_' + str(seed_value)
     elif args.neural_imputation_model_path:
         experiment_name = f'run_{sim_name}_neural_imp_seed_' + str(seed_value)
     elif args.mean_baseline:
-      experiment_name = f'run_{sim_name}_mean_seed_' + str(seed_value)
+        experiment_name = f'run_{sim_name}_mean_seed_' + str(seed_value)
     elif args.local_mean_baseline:
-      experiment_name = f'run_{sim_name}_local_mean_seed_' + str(seed_value)
+        experiment_name = f'run_{sim_name}_local_mean_seed_' + str(seed_value)
     elif args.age_baseline:
-      experiment_name = f'run_{sim_name}_age_seed_' + str(seed_value)
+        experiment_name = f'run_{sim_name}_age_seed_' + str(seed_value)
     else:
-      experiment_name = f'run_{sim_name}_seed_' + str(seed_value)
+        experiment_name = f'run_{sim_name}_seed_' + str(seed_value)
 
     if args.dump_traces:
-      experiment_name = experiment_name + '_dump_traces'
+        experiment_name = experiment_name + '_dump_traces'
 
     if args.app_users_fraction:
         experiment_name = experiment_name + \
             "_adaption_" + str(args.app_users_fraction)
-          
+
     elif 'app_users_fraction_wandb' in config_wandb:
         experiment_name = experiment_name + "_adaption_" + \
             str(config_wandb.get('app_users_fraction_wandb', -1))
-            
+
     # if args.testing_fraction:
     #         experiment_name = experiment_name + "_testingfrac_" + str(args.testing_fraction)
-            
-            
+
     results_dir_global = (
         f'results/{experiment_name}/{configname_data}_{configname_model}/')
 
@@ -286,12 +292,13 @@ if __name__ == "__main__":
         logger.info(f"Dump traces to results_dir_global {trace_dir_global}")
     else:
         trace_dir_global = None
-    
+
     if args.collect_pred_data:
         trace_dir_preds = (
             f'../../../../scratch-shared/mturk/preddump/trace_{experiment_name}')
         util.maybe_make_dir(trace_dir_preds)
-        logger.info(f"Dump predictions to results_dir_global {trace_dir_global}")
+        logger.info(
+            f"Dump predictions to results_dir_global {trace_dir_global}")
     else:
         trace_dir_preds = None
 
@@ -326,7 +333,7 @@ if __name__ == "__main__":
 
         static_baseline_value = np.mean(
             np.array(overall_baseline), axis=0, dtype=np.float32)
-        
+
         logger.info(f"Static baseline value: {static_baseline_value}")
 
     try:
@@ -344,13 +351,12 @@ if __name__ == "__main__":
             runner=runner_global,
             results_dir=results_dir_global,
             arg_rng=arg_rng,
-            neural_imp_model = neural_imp_model,
+            neural_imp_model=neural_imp_model,
             trace_dir=trace_dir_global,
-            trace_dir_preds = trace_dir_preds,
+            trace_dir_preds=trace_dir_preds,
             do_diagnosis=args.do_diagnosis,
             modify_contacts=args.modify_contacts,
             run_mean_baseline=args.mean_baseline,
-            run_age_baseline=args.age_baseline,
             run_local_mean_baseline=args.local_mean_baseline,
             static_baseline_value=static_baseline_value,
             dl_model=dl_model,

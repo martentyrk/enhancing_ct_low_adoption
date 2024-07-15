@@ -18,10 +18,10 @@ class HeteroGNN(torch.nn.Module):
                 ('observation', 'connect', 'target'): GraphConv(num_features, hidden_channels, add_self_loops=False),
             }, aggr='sum')
             self.convs.append(conv)
-            
+
         self.mlp = Linear(hidden_channels, hidden_channels)
         self.lin = Linear(hidden_channels, out_channels)
-        
+
     def reset_parameters(self):
         for hetero_conv in self.convs:
             for conv in hetero_conv.convs.values():
@@ -34,11 +34,11 @@ class HeteroGNN(torch.nn.Module):
 
     def forward(self, data):
         x_dict, edge_index_dict = data.x_dict, data.edge_index_dict
-        
+
         for conv in self.convs:
             x_dict = conv(x_dict, edge_index_dict)
             x_dict = {key: F.relu(x) for key, x in x_dict.items()}
-            
+
         x = self.mlp(x_dict['target'])
         x = self.lin(x)
         return x
