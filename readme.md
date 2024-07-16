@@ -6,6 +6,9 @@ This base code containing the factorized neighbours and simulators is from the A
 
 The instructions for installation and use are from the original repository.
 
+NB: There is currently a separate repository for training the neural augmentation models and the neural imputation models. The repository is accessible from [here](https://github.com/martentyrk/ct_low_adoption).
+The ct_low_adoption repo will be merged with the current repo in the near future.
+
 ## Typical usage
 
 Starting point for experiments will be the following command:
